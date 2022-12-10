@@ -8,5 +8,6 @@ edition = "2021"
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 id3 = "1.4"
+metaflac = "0.2"
 env_logger = "0.10"
 log = "0.4"

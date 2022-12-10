@@ -8,8 +8,10 @@
 
 //! Tags and tag-related functions.
 
+mod flac;
 mod id3;
 
+use crate::tag::flac::FlacTag;
 use crate::tag::id3::ID3v2Tag;
 use std::path::Path;
 
@@ -229,6 +231,8 @@ pub enum TagType {
     ID3v23,
     /// ID3v2.3 tag
     ID3v24,
+    /// Vorbis tag from a FLAC file
+    Flac,
 }
 
 /// A tag tag can be used for reading.
@@ -255,6 +259,10 @@ impl TaggedFile {
                     .to_str()
                     .and_then(|extension| match extension {
                         "mp3" => ID3v2Tag::read_from_path(&path)
+                            .map(Box::new)
+                            .map(|tag| Box::<dyn Tag>::from(tag))
+                            .map(|tag| vec![tag]),
+                        "flac" => FlacTag::read_from_path(&path)
                             .map(Box::new)
                             .map(|tag| Box::<dyn Tag>::from(tag))
                             .map(|tag| vec![tag]),
