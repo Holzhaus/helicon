@@ -19,23 +19,23 @@ use std::path::Path;
 #[allow(dead_code)]
 pub enum TagKey {
     /// AcoustID associated with the track.
-    AcoustidId,
+    AcoustId,
     /// AcoustID Fingerprint for the track.
-    AcoustidFingerprint,
+    AcoustIdFingerprint,
     /// Title of the release.
     Album,
     /// Artist(s) primarily credited on the release.
     AlbumArtist,
     /// Release Artist’s Sort Name (e.g.: “Beatles, The”).
-    AlbumArtistSort,
+    AlbumArtistSortOrder,
     /// Release Title’s Sort Name.
-    AlbumSort,
+    AlbumSortOrder,
     /// Artist who arranged the tune for performance.
     Arranger,
     /// Track Artist Name(s).
     Artist,
     /// Track Artist Sort Name.
-    ArtistSort,
+    ArtistSortOrder,
     /// Track Artist Name(s).
     Artists,
     /// Amazon Standard Identification Number - the number identifying the item on Amazon.
@@ -55,7 +55,7 @@ pub enum TagKey {
     /// Composer Name(s).
     Composer,
     /// Composer Sort Name.
-    ComposerSort,
+    ComposerSortOrder,
     /// Conductor Name(s).
     Conductor,
     /// Contain copyright message for the copyright holder of the original sound, begin with a year and a space character.
@@ -78,19 +78,21 @@ pub enum TagKey {
     Genre,
     /// Content Group.
     Grouping,
+    /// Initial key of the track.
+    InitialKey,
     /// International Standard Recording Code
     ///
     /// An international standard code for uniquely identifying sound recordings and music video
     /// recordings.
     Isrc,
-    /// Key of the music.
-    Key,
     /// Work lyric language as per ISO 639-3.
     Language,
     /// License of the recording or release.
     License,
     /// Lyricist Name(s).
     Lyricist,
+    /// Lyrics.
+    Lyrics,
     /// Release Format (e.g.: CD).
     Media,
     /// DJ-Mix Artist Name(s).
@@ -104,7 +106,7 @@ pub enum TagKey {
     /// Movement.
     Movement,
     /// Movement Count.
-    MovementTotal,
+    MovementCount,
     /// Movement Number.
     MovementNumber,
     /// Track Artist’s MusicBrainz Identifier.
@@ -116,11 +118,11 @@ pub enum TagKey {
     /// Original Track Artist’s MusicBrainz Identifier.
     MusicBrainzOriginalArtistId,
     /// Original Release’s MusicBrainz Identifier.
-    MusicBrainzOriginalAlbumId,
+    MusicBrainzOriginalReleaseId,
     /// Recording’s MusicBrainz Identifier.
     MusicBrainzRecordingId,
     /// Release Artist’s MusicBrainz Identifier.
-    MusicBrainzAlbumartistId,
+    MusicBrainzReleaseArtistId,
     /// Release Group’s MusicBrainz Identifier.
     MusicBrainzReleaseGroupId,
     /// Release MusicBrainz Identifier.
@@ -153,23 +155,27 @@ pub enum TagKey {
     /// The filename is case sensitive and includes its suffix.
     OriginalFilename,
     /// The original release date in the format YYYY-MM-DD.
-    OriginalDate,
+    OriginalReleaseDate,
     /// The year of the original release date in the format YYYY.
-    OriginalYear,
+    OriginalReleaseYear,
+    /// Performer.
+    Performer,
     /// Podcast.
     Podcast,
     /// Podcast URL.
-    Podcasturl,
+    PodcastUrl,
     /// Producer Nae(s).
     Producer,
     /// Rating of the track.
     Rating,
-    /// Release Label Name(s).
-    Label,
+    /// Release Record Label Name(s).
+    RecordLabel,
     /// Country in which the release was issued.
     ReleaseCountry,
     /// Release Date (YYYY-MM-DD) - the date that the release was issued.
-    Date,
+    ReleaseDate,
+    /// Release Year (YYYY) - the year that the release was issued.
+    ReleaseYear,
     /// Release Status indicating the “official” status of the release.
     ReleaseStatus,
     /// Release Group Type.
@@ -195,9 +201,9 @@ pub enum TagKey {
     /// The values should be taken from the ISO 15924 standard.
     Script,
     /// Show Name.
-    Show,
-    /// Show Sort Name.
-    ShowSort,
+    ShowName,
+    /// Show Name Sort Order.
+    ShowNameSortOrder,
     /// Show Work & Movement.
     ShowMovement,
     /// Used for information directly related to the contents title.
@@ -209,11 +215,11 @@ pub enum TagKey {
     /// Track number on the disc.
     TrackNumber,
     /// Track Title.
-    Title,
+    TrackTitle,
     /// Track Title’s Sort Name.
-    TitleSort,
+    TrackTitleSortOrder,
     /// Used for official artist website.
-    Website,
+    ArtistWebsite,
     /// Title of the work.
     WorkTitle,
     /// Writer Name(s).
