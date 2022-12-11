@@ -8,6 +8,8 @@
 
 //! Support for ID3 tags.
 
+#![cfg(feature = "id3")]
+
 use crate::tag::{Tag, TagKey, TagType};
 use id3::TagLike;
 use std::path::Path;

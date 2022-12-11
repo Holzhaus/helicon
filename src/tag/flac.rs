@@ -8,6 +8,8 @@
 
 //! Support for FLAC tags.
 
+#![cfg(feature = "flac")]
+
 use crate::tag::{Tag, TagKey, TagType};
 use std::path::Path;
 

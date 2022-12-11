@@ -8,11 +8,11 @@
 
 //! Tags and tag-related functions.
 
+#[cfg(feature = "flac")]
 mod flac;
+#[cfg(feature = "id3")]
 mod id3;
 
-use crate::tag::flac::FlacTag;
-use crate::tag::id3::ID3v2Tag;
 use std::path::Path;
 
 /// A tag key describes the kind of information in a generic, format-independent way.
@@ -230,6 +230,7 @@ pub enum TagKey {
 
 /// The tag type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum TagType {
     /// ID3v2.2 tag
     ID3v22,
@@ -264,11 +265,13 @@ impl TaggedFile {
                 ext.to_ascii_lowercase()
                     .to_str()
                     .and_then(|extension| match extension {
-                        "mp3" => ID3v2Tag::read_from_path(&path)
+                        #[cfg(feature = "id3")]
+                        "mp3" => self::id3::ID3v2Tag::read_from_path(&path)
                             .map(Box::new)
                             .map(|tag| Box::<dyn Tag>::from(tag))
                             .map(|tag| vec![tag]),
-                        "flac" => FlacTag::read_from_path(&path)
+                        #[cfg(feature = "flac")]
+                        "flac" => self::flac::FlacTag::read_from_path(&path)
                             .map(Box::new)
                             .map(|tag| Box::<dyn Tag>::from(tag))
                             .map(|tag| vec![tag]),

@@ -7,7 +7,12 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
-id3 = "1.4"
-metaflac = "0.2"
 env_logger = "0.10"
 log = "0.4"
+id3 = { version = "1.4", optional = true }
+metaflac = { version = "0.2", optional = true }
+
+[features]
+default = ["flac", "id3"]
+flac = ["dep:metaflac"]
+id3 = ["dep:id3"]
