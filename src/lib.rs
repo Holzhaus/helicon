@@ -11,6 +11,7 @@
 #![deny(clippy::all)]
 #![deny(clippy::pedantic)]
 #![deny(clippy::missing_docs_in_private_items)]
+#![allow(clippy::too_many_lines)]
 #![allow(clippy::doc_markdown)]
 #![allow(clippy::module_name_repetitions)]
 #![deny(warnings)]
