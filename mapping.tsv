@@ -1,0 +1,93 @@
+Description	Internal Name	Picard Internal Name	ID3v2	Vorbis	APEv2	iTunes MP4	ASF/Windows Media	RIFF INFO
+AcoustID	AcoustId	acoustid_id	TXXX:Acoustid Id	ACOUSTID_ID	ACOUSTID_ID	----:com.apple.iTunes:Acoustid Id	Acoustid/Id	n/a
+AcoustID Fingerprint	AcoustIdFingerprint	acoustid_fingerprint	TXXX:Acoustid Fingerprint	ACOUSTID_FINGERPRINT	ACOUSTID_FINGERPRINT	----:com.apple.iTunes:Acoustid Fingerprint	Acoustid/Fingerprint	n/a
+Album	Album	album	TALB	ALBUM	Album	©alb	WM/AlbumTitle	IPRD
+Album Artist	AlbumArtist	albumartist	TPE2	ALBUMARTIST	Album Artist	aART	WM/AlbumArtist	n/a
+Album Artist Sort Order	AlbumArtistSortOrder	albumartistsort	TSO2 (Picard>=1.2) TXXX:ALBUMARTISTSORT (Picard<=1.1)	ALBUMARTISTSORT	ALBUMARTISTSORT	soaa	WM/AlbumArtistSortOrder	n/a
+Album Sort Order	AlbumSortOrder	albumsort	TSOA	ALBUMSORT	ALBUMSORT	soal	WM/AlbumSortOrder	n/a
+Arranger	Arranger	arranger	TIPL:arranger (ID3v2.4) IPLS:arranger (ID3v2.3)	ARRANGER	Arranger	n/a	n/a	n/a
+Artist	Artist	artist	TPE1	ARTIST	Artist	©ART	Author	IART
+Artist Sort Order	ArtistSortOrder	artistsort	TSOP	ARTISTSORT	ARTISTSORT	soar	WM/ArtistSortOrder	n/a
+Artists	Artists	artists	TXXX:ARTISTS	ARTISTS	Artists	----:com.apple.iTunes:ARTISTS	WM/ARTISTS	n/a
+ASIN	Asin	asin	TXXX:ASIN	ASIN	ASIN	----:com.apple.iTunes:ASIN	ASIN	n/a
+Barcode	Barcode	barcode	TXXX:BARCODE	BARCODE	Barcode	----:com.apple.iTunes:BARCODE	WM/Barcode	n/a
+BPM	Bpm	bpm	TBPM	BPM	BPM	tmpo	WM/BeatsPerMinute	n/a
+Catalog Number	CatalogNumber	catalognumber	TXXX:CATALOGNUMBER	CATALOGNUMBER	CatalogNumber	----:com.apple.iTunes:CATALOGNUMBER	WM/CatalogNo	n/a
+Comment	Comment	comment:description	COMM:description	COMMENT	Comment	©cmt	Description	ICMT
+Compilation (iTunes)	Compilation	compilation	TCMP	COMPILATION	Compilation	cpil	WM/IsCompilation	n/a
+Composer	Composer	composer	TCOM	COMPOSER	Composer	©wrt	WM/Composer	IMUS
+Composer Sort Order	ComposerSortOrder	composersort	TSOC (Picard>=1.3) TXXX:COMPOSERSORT (Picard<=1.2)	COMPOSERSORT	COMPOSERSORT	soco	WM/ComposerSortOrder (Picard>=1.3)	n/a
+Conductor	Conductor	conductor	TPE3	CONDUCTOR	Conductor	----:com.apple.iTunes:CONDUCTOR	WM/Conductor	n/a
+Copyright	Copyright	copyright	TCOP	COPYRIGHT	Copyright	cprt	Copyright	ICOP
+Director	Director	director	TXXX:DIRECTOR	DIRECTOR	Director	©dir	WM/Director	n/a
+Disc Number	DiscNumber	discnumber	TPOS	DISCNUMBER	Disc	disk	WM/PartOfSet	n/a
+Disc Subtitle	DiscSubtitle	discsubtitle	TSST (ID3v2.4 only)	DISCSUBTITLE	DiscSubtitle	----:com.apple.iTunes:DISCSUBTITLE	WM/SetSubTitle	n/a
+Encoded By	EncodedBy	encodedby	TENC	ENCODEDBY	EncodedBy	©too	WM/EncodedBy	IENC
+Encoder Settings	EncoderSettings	encodersettings	TSSE	ENCODERSETTINGS	EncoderSettings	n/a	WM/EncodingSettings (Picard>=1.3.1)	n/a
+Engineer	Engineer	engineer	TIPL:engineer (ID3v2.4) IPLS:engineer (ID3v2.3)	ENGINEER	Engineer	----:com.apple.iTunes:ENGINEER	WM/Engineer	IENG
+Gapless Playback	GaplessPlayback	gapless	n/a	n/a	n/a	pgap	n/a	n/a
+Genre	Genre	genre	TCON	GENRE	Genre	©gen	WM/Genre	IGNR
+Grouping	Grouping	grouping	TIT1 GRP1	GROUPING	Grouping	©grp	WM/ContentGroupDescription	n/a
+Initial Key	InitialKey	key (Picard>=1.4)	TKEY	KEY	KEY	----:com.apple.iTunes:initialkey	WM/InitialKey	n/a
+ISRC	Isrc	isrc	TSRC	ISRC	ISRC	----:com.apple.iTunes:ISRC	WM/ISRC	n/a
+Language	Language	language	TLAN	LANGUAGE	Language	----:com.apple.iTunes:LANGUAGE	WM/Language	ILNG
+License	License	license	WCOP (single URL) TXXX:LICENSE (multiple or non-URL)	LICENSE	LICENSE	----:com.apple.iTunes:LICENSE	n/a	n/a
+Lyricist	Lyricist	lyricist	TEXT	LYRICIST	Lyricist	----:com.apple.iTunes:LYRICIST	WM/Writer	n/a
+Lyrics	Lyrics	lyrics:description	USLT:description	LYRICS	Lyrics	©lyr	WM/Lyrics	n/a
+Media	Media	media	TMED	MEDIA	Media	----:com.apple.iTunes:MEDIA	WM/Media	IMED
+Mix-DJ	DjMixer	djmixer	TIPL:DJ-mix (ID3v2.4) IPLS:DJ-mix (ID3v2.3)	DJMIXER	DJMixer	----:com.apple.iTunes:DJMIXER	WM/DJMixer	n/a
+Mixer	Mixer	mixer	TIPL:mix (ID3v2.4) IPLS:mix (ID3v2.3)	MIXER	Mixer	----:com.apple.iTunes:MIXER	WM/Mixer	n/a
+Mood	Mood	mood	TMOO (ID3v2.4 only)	MOOD	Mood	----:com.apple.iTunes:MOOD	WM/Mood	n/a
+Movement	Movement	movement (Picard>=2.1)	MVNM	MOVEMENTNAME	MOVEMENTNAME	©mvn	n/a	n/a
+Movement Count	MovementCount	movementtotal (Picard>=2.1)	MVIN	MOVEMENTTOTAL	MOVEMENTTOTAL	mvc	n/a	n/a
+Movement Number	MovementNumber	movementnumber (Picard>=2.1)	MVIN	MOVEMENT	MOVEMENT	mvi	n/a	n/a
+MusicBrainz Artist ID	MusicBrainzArtistId	musicbrainz_artistid	TXXX:MusicBrainz Artist Id	MUSICBRAINZ_ARTISTID	MUSICBRAINZ_ARTISTID	----:com.apple.iTunes:MusicBrainz Artist Id	MusicBrainz/Artist Id	n/a
+MusicBrainz Disc ID	MusicBrainzDiscId	musicbrainz_discid	TXXX:MusicBrainz Disc Id	MUSICBRAINZ_DISCID	MUSICBRAINZ_DISCID	----:com.apple.iTunes:MusicBrainz Disc Id	MusicBrainz/Disc Id	n/a
+MusicBrainz Original Artist ID	MusicBrainzOriginalArtistId	musicbrainz_originalartistid	TXXX:MusicBrainz Original Artist Id	MUSICBRAINZ_ORIGINALARTISTID	n/a	----:com.apple.iTunes:MusicBrainz Original Artist Id (Picard>=2.1)	MusicBrainz/Original Artist Id (Picard>=2.1)	n/a
+MusicBrainz Original Release ID	MusicBrainzOriginalReleaseId	musicbrainz_originalalbumid	TXXX:MusicBrainz Original Album Id	MUSICBRAINZ_ORIGINALALBUMID	n/a	----:com.apple.iTunes:MusicBrainz Original Album Id (Picard>=2.1)	MusicBrainz/Original Album Id (Picard>=2.1)	n/a
+MusicBrainz Recording ID	MusicBrainzRecordingId	musicbrainz_recordingid	UFID:http://musicbrainz.org	MUSICBRAINZ_TRACKID	MUSICBRAINZ_TRACKID	----:com.apple.iTunes:MusicBrainz Track Id	MusicBrainz/Track Id	n/a
+MusicBrainz Release Artist ID	MusicBrainzReleaseArtistId	musicbrainz_albumartistid	TXXX:MusicBrainz Album Artist Id	MUSICBRAINZ_ALBUMARTISTID	MUSICBRAINZ_ALBUMARTISTID	----:com.apple.iTunes:MusicBrainz Album Artist Id	MusicBrainz/Album Artist Id	n/a
+MusicBrainz Release Group ID	MusicBrainzReleaseGroupId	musicbrainz_releasegroupid	TXXX:MusicBrainz Release Group Id	MUSICBRAINZ_RELEASEGROUPID	MUSICBRAINZ_RELEASEGROUPID	----:com.apple.iTunes:MusicBrainz Release Group Id	MusicBrainz/Release Group Id	n/a
+MusicBrainz Release ID	MusicBrainzReleaseId	musicbrainz_albumid	TXXX:MusicBrainz Album Id	MUSICBRAINZ_ALBUMID	MUSICBRAINZ_ALBUMID	----:com.apple.iTunes:MusicBrainz Album Id	MusicBrainz/Album Id	n/a
+MusicBrainz Track ID	MusicBrainzTrackId	musicbrainz_trackid	TXXX:MusicBrainz Release Track Id	MUSICBRAINZ_RELEASETRACKID	MUSICBRAINZ_RELEASETRACKID	----:com.apple.iTunes:MusicBrainz Release Track Id	MusicBrainz/Release Track Id	n/a
+MusicBrainz TRM ID	MusicBrainzTrmId	musicbrainz_trmid (deprecated)	TXXX:MusicBrainz TRM Id	MUSICBRAINZ_TRMID	MUSICBRAINZ_TRMID	----:com.apple.iTunes:MusicBrainz TRM Id	MusicBrainz/TRM Id	n/a
+MusicBrainz Work ID	MusicBrainzWorkId	musicbrainz_workid	TXXX:MusicBrainz Work Id	MUSICBRAINZ_WORKID	MUSICBRAINZ_WORKID	----:com.apple.iTunes:MusicBrainz Work Id	MusicBrainz/Work Id	n/a
+MusicIP Fingerprint	MusicIpFingerprint	musicip_fingerprint	TXXX:MusicMagic Fingerprint	FINGERPRINT=MusicMagic Fingerprint {fingerprint}	n/a	----:com.apple.iTunes:fingerprint	n/a	n/a
+MusicIP PUID	MusicIpPuid	musicip_puid	TXXX:MusicIP PUID	MUSICIP_PUID	MUSICIP_PUID	----:com.apple.iTunes:MusicIP PUID	MusicIP/PUID	n/a
+Original Album	OriginalAlbum	originalalbum	TOAL	n/a	n/a	n/a	WM/OriginalAlbumTitle (Picard>=2.1)	n/a
+Original Artist	OriginalArtist	originalartist	TOPE	n/a	Original Artist (Picard>=2.1)	n/a	WM/OriginalArtist (Picard>=2.1)	n/a
+Original Filename	OriginalFilename	originalfilename (Picard>=2.3)	TOFN	ORIGINALFILENAME	ORIGINALFILENAME	n/a	WM/OriginalFilename	n/a
+Original Release Date	OriginalReleaseDate	originaldate	TDOR (ID3v2.4) TORY (ID3v2.3)	ORIGINALDATE	n/a	n/a	WM/OriginalReleaseTime (Picard>=1.3.1) WM/OriginalReleaseYear (Picard<=1.3.0)	n/a
+Original Release Year	OriginalReleaseYear	originalyear	n/a	ORIGINALYEAR	ORIGINALYEAR	n/a	WM/OriginalReleaseYear (Picard>=1.3.1)	n/a
+Performer	Performer	performer:instrument	TMCL:instrument (ID3v2.4) IPLS:instrument (ID3v2.3)	PERFORMER={artist} (instrument)	Performer={artist} (instrument)	n/a	n/a	n/a
+Podcast	Podcast	podcast	n/a	n/a	n/a	pcst	n/a	n/a
+Podcast URL	PodcastUrl	podcasturl	n/a	n/a	n/a	purl	n/a	n/a
+Producer	Producer	producer	TIPL:producer (ID3v2.4) IPLS:producer (ID3v2.3)	PRODUCER	Producer	----:com.apple.iTunes:PRODUCER	WM/Producer	IPRO
+Rating	Rating	_rating	POPM	RATING:user@email	n/a	n/a	WM/SharedUserRating	n/a
+Record Label	RecordLabel	label	TPUB	LABEL	Label	----:com.apple.iTunes:LABEL	WM/Publisher	n/a
+Release Country	ReleaseCountry	releasecountry	TXXX:MusicBrainz Album Release Country	RELEASECOUNTRY	RELEASECOUNTRY	----:com.apple.iTunes:MusicBrainz Album Release Country	MusicBrainz/Album Release Country	ICNT
+Release Date	ReleaseDate	date	TDRC (ID3v2.4) TDAT (ID3v2.3)	DATE	n/a	n/a	n/a	ICRD
+Release Year	ReleaseYear	n/a	TYER (ID3v2.3)	n/a	Year	n/a	WM/Year	n/a
+Release Status	ReleaseStatus	releasestatus	TXXX:MusicBrainz Album Status	RELEASESTATUS	MUSICBRAINZ_ALBUMSTATUS	----:com.apple.iTunes:MusicBrainz Album Status	MusicBrainz/Album Status	n/a
+Release Type	ReleaseType	releasetype	TXXX:MusicBrainz Album Type	RELEASETYPE	MUSICBRAINZ_ALBUMTYPE	----:com.apple.iTunes:MusicBrainz Album Type	MusicBrainz/Album Type	n/a
+Remixer	Remixer	remixer	TPE4	REMIXER	MixArtist	----:com.apple.iTunes:REMIXER	WM/ModifiedBy	n/a
+ReplayGain Album Gain	ReplayGainAlbumGain	replaygain_album_gain (Picard>=2.2)	TXXX:REPLAYGAIN_ALBUM_GAIN	REPLAYGAIN_ALBUM_GAIN	REPLAYGAIN_ALBUM_GAIN	----:com.apple.iTunes:REPLAYGAIN_ALBUM_GAIN	REPLAYGAIN_ALBUM_GAIN	n/a
+ReplayGain Album Peak	ReplayGainAlbumPeak	replaygain_album_peak (Picard>=2.2)	TXXX:REPLAYGAIN_ALBUM_PEAK	REPLAYGAIN_ALBUM_PEAK	REPLAYGAIN_ALBUM_PEAK	----:com.apple.iTunes:REPLAYGAIN_ALBUM_PEAK	REPLAYGAIN_ALBUM_PEAK	n/a
+ReplayGain Album Range	ReplayGainAlbumRange	replaygain_album_range (Picard>=2.2)	TXXX:REPLAYGAIN_ALBUM_RANGE	REPLAYGAIN_ALBUM_RANGE	REPLAYGAIN_ALBUM_RANGE	----:com.apple.iTunes:REPLAYGAIN_ALBUM_RANGE	REPLAYGAIN_ALBUM_RANGE	n/a
+ReplayGain Reference Loudness	ReplayGainReferenceLoudness	replaygain_reference_loudness (Picard>=2.2)	TXXX:REPLAYGAIN_REFERENCE_LOUDNESS	REPLAYGAIN_REFERENCE_LOUDNESS	REPLAYGAIN_REFERENCE_LOUDNESS	----:com.apple.iTunes:REPLAYGAIN_REFERENCE_LOUDNESS	REPLAYGAIN_REFERENCE_LOUDNESS	n/a
+ReplayGain Track Gain	ReplayGainTrackGain	replaygain_track_gain (Picard>=2.2)	TXXX:REPLAYGAIN_TRACK_GAIN	REPLAYGAIN_TRACK_GAIN	REPLAYGAIN_TRACK_GAIN	----:com.apple.iTunes:REPLAYGAIN_TRACK_GAIN	REPLAYGAIN_TRACK_GAIN	n/a
+ReplayGain Track Peak	ReplayGainTrackPeak	replaygain_track_peak (Picard>=2.2)	TXXX:REPLAYGAIN_TRACK_PEAK	REPLAYGAIN_TRACK_PEAK	REPLAYGAIN_TRACK_PEAK	----:com.apple.iTunes:REPLAYGAIN_TRACK_PEAK	REPLAYGAIN_TRACK_PEAK	n/a
+ReplayGain Track Range	ReplayGainTrackRange	replaygain_track_range (Picard>=2.2)	TXXX:REPLAYGAIN_TRACK_RANGE	REPLAYGAIN_TRACK_RANGE	REPLAYGAIN_TRACK_RANGE	----:com.apple.iTunes:REPLAYGAIN_TRACK_RANGE	REPLAYGAIN_TRACK_RANGE	n/a
+Script	Script	script	TXXX:SCRIPT	SCRIPT	Script	----:com.apple.iTunes:SCRIPT	WM/Script	n/a
+Show Name	ShowName	show	n/a	n/a	n/a	tvsh	n/a	n/a
+Show Name Sort Order	ShowNameSortOrder	showsort	n/a	n/a	n/a	sosn	n/a	n/a
+Show Work & Movement	ShowMovement	showmovement (Picard>=2.1)	TXXX:SHOWMOVEMENT	SHOWMOVEMENT	SHOWMOVEMENT	shwm	n/a	n/a
+Subtitle	Subtitle	subtitle	TIT3	SUBTITLE	Subtitle	----:com.apple.iTunes:SUBTITLE	WM/SubTitle	n/a
+Total Discs	TotalDiscs	totaldiscs	TPOS	DISCTOTAL and TOTALDISCS	Disc	disk	WM/PartOfSet (Picard>=1.3.1)	n/a
+Total Tracks	TotalTracks	totaltracks	TRCK	TRACKTOTAL and TOTALTRACKS	Track	trkn	n/a	n/a
+Track Number	TrackNumber	tracknumber	TRCK	TRACKNUMBER	Track	trkn	WM/TrackNumber	ITRK
+Track Title	TrackTitle	title	TIT2	TITLE	Title	©nam	Title	INAM
+Track Title Sort Order	TrackTitleSortOrder	titlesort	TSOT	TITLESORT	TITLESORT	sonm	WM/TitleSortOrder	n/a
+Website (official artist website)	ArtistWebsite	website	WOAR	WEBSITE	Weblink	n/a	WM/AuthorURL (Picard>=1.3.1)	n/a
+Work Title	WorkTitle	work (Picard>=1.3)	TXXX:WORK TIT1	WORK	WORK	©wrk (Picard>=2.1)	WM/Work	n/a
+Writer	Writer	writer	TXXX:Writer (Picard>=1.3)	WRITER	Writer	n/a	n/a	IWRI
