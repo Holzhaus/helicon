@@ -124,7 +124,7 @@ pub enum TagKey {
     /// Release Group’s MusicBrainz Identifier.
     MusicBrainzReleaseGroupId,
     /// Release MusicBrainz Identifier.
-    MusicBrainzAlbumId,
+    MusicBrainzReleaseId,
     /// Release Track MusicBrainz Identifier.
     MusicBrainzTrackId,
     /// MusicBrainz TRM ID

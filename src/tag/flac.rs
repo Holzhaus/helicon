@@ -31,7 +31,7 @@ impl FlacTag {
             TagKey::Album => "ALBUM".into(),
             TagKey::AlbumArtist => "ALBUMARTIST".into(),
             TagKey::Artist => "ARTIST".into(),
-            TagKey::MusicBrainzAlbumId => "MUSICBRAINZ_ALBUMID".into(),
+            TagKey::MusicBrainzReleaseId => "MUSICBRAINZ_ALBUMID".into(),
             _ => None,
         }
     }

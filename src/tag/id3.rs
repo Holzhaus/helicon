@@ -40,7 +40,7 @@ impl ID3v2Tag {
             TagKey::Album => FrameId::Text("TALB").into(),
             TagKey::AlbumArtist => FrameId::Text("TPE2").into(),
             TagKey::Artist => FrameId::Text("TPE1").into(),
-            TagKey::MusicBrainzAlbumId => FrameId::ExtendedText("MusicBrainz Album Id").into(),
+            TagKey::MusicBrainzReleaseId => FrameId::ExtendedText("MusicBrainz Album Id").into(),
             _ => None,
         }
     }

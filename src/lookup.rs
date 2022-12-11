@@ -77,7 +77,7 @@ fn find_artist_and_album(files: &[TaggedFile]) -> Option<(&str, &str)> {
 
 /// Find the MusicBrainz release ID from the given files.
 fn find_musicbrainz_release_id(files: &[TaggedFile]) -> Option<&str> {
-    find_most_common_value(files.iter(), &TagKey::MusicBrainzAlbumId).and_then(to_consensus)
+    find_most_common_value(files.iter(), &TagKey::MusicBrainzReleaseId).and_then(to_consensus)
 }
 
 /// Find album information for the given files.
