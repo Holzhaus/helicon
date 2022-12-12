@@ -12,7 +12,6 @@ use crate::lookup::find_album_info;
 use crate::tag::TaggedFile;
 use crate::util::walk_dir;
 use std::collections::HashSet;
-use std::io;
 use std::path::PathBuf;
 
 /// Run an import.
@@ -21,7 +20,7 @@ use std::path::PathBuf;
 ///
 /// If the underlying [`walk_dir`] function encounters any form of I/O or other error, an error
 /// variant will be returned.
-pub fn run(input_path: PathBuf) -> io::Result<()> {
+pub fn run(input_path: PathBuf) -> crate::Result<()> {
     let supported_extensions = HashSet::from(["mp3", "flac"]);
     for item in walk_dir(input_path) {
         let (path, _dirs, files) = item?;
@@ -37,7 +36,13 @@ pub fn run(input_path: PathBuf) -> io::Result<()> {
                     })
                     .unwrap_or(false)
             })
-            .filter_map(TaggedFile::read_from_path)
+            .filter_map(|path| match TaggedFile::read_from_path(path) {
+                Ok(file) => Some(file),
+                Err(err) => {
+                    log::warn!("Failed to read {}: {}", path.display(), err);
+                    None
+                }
+            })
             .collect();
         if tagged_files.is_empty() {
             continue;

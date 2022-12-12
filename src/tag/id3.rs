@@ -30,10 +30,9 @@ pub struct ID3v2Tag {
 
 impl ID3v2Tag {
     /// Read the ID3 tag from the path
-    pub fn read_from_path(path: impl AsRef<Path>) -> Option<Self> {
-        id3::Tag::read_from_path(path)
-            .ok()
-            .map(|data| ID3v2Tag { data })
+    pub fn read_from_path(path: impl AsRef<Path>) -> crate::Result<Self> {
+        let data = id3::Tag::read_from_path(path)?;
+        Ok(ID3v2Tag { data })
     }
 
     /// Get the ID3 frame for a tag key.

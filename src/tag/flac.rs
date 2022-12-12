@@ -21,10 +21,9 @@ pub struct FlacTag {
 
 impl FlacTag {
     /// Read the FLAC tag from the path
-    pub fn read_from_path(path: impl AsRef<Path>) -> Option<Self> {
-        metaflac::Tag::read_from_path(path)
-            .ok()
-            .map(|data| FlacTag { data })
+    pub fn read_from_path(path: impl AsRef<Path>) -> crate::Result<Self> {
+        let data = metaflac::Tag::read_from_path(path)?;
+        Ok(FlacTag { data })
     }
 
     /// Get the vorbis key name for a tag key.

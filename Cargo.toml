@@ -9,6 +9,7 @@ edition = "2021"
 clap = { version = "4", features = ["derive"] }
 env_logger = "0.10"
 log = "0.4"
+thiserror = "1.0"
 id3 = { version = "1.4", optional = true }
 metaflac = { version = "0.2", optional = true }
 

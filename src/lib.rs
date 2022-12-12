@@ -48,7 +48,10 @@
 #![deny(unused_tuple_struct_fields)]
 #![deny(variant_size_differences)]
 
+mod error;
 pub mod import;
 mod lookup;
 mod tag;
 mod util;
+
+pub use self::error::{ErrorType as Error, Result};

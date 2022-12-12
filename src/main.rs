@@ -12,7 +12,6 @@ use clap::Parser;
 use env_logger::{Builder, WriteStyle};
 use log::LevelFilter;
 use mbtagger::import;
-use std::io;
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
@@ -25,7 +24,7 @@ struct Args {
     verbose: bool,
 }
 
-fn main() -> io::Result<()> {
+fn main() -> mbtagger::Result<()> {
     let args = Args::parse();
     let log_level = if args.verbose {
         LevelFilter::Debug

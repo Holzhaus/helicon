@@ -258,13 +258,16 @@ pub struct TaggedFile {
 
 impl TaggedFile {
     /// Creates a [`TaggedFile`] from the path.
-    pub fn read_from_path(path: impl AsRef<Path>) -> Option<Self> {
+    pub fn read_from_path(path: impl AsRef<Path>) -> crate::Result<Self> {
         path.as_ref()
             .extension()
-            .and_then(|ext| {
-                ext.to_ascii_lowercase()
+            .map(std::ffi::OsStr::to_ascii_lowercase)
+            .ok_or(crate::Error::UnknownFileType)
+            .and_then(|extension| {
+                extension
                     .to_str()
-                    .and_then(|extension| match extension {
+                    .ok_or(crate::Error::UnknownFileType)
+                    .map(|ext| match ext {
                         #[cfg(feature = "id3")]
                         "mp3" => self::id3::ID3v2Tag::read_from_path(&path)
                             .map(Box::new)
@@ -275,8 +278,11 @@ impl TaggedFile {
                             .map(Box::new)
                             .map(|tag| Box::<dyn Tag>::from(tag))
                             .map(|tag| vec![tag]),
-                        _ => None,
-                    })
+                        ext => {
+                            log::debug!("Unknown file extension {:?}", ext);
+                            Err(crate::Error::UnknownFileType)
+                        }
+                    })?
             })
             .map(|content| Self { content })
     }
