@@ -9,11 +9,14 @@
 //! Utilities for matching and lookup up albums and tracks.
 
 use crate::tag::{TagKey, TaggedFile};
+use levenshtein::levenshtein;
 use musicbrainz_rs::{
     entity::release::{Release, ReleaseSearchQuery},
     Fetch, Search,
 };
+use std::cmp;
 use std::collections::HashMap;
+use unidecode::unidecode;
 
 /// Finds the most common item in the iterator.
 ///
@@ -68,6 +71,31 @@ where
     I: Iterator<Item = &'a TaggedFile>,
 {
     find_most_common_value(files, key).and_then(to_consensus)
+}
+
+/// Calculate the case- and whitespace-insensitive distance between two strings, where 0.0 is
+/// minimum and 1.0 is the maximum distance.
+#[allow(clippy::cast_precision_loss)]
+#[allow(dead_code)]
+fn string_distance(lhs: &str, rhs: &str) -> f64 {
+    let mut lhs = unidecode(lhs);
+    lhs.retain(|c| c.is_ascii_alphanumeric());
+    lhs.make_ascii_lowercase();
+
+    let mut rhs = unidecode(rhs);
+    rhs.retain(|c| c.is_ascii_alphanumeric());
+    rhs.make_ascii_lowercase();
+
+    if lhs.is_empty() && rhs.is_empty() {
+        return 0.0;
+    }
+
+    let levenshtein_distance = levenshtein(&lhs, &rhs);
+    let max_possible_distance = cmp::max(lhs.len(), rhs.len());
+
+    // FIXME: It's extremely unlikely, but this conversion to f64 is fallible. Hence, it should use
+    // f64::try_from(usize) instead, but unfortunately that doesn't exist.
+    levenshtein_distance as f64 / max_possible_distance as f64
 }
 
 /// Find artist from the given files.
