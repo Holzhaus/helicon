@@ -9,6 +9,10 @@
 //! Utilities for matching and lookup up albums and tracks.
 
 use crate::tag::{TagKey, TaggedFile};
+use musicbrainz_rs::{
+    entity::release::{Release, ReleaseSearchQuery},
+    Fetch, Search,
+};
 use std::collections::HashMap;
 
 /// Finds the most common item in the iterator.
@@ -56,23 +60,29 @@ fn to_consensus<T>((value, count, total): (T, usize, usize)) -> Option<T> {
     (count == total).then_some(value)
 }
 
-/// Find artist and album from the given files.
-fn find_artist_and_album(files: &[TaggedFile]) -> Option<(&str, &str)> {
+/// Finds the consensual value for a certain tag in an iterator of tagged files.
+///
+/// Returns `None` if there is no consensual value.
+fn find_consensual_value<'a, I>(files: I, key: &TagKey) -> Option<&'a str>
+where
+    I: Iterator<Item = &'a TaggedFile>,
+{
+    find_most_common_value(files, key).and_then(to_consensus)
+}
+
+/// Find artist from the given files.
+fn find_artist(files: &[TaggedFile]) -> Option<&str> {
     let artist = [TagKey::AlbumArtist, TagKey::Artist]
         .iter()
         .find_map(|key| find_most_common_value(files.iter(), key));
 
-    let artist = artist
+    artist
         .and_then(to_consensus)
         .map(|v| match v {
             "VA" | "Various" => "Various Artists",
             value => value,
         })
-        .or_else(|| artist.and_then(|(_, count, _)| (count == 1).then_some("Various Artists")));
-
-    let album = find_most_common_value(files.iter(), &TagKey::Album);
-
-    artist.and_then(|artist| album.and_then(to_consensus).map(|album| (artist, album)))
+        .or_else(|| artist.and_then(|(_, count, _)| (count == 1).then_some("Various Artists")))
 }
 
 /// Find the MusicBrainz release ID from the given files.
@@ -81,12 +91,38 @@ fn find_musicbrainz_release_id(files: &[TaggedFile]) -> Option<&str> {
 }
 
 /// Find album information for the given files.
-pub fn find_album_info(files: &[TaggedFile]) {
-    if let Some((artist, album)) = find_artist_and_album(files) {
+pub async fn find_album_info(files: &[TaggedFile]) -> crate::Result<Vec<Release>> {
+    let artist = find_artist(files);
+    let album = find_consensual_value(files.iter(), &TagKey::Album);
+    let artist_and_album = artist.and_then(|artist| album.map(|album| (artist, album)));
+
+    if let Some((artist, album)) = artist_and_album {
         log::info!("Found artist and album: {} - {}", artist, album);
     };
 
     if let Some(mb_album_id) = find_musicbrainz_release_id(files) {
         log::info!("Found MusicBrainz Release Id: {:?}", mb_album_id);
+        match Release::fetch().id(mb_album_id).execute().await {
+            Ok(release) => return Ok(vec![release]),
+            Err(err) => log::warn!("Failed to fetch musicbrainz release: {:?}", err),
+        };
     };
+
+    let tracks = format!("{}", files.len());
+    let mut query = ReleaseSearchQuery::query_builder();
+    let mut query = query.tracks(&tracks);
+    if let Some(v) = artist {
+        query = query.and().artist(v);
+    };
+    if let Some(v) = album {
+        query = query.and().release(v);
+    };
+    if let Some(v) = find_consensual_value(files.iter(), &TagKey::CatalogNumber) {
+        query = query.and().catalog_number(v);
+    };
+    if let Some(v) = find_consensual_value(files.iter(), &TagKey::Barcode) {
+        query = query.and().barcode(v);
+    };
+
+    Ok(Release::search(query.build()).execute().await?.entities)
 }

@@ -24,7 +24,8 @@ struct Args {
     verbose: bool,
 }
 
-fn main() -> mbtagger::Result<()> {
+#[tokio::main]
+async fn main() -> mbtagger::Result<()> {
     let args = Args::parse();
     let log_level = if args.verbose {
         LevelFilter::Debug
@@ -35,5 +36,5 @@ fn main() -> mbtagger::Result<()> {
         .filter(None, log_level)
         .write_style(WriteStyle::Auto)
         .init();
-    import::run(args.path)
+    import::run(args.path).await
 }

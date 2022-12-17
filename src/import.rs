@@ -20,7 +20,7 @@ use std::path::PathBuf;
 ///
 /// If the underlying [`walk_dir`] function encounters any form of I/O or other error, an error
 /// variant will be returned.
-pub fn run(input_path: PathBuf) -> crate::Result<()> {
+pub async fn run(input_path: PathBuf) -> crate::Result<()> {
     let supported_extensions = HashSet::from(["mp3", "flac"]);
     for item in walk_dir(input_path) {
         let (path, _dirs, files) = item?;
@@ -53,7 +53,7 @@ pub fn run(input_path: PathBuf) -> crate::Result<()> {
             path.display(),
             tagged_files.len()
         );
-        find_album_info(&tagged_files);
+        dbg!(find_album_info(&tagged_files).await?);
     }
 
     Ok(())

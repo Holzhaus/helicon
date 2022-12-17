@@ -20,6 +20,9 @@ pub enum ErrorType {
     /// File has an unknown file extension.
     #[error("File has unknown file type")]
     UnknownFileType,
+    /// A MusicBrainz API request failed.
+    #[error("API request failed")]
+    Request(#[from] musicbrainz_rs::Error),
     /// Errors raised by the [`id3`] crate.
     #[cfg(feature = "id3")]
     #[error("Failed to read ID3 tag")]
