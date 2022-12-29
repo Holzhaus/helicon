@@ -38,7 +38,7 @@ where
 {
     let mut counts = HashMap::new();
     items.for_each(|item| *counts.entry(item).or_insert(0) += 1);
-    let total = counts.iter().map(|(_, count)| count).sum();
+    let total = counts.values().sum();
     counts
         .into_iter()
         .max_by_key(|&(_, count)| count)
