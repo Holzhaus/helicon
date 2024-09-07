@@ -1,4 +1,4 @@
-// Copyright (c) 2022 Jan Holthuis <jan.holthuis@rub.de>
+// Copyright (c) 2024 Jan Holthuis <jan.holthuis@rub.de>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy
 // of the MPL was not distributed with this file, You can obtain one at
@@ -7,8 +7,6 @@
 // SPDX-License-Identifier: MPL-2.0
 
 //! Support for ID3 tags.
-
-#![cfg(feature = "id3")]
 
 use crate::tag::{Tag, TagKey, TagType};
 use id3::TagLike;

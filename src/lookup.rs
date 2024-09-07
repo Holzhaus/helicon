@@ -1,4 +1,4 @@
-// Copyright (c) 2022 Jan Holthuis <jan.holthuis@rub.de>
+// Copyright (c) 2024 Jan Holthuis <jan.holthuis@rub.de>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy
 // of the MPL was not distributed with this file, You can obtain one at
@@ -20,20 +20,8 @@ use unidecode::unidecode;
 
 /// Finds the most common item in the iterator.
 ///
-/// # Examples
-///
-/// The function returns `None` if the iterator is empty.
-///
-/// ```rust
-/// assert_eq!(None, max_count(std::iter::empty::<String>()));
-/// ```
-///
-/// In other cases, it returns the most common item, its count and the total number of values.
-///
-/// ```rust
-/// let values = ["dog", "horse", "dog", "cat", "cat", "dog"];
-/// assert_eq!(("dog", 3, 6), max_count(values.iter()));
-/// ```
+/// The function returns `None` if the iterator is empty. In other cases, it returns the most
+/// common item, its count and the total number of values.
 fn max_count<I, T>(items: I) -> Option<(T, usize, usize)>
 where
     I: Iterator<Item = T>,
@@ -153,4 +141,26 @@ pub async fn find_album_info(files: &[TaggedFile]) -> crate::Result<Vec<Release>
     };
 
     Ok(Release::search(query.build()).execute().await?.entities)
+}
+#[cfg(test)]
+mod tests {
+    // Note this useful idiom: importing names from outer (for mod tests) scope.
+    use super::*;
+
+    #[test]
+    fn test_max_count_empty_iterator() {
+        assert_eq!(None, max_count(std::iter::empty::<String>()));
+    }
+
+    #[test]
+    fn test_max_count_with_strings() {
+        let values = ["dog", "horse", "dog", "cat", "cat", "dog"];
+        assert_eq!(Some((&"dog", 3, 6)), max_count(values.iter()));
+    }
+
+    #[test]
+    fn test_max_count_with_integers() {
+        let values = [1, 2, 3, 4, 5, 1, 2, 3, 2, 5, 9, 8, 2];
+        assert_eq!(Some((&2, 4, 13)), max_count(values.iter()));
+    }
 }

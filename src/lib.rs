@@ -1,4 +1,4 @@
-// Copyright (c) 2022 Jan Holthuis <jan.holthuis@rub.de>
+// Copyright (c) 2024 Jan Holthuis <jan.holthuis@rub.de>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy
 // of the MPL was not distributed with this file, You can obtain one at
@@ -28,7 +28,6 @@
 #![deny(missing_docs)]
 #![deny(non_ascii_idents)]
 #![deny(noop_method_call)]
-#![deny(pointer_structural_match)]
 #![deny(rust_2021_incompatible_closure_captures)]
 #![deny(rust_2021_incompatible_or_patterns)]
 #![deny(rust_2021_prefixes_incompatible_syntax)]
@@ -45,7 +44,7 @@
 #![deny(unused_macro_rules)]
 #![deny(unused_qualifications)]
 #![deny(unused_results)]
-#![deny(unused_tuple_struct_fields)]
+#![deny(dead_code)]
 #![deny(variant_size_differences)]
 
 mod error;

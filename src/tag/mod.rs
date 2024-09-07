@@ -1,4 +1,4 @@
-// Copyright (c) 2022 Jan Holthuis <jan.holthuis@rub.de>
+// Copyright (c) 2024 Jan Holthuis <jan.holthuis@rub.de>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy
 // of the MPL was not distributed with this file, You can obtain one at
@@ -245,6 +245,7 @@ pub enum TagType {
 /// A tag tag can be used for reading.
 pub trait Tag {
     /// Get the tag type.
+    #[allow(dead_code)]
     fn tag_type(&self) -> TagType;
     /// Get the string value for the tag key.
     fn get(&self, key: &TagKey) -> Option<&str>;
@@ -269,12 +270,12 @@ impl TaggedFile {
                     .ok_or(crate::Error::UnknownFileType)
                     .map(|ext| match ext {
                         #[cfg(feature = "id3")]
-                        "mp3" => self::id3::ID3v2Tag::read_from_path(&path)
+                        "mp3" => id3::ID3v2Tag::read_from_path(&path)
                             .map(Box::new)
                             .map(|tag| Box::<dyn Tag>::from(tag))
                             .map(|tag| vec![tag]),
                         #[cfg(feature = "flac")]
-                        "flac" => self::flac::FlacTag::read_from_path(&path)
+                        "flac" => flac::FlacTag::read_from_path(&path)
                             .map(Box::new)
                             .map(|tag| Box::<dyn Tag>::from(tag))
                             .map(|tag| vec![tag]),
