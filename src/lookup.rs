@@ -10,7 +10,7 @@
 
 use crate::tag::{TagKey, TaggedFile};
 use levenshtein::levenshtein;
-use musicbrainz_rs::{
+use musicbrainz_rs_nova::{
     entity::release::{Release, ReleaseSearchQuery},
     Fetch, Search,
 };
