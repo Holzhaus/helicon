@@ -24,16 +24,21 @@ struct Args {
     verbose: bool,
 }
 
+impl Args {
+    fn log_level_filter(&self) -> LevelFilter {
+        if self.verbose {
+            LevelFilter::Debug
+        } else {
+            LevelFilter::Info
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> mbtagger::Result<()> {
     let args = Args::parse();
-    let log_level = if args.verbose {
-        LevelFilter::Debug
-    } else {
-        LevelFilter::Info
-    };
     Builder::new()
-        .filter(None, log_level)
+        .filter(None, args.log_level_filter())
         .write_style(WriteStyle::Auto)
         .init();
     import::run(args.path).await

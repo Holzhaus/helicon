@@ -9,6 +9,11 @@
 //! Utilities for matching and lookup up albums and tracks.
 
 use crate::tag::{TagKey, TaggedFile};
+use futures::{
+    future::{self, FutureExt},
+    stream::{self, StreamExt},
+    Stream,
+};
 use levenshtein::levenshtein;
 use musicbrainz_rs_nova::{
     entity::release::{Release, ReleaseSearchQuery},
@@ -187,7 +192,7 @@ fn find_musicbrainz_release_id(files: &[TaggedFile]) -> Option<&str> {
 }
 
 /// Find album information for the given files.
-pub async fn find_album_info(files: &[TaggedFile]) -> crate::Result<Vec<Release>> {
+pub fn find_releases(files: &[TaggedFile]) -> impl Stream<Item = crate::Result<Release>> + '_ {
     let artist = find_artist(files);
     let album = find_consensual_tag_value(files.iter(), &TagKey::Album);
     let artist_and_album = artist.and_then(|artist| album.map(|album| (artist, album)));
@@ -196,32 +201,61 @@ pub async fn find_album_info(files: &[TaggedFile]) -> crate::Result<Vec<Release>
         log::info!("Found artist and album: {} - {}", artist, album);
     };
 
-    if let Some(mb_album_id) = find_musicbrainz_release_id(files) {
-        log::info!("Found MusicBrainz Release Id: {:?}", mb_album_id);
-        match Release::fetch().id(mb_album_id).execute().await {
-            Ok(release) => return Ok(vec![release]),
-            Err(err) => log::warn!("Failed to fetch musicbrainz release: {:?}", err),
-        };
-    };
+    find_musicbrainz_release_id(files)
+        .inspect(|mb_release_id| {
+            log::info!("Found MusicBrainz Release Id: {:?}", mb_release_id);
+        })
+        .map_or_else(
+            || future::ready(None).left_future(),
+            |mb_id| async { find_release_by_mb_id(mb_id.to_string()).await.ok() }.right_future(),
+        )
+        .map(move |result| {
+            if let Some(release) = result {
+                stream::once(future::ok(release)).left_stream()
+            } else {
+                let tracks = format!("{}", files.len());
+                let mut query = ReleaseSearchQuery::query_builder();
+                let mut query = query.tracks(&tracks);
+                if let Some(v) = artist {
+                    query = query.and().artist(v);
+                };
+                if let Some(v) = album {
+                    query = query.and().release(v);
+                };
+                if let Some(v) = find_consensual_tag_value(files.iter(), &TagKey::CatalogNumber) {
+                    query = query.and().catalog_number(v);
+                };
+                if let Some(v) = find_consensual_tag_value(files.iter(), &TagKey::Barcode) {
+                    query = query.and().barcode(v);
+                }
 
-    let tracks = format!("{}", files.len());
-    let mut query = ReleaseSearchQuery::query_builder();
-    let mut query = query.tracks(&tracks);
-    if let Some(v) = artist {
-        query = query.and().artist(v);
-    };
-    if let Some(v) = album {
-        query = query.and().release(v);
-    };
-    if let Some(v) = find_consensual_tag_value(files.iter(), &TagKey::CatalogNumber) {
-        query = query.and().catalog_number(v);
-    };
-    if let Some(v) = find_consensual_tag_value(files.iter(), &TagKey::Barcode) {
-        query = query.and().barcode(v);
-    };
-
-    Ok(Release::search(query.build()).execute().await?.entities)
+                let search = query.build();
+                async { Release::search(search).execute().await }
+                    .map(|result| {
+                        result.map_or_else(
+                            |_| stream::empty().left_stream(),
+                            |response| stream::iter(response.entities).right_stream(),
+                        )
+                    })
+                    .flatten_stream()
+                    .map(|release| release.id)
+                    .then(find_release_by_mb_id)
+                    .right_stream()
+            }
+        })
+        .into_stream()
+        .flatten()
 }
+
+/// Fetch a MusicBrainz release by its release ID.
+pub async fn find_release_by_mb_id(id: String) -> crate::Result<Release> {
+    Release::fetch()
+        .id(&id)
+        .execute()
+        .map(|result| result.map_err(crate::Error::from))
+        .await
+}
+
 #[cfg(test)]
 mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.

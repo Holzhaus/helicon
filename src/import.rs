@@ -8,9 +8,10 @@
 
 //! Functions related to importing files.
 
-use crate::lookup::find_album_info;
+use crate::lookup::find_releases;
 use crate::tag::TaggedFile;
 use crate::util::walk_dir;
+use futures::{future, stream::StreamExt};
 use std::collections::HashSet;
 use std::path::PathBuf;
 
@@ -53,7 +54,14 @@ pub async fn run(input_path: PathBuf) -> crate::Result<()> {
             path.display(),
             tagged_files.len()
         );
-        dbg!(find_album_info(&tagged_files).await?);
+
+        #[allow(unused_must_use)]
+        find_releases(&tagged_files)
+            .for_each(|release| {
+                dbg!(release);
+                future::ready(())
+            })
+            .await;
     }
 
     Ok(())
