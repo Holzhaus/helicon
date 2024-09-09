@@ -16,7 +16,9 @@ use futures::{
 };
 use levenshtein::levenshtein;
 use musicbrainz_rs_nova::{
-    entity::release::{Release, ReleaseSearchQuery},
+    entity::release::{
+        Release as MusicBrainzRelease, ReleaseSearchQuery as MusicBrainzReleaseSearchQuery,
+    },
     Fetch, Search,
 };
 use std::cmp;
@@ -192,7 +194,9 @@ fn find_musicbrainz_release_id(files: &[TaggedFile]) -> Option<&str> {
 }
 
 /// Find album information for the given files.
-pub fn find_releases(files: &[TaggedFile]) -> impl Stream<Item = crate::Result<Release>> + '_ {
+pub fn find_releases(
+    files: &[TaggedFile],
+) -> impl Stream<Item = crate::Result<MusicBrainzRelease>> + '_ {
     let artist = find_artist(files);
     let album = find_consensual_tag_value(files.iter(), &TagKey::Album);
     let artist_and_album = artist.and_then(|artist| album.map(|album| (artist, album)));
@@ -214,7 +218,7 @@ pub fn find_releases(files: &[TaggedFile]) -> impl Stream<Item = crate::Result<R
                 stream::once(future::ok(release)).left_stream()
             } else {
                 let tracks = format!("{}", files.len());
-                let mut query = ReleaseSearchQuery::query_builder();
+                let mut query = MusicBrainzReleaseSearchQuery::query_builder();
                 let mut query = query.tracks(&tracks);
                 if let Some(v) = artist {
                     query = query.and().artist(v);
@@ -230,7 +234,7 @@ pub fn find_releases(files: &[TaggedFile]) -> impl Stream<Item = crate::Result<R
                 }
 
                 let search = query.build();
-                async { Release::search(search).execute().await }
+                async { MusicBrainzRelease::search(search).execute().await }
                     .map(|result| {
                         result.map_or_else(
                             |_| stream::empty().left_stream(),
@@ -248,8 +252,8 @@ pub fn find_releases(files: &[TaggedFile]) -> impl Stream<Item = crate::Result<R
 }
 
 /// Fetch a MusicBrainz release by its release ID.
-pub async fn find_release_by_mb_id(id: String) -> crate::Result<Release> {
-    Release::fetch()
+pub async fn find_release_by_mb_id(id: String) -> crate::Result<MusicBrainzRelease> {
+    MusicBrainzRelease::fetch()
         .id(&id)
         .execute()
         .map(|result| result.map_err(crate::Error::from))
