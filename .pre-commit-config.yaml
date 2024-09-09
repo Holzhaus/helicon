@@ -26,6 +26,7 @@ repos:
     args: [
       --ignore-words=.codespellignore
     ]
+    exclude_types: [tsv]
 - repo: https://github.com/doublify/pre-commit-rust
   rev: v1.0
   hooks:
