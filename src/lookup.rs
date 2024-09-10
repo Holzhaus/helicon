@@ -126,11 +126,6 @@ impl TrackCollection {
         Self(tracks)
     }
 
-    /// Returns the number of files in this collection.
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
     /// Finds the most common value for a certain tag in an iterator of tagged files.
     fn find_most_common_tag_value(&self, key: TagKey) -> Option<MostCommonItem<&str>> {
         MostCommonItem::find(
@@ -148,41 +143,17 @@ impl TrackCollection {
             .and_then(MostCommonItem::into_concensus)
     }
 
-    /// Find artist from the given files.
-    fn find_artist(&self) -> Option<&str> {
-        [TagKey::AlbumArtist, TagKey::Artist]
-            .into_iter()
-            .find_map(|key| self.find_most_common_tag_value(key))
-            .and_then(|most_common_artist| {
-                most_common_artist
-                    .clone()
-                    .into_concensus()
-                    .map(|artist_name| {
-                        if is_va_artist(artist_name) {
-                            "Various Artists"
-                        } else {
-                            artist_name
-                        }
-                    })
-                    .or_else(|| {
-                        most_common_artist
-                            .is_all_distinct()
-                            .then_some("Various Artists")
-                    })
-            })
-    }
-
     /// Find album information for the given files.
     pub fn find_releases(&self) -> impl Stream<Item = crate::Result<MusicBrainzRelease>> + '_ {
-        let artist = self.find_artist();
-        let album = self.find_consensual_tag_value(TagKey::Album);
+        let artist = self.release_artist();
+        let album = self.release_title();
         let artist_and_album = artist.and_then(|artist| album.map(|album| (artist, album)));
 
         if let Some((artist, album)) = artist_and_album {
             log::info!("Found artist and album: {} - {}", artist, album);
         };
 
-        self.find_consensual_tag_value(TagKey::MusicBrainzReleaseId)
+        self.musicbrainz_release_id()
             .inspect(|mb_release_id| {
                 log::info!("Found MusicBrainz Release Id: {:?}", mb_release_id);
             })
@@ -196,19 +167,23 @@ impl TrackCollection {
                 if let Some(release) = result {
                     stream::once(future::ok(release)).left_stream()
                 } else {
-                    let tracks = format!("{}", self.len());
                     let mut query = MusicBrainzReleaseSearchQuery::query_builder();
-                    let mut query = query.tracks(&tracks);
+                    let mut query = query.tracks(
+                        &self
+                            .track_count()
+                            .map(|track_count| track_count.to_string())
+                            .unwrap_or_default(),
+                    );
                     if let Some(v) = artist {
                         query = query.and().artist(v);
                     };
                     if let Some(v) = album {
                         query = query.and().release(v);
                     };
-                    if let Some(v) = self.find_consensual_tag_value(TagKey::CatalogNumber) {
+                    if let Some(v) = self.catalog_number() {
                         query = query.and().catalog_number(v);
                     };
-                    if let Some(v) = self.find_consensual_tag_value(TagKey::Barcode) {
+                    if let Some(v) = self.barcode() {
                         query = query.and().barcode(v);
                     }
 
@@ -232,12 +207,47 @@ impl TrackCollection {
 }
 
 impl Release for TrackCollection {
+    fn track_count(&self) -> Option<usize> {
+        self.0.len().into()
+    }
+
     fn release_title(&self) -> Option<&str> {
-        self.find_artist()
+        self.find_consensual_tag_value(TagKey::Album)
     }
 
     fn release_artist(&self) -> Option<&str> {
-        self.find_consensual_tag_value(TagKey::Album)
+        [TagKey::AlbumArtist, TagKey::Artist]
+            .into_iter()
+            .find_map(|key| self.find_most_common_tag_value(key))
+            .and_then(|most_common_artist| {
+                most_common_artist
+                    .clone()
+                    .into_concensus()
+                    .map(|artist_name| {
+                        if is_va_artist(artist_name) {
+                            "Various Artists"
+                        } else {
+                            artist_name
+                        }
+                    })
+                    .or_else(|| {
+                        most_common_artist
+                            .is_all_distinct()
+                            .then_some("Various Artists")
+                    })
+            })
+    }
+
+    fn musicbrainz_release_id(&self) -> Option<&str> {
+        self.find_consensual_tag_value(TagKey::MusicBrainzReleaseId)
+    }
+
+    fn catalog_number(&self) -> Option<&str> {
+        self.find_consensual_tag_value(TagKey::CatalogNumber)
+    }
+
+    fn barcode(&self) -> Option<&str> {
+        self.find_consensual_tag_value(TagKey::Barcode)
     }
 }
 
