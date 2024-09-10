@@ -17,6 +17,7 @@ use std::path::Path;
 
 /// A tag key describes the kind of information in a generic, format-independent way.
 #[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TagKey {
     /// AcoustID associated with the track.
     AcoustId,
@@ -248,7 +249,7 @@ pub trait Tag {
     #[allow(dead_code)]
     fn tag_type(&self) -> TagType;
     /// Get the string value for the tag key.
-    fn get(&self, key: &TagKey) -> Option<&str>;
+    fn get(&self, key: TagKey) -> Option<&str>;
 }
 
 /// A tagged file that contains zero or more tags.

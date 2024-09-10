@@ -25,7 +25,7 @@ impl FlacTag {
     }
 
     /// Get the vorbis key name for a tag key.
-    fn tag_key_to_frame(key: &TagKey) -> Option<&'static str> {
+    fn tag_key_to_frame(key: TagKey) -> Option<&'static str> {
         #[allow(clippy::match_same_arms)]
         match key {
             TagKey::AcoustId => "ACOUSTID_ID".into(),
@@ -129,7 +129,7 @@ impl Tag for FlacTag {
         TagType::Flac
     }
 
-    fn get(&self, key: &TagKey) -> Option<&str> {
+    fn get(&self, key: TagKey) -> Option<&str> {
         Self::tag_key_to_frame(key)
             .and_then(|key| self.data.get_vorbis(key))
             .and_then(|mut iterator| iterator.next())
