@@ -8,22 +8,20 @@
 
 //! Utilities for matching and lookup up albums and tracks.
 
+use crate::release::Release;
 use crate::tag::{TagKey, TaggedFile};
 use futures::{
     future::{self, FutureExt},
     stream::{self, StreamExt},
     Stream,
 };
-use levenshtein::levenshtein;
 use musicbrainz_rs_nova::{
     entity::release::{
         Release as MusicBrainzRelease, ReleaseSearchQuery as MusicBrainzReleaseSearchQuery,
     },
     Fetch, Search,
 };
-use std::cmp;
 use std::collections::HashMap;
-use unidecode::unidecode;
 
 /// Represents the the count of a specific item and the first index at which that item was found.
 ///
@@ -109,31 +107,6 @@ impl<T> MostCommonItem<T> {
     fn into_concensus(self) -> Option<T> {
         self.is_concensual().then_some(self.into_inner())
     }
-}
-
-/// Calculate the case- and whitespace-insensitive distance between two strings, where 0.0 is
-/// minimum and 1.0 is the maximum distance.
-#[allow(clippy::cast_precision_loss)]
-#[allow(dead_code)]
-fn string_distance(lhs: &str, rhs: &str) -> f64 {
-    let mut lhs = unidecode(lhs);
-    lhs.retain(|c| c.is_ascii_alphanumeric());
-    lhs.make_ascii_lowercase();
-
-    let mut rhs = unidecode(rhs);
-    rhs.retain(|c| c.is_ascii_alphanumeric());
-    rhs.make_ascii_lowercase();
-
-    if lhs.is_empty() && rhs.is_empty() {
-        return 0.0;
-    }
-
-    let levenshtein_distance = levenshtein(&lhs, &rhs);
-    let max_possible_distance = cmp::max(lhs.len(), rhs.len());
-
-    // FIXME: It's extremely unlikely, but this conversion to f64 is fallible. Hence, it should use
-    // f64::try_from(usize) instead, but unfortunately that doesn't exist.
-    levenshtein_distance as f64 / max_possible_distance as f64
 }
 
 /// Returns `true` if the artist is likely "Various Artists".
@@ -258,10 +231,31 @@ impl TrackCollection {
     }
 }
 
+impl Release for TrackCollection {
+    fn release_title(&self) -> Option<&str> {
+        self.find_artist()
+    }
+
+    fn release_artist(&self) -> Option<&str> {
+        self.find_consensual_tag_value(TagKey::Album)
+    }
+}
+
 /// Fetch a MusicBrainz release by its release ID.
 pub async fn find_release_by_mb_id(id: String) -> crate::Result<MusicBrainzRelease> {
     MusicBrainzRelease::fetch()
         .id(&id)
+        .with_artists()
+        .with_recordings()
+        .with_release_groups()
+        .with_labels()
+        .with_artist_credits()
+        .with_aliases()
+        .with_recording_level_relations()
+        .with_work_relations()
+        .with_work_level_relations()
+        .with_artist_relations()
+        .with_url_relations()
         .execute()
         .map(|result| result.map_err(crate::Error::from))
         .await

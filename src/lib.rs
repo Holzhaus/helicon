@@ -46,9 +46,11 @@
 #![warn(dead_code)]
 #![warn(variant_size_differences)]
 
+mod distance;
 mod error;
 pub mod import;
 mod lookup;
+mod release;
 mod tag;
 mod util;
 
