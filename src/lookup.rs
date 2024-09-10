@@ -10,17 +10,6 @@
 
 use crate::release::Release;
 use crate::tag::{TagKey, TaggedFile};
-use futures::{
-    future::{self, FutureExt},
-    stream::{self, StreamExt},
-    Stream,
-};
-use musicbrainz_rs_nova::{
-    entity::release::{
-        Release as MusicBrainzRelease, ReleaseSearchQuery as MusicBrainzReleaseSearchQuery,
-    },
-    Fetch, Search,
-};
 use std::collections::HashMap;
 
 /// Represents the the count of a specific item and the first index at which that item was found.
@@ -142,68 +131,6 @@ impl TrackCollection {
         self.find_most_common_tag_value(key)
             .and_then(MostCommonItem::into_concensus)
     }
-
-    /// Find album information for the given files.
-    pub fn find_releases(&self) -> impl Stream<Item = crate::Result<MusicBrainzRelease>> + '_ {
-        let artist = self.release_artist();
-        let album = self.release_title();
-        let artist_and_album = artist.and_then(|artist| album.map(|album| (artist, album)));
-
-        if let Some((artist, album)) = artist_and_album {
-            log::info!("Found artist and album: {} - {}", artist, album);
-        };
-
-        self.musicbrainz_release_id()
-            .inspect(|mb_release_id| {
-                log::info!("Found MusicBrainz Release Id: {:?}", mb_release_id);
-            })
-            .map_or_else(
-                || future::ready(None).left_future(),
-                |mb_id| {
-                    async { find_release_by_mb_id(mb_id.to_string()).await.ok() }.right_future()
-                },
-            )
-            .map(move |result| {
-                if let Some(release) = result {
-                    stream::once(future::ok(release)).left_stream()
-                } else {
-                    let mut query = MusicBrainzReleaseSearchQuery::query_builder();
-                    let mut query = query.tracks(
-                        &self
-                            .track_count()
-                            .map(|track_count| track_count.to_string())
-                            .unwrap_or_default(),
-                    );
-                    if let Some(v) = artist {
-                        query = query.and().artist(v);
-                    };
-                    if let Some(v) = album {
-                        query = query.and().release(v);
-                    };
-                    if let Some(v) = self.catalog_number() {
-                        query = query.and().catalog_number(v);
-                    };
-                    if let Some(v) = self.barcode() {
-                        query = query.and().barcode(v);
-                    }
-
-                    let search = query.build();
-                    async { MusicBrainzRelease::search(search).execute().await }
-                        .map(|result| {
-                            result.map_or_else(
-                                |_| stream::empty().left_stream(),
-                                |response| stream::iter(response.entities).right_stream(),
-                            )
-                        })
-                        .flatten_stream()
-                        .map(|release| release.id)
-                        .then(find_release_by_mb_id)
-                        .right_stream()
-                }
-            })
-            .into_stream()
-            .flatten()
-    }
 }
 
 impl Release for TrackCollection {
@@ -249,26 +176,6 @@ impl Release for TrackCollection {
     fn barcode(&self) -> Option<&str> {
         self.find_consensual_tag_value(TagKey::Barcode)
     }
-}
-
-/// Fetch a MusicBrainz release by its release ID.
-pub async fn find_release_by_mb_id(id: String) -> crate::Result<MusicBrainzRelease> {
-    MusicBrainzRelease::fetch()
-        .id(&id)
-        .with_artists()
-        .with_recordings()
-        .with_release_groups()
-        .with_labels()
-        .with_artist_credits()
-        .with_aliases()
-        .with_recording_level_relations()
-        .with_work_relations()
-        .with_work_level_relations()
-        .with_artist_relations()
-        .with_url_relations()
-        .execute()
-        .map(|result| result.map_err(crate::Error::from))
-        .await
 }
 
 #[cfg(test)]

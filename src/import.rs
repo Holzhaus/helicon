@@ -10,6 +10,7 @@
 
 use crate::distance::Distance;
 use crate::lookup::TrackCollection;
+use crate::musicbrainz;
 use crate::release::Release;
 use crate::tag::TaggedFile;
 use crate::util::walk_dir;
@@ -59,8 +60,7 @@ pub async fn run(input_path: PathBuf) -> crate::Result<()> {
 
         let track_collection = TrackCollection::new(tagged_files);
 
-        track_collection
-            .find_releases()
+        musicbrainz::find_releases(&track_collection)
             .filter_map(|result| async {
                 match result {
                     Ok(release) => Some(release),

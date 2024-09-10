@@ -50,6 +50,7 @@ mod distance;
 mod error;
 pub mod import;
 mod lookup;
+mod musicbrainz;
 mod release;
 mod tag;
 mod util;
