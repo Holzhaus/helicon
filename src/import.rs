@@ -8,7 +8,7 @@
 
 //! Functions related to importing files.
 
-use crate::lookup::find_releases;
+use crate::lookup::TrackCollection;
 use crate::tag::TaggedFile;
 use crate::util::walk_dir;
 use futures::{future, stream::StreamExt};
@@ -55,8 +55,11 @@ pub async fn run(input_path: PathBuf) -> crate::Result<()> {
             tagged_files.len()
         );
 
+        let track_collection = TrackCollection::new(tagged_files);
+
         #[allow(unused_must_use)]
-        find_releases(&tagged_files)
+        track_collection
+            .find_releases()
             .for_each(|release| {
                 dbg!(release);
                 future::ready(())

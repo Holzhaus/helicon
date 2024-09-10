@@ -111,26 +111,6 @@ impl<T> MostCommonItem<T> {
     }
 }
 
-/// Finds the most common value for a certain tag in an iterator of tagged files.
-fn find_most_common_tag_value<'a, I>(files: I, key: &TagKey) -> Option<MostCommonItem<&'a str>>
-where
-    I: Iterator<Item = &'a TaggedFile>,
-{
-    MostCommonItem::find(
-        files.filter_map(|tagged_file| tagged_file.tags().iter().find_map(|tag| tag.get(key))),
-    )
-}
-
-/// Finds the consensual value for a certain tag in an iterator of tagged files.
-///
-/// Returns `None` if there is no consensual value.
-fn find_consensual_tag_value<'a, I>(files: I, key: &TagKey) -> Option<&'a str>
-where
-    I: Iterator<Item = &'a TaggedFile>,
-{
-    find_most_common_tag_value(files, key).and_then(MostCommonItem::into_concensus)
-}
-
 /// Calculate the case- and whitespace-insensitive distance between two strings, where 0.0 is
 /// minimum and 1.0 is the maximum distance.
 #[allow(clippy::cast_precision_loss)]
@@ -164,91 +144,118 @@ fn is_va_artist(value: &str) -> bool {
     )
 }
 
-/// Find artist from the given files.
-fn find_artist(files: &[TaggedFile]) -> Option<&str> {
-    [TagKey::AlbumArtist, TagKey::Artist]
-        .iter()
-        .find_map(|key| find_most_common_tag_value(files.iter(), key))
-        .and_then(|most_common_artist| {
-            most_common_artist
-                .clone()
-                .into_concensus()
-                .map(|artist_name| {
-                    if is_va_artist(artist_name) {
-                        "Various Artists"
-                    } else {
-                        artist_name
-                    }
-                })
-                .or_else(|| {
-                    most_common_artist
-                        .is_all_distinct()
-                        .then_some("Various Artists")
-                })
-        })
-}
+/// A collection of tracks on the local disk.
+pub struct TrackCollection(Vec<TaggedFile>);
 
-/// Find the MusicBrainz release ID from the given files.
-fn find_musicbrainz_release_id(files: &[TaggedFile]) -> Option<&str> {
-    find_consensual_tag_value(files.iter(), &TagKey::MusicBrainzReleaseId)
-}
+impl TrackCollection {
+    /// Creates a new collection from a `Vec` of `TaggedFile` instances.
+    pub fn new(tracks: Vec<TaggedFile>) -> Self {
+        Self(tracks)
+    }
 
-/// Find album information for the given files.
-pub fn find_releases(
-    files: &[TaggedFile],
-) -> impl Stream<Item = crate::Result<MusicBrainzRelease>> + '_ {
-    let artist = find_artist(files);
-    let album = find_consensual_tag_value(files.iter(), &TagKey::Album);
-    let artist_and_album = artist.and_then(|artist| album.map(|album| (artist, album)));
+    /// Returns the number of files in this collection.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
 
-    if let Some((artist, album)) = artist_and_album {
-        log::info!("Found artist and album: {} - {}", artist, album);
-    };
-
-    find_musicbrainz_release_id(files)
-        .inspect(|mb_release_id| {
-            log::info!("Found MusicBrainz Release Id: {:?}", mb_release_id);
-        })
-        .map_or_else(
-            || future::ready(None).left_future(),
-            |mb_id| async { find_release_by_mb_id(mb_id.to_string()).await.ok() }.right_future(),
+    /// Finds the most common value for a certain tag in an iterator of tagged files.
+    fn find_most_common_tag_value<'a>(&'a self, key: &TagKey) -> Option<MostCommonItem<&'a str>> {
+        MostCommonItem::find(
+            self.0
+                .iter()
+                .filter_map(|tagged_file| tagged_file.tags().iter().find_map(|tag| tag.get(key))),
         )
-        .map(move |result| {
-            if let Some(release) = result {
-                stream::once(future::ok(release)).left_stream()
-            } else {
-                let tracks = format!("{}", files.len());
-                let mut query = MusicBrainzReleaseSearchQuery::query_builder();
-                let mut query = query.tracks(&tracks);
-                if let Some(v) = artist {
-                    query = query.and().artist(v);
-                };
-                if let Some(v) = album {
-                    query = query.and().release(v);
-                };
-                if let Some(v) = find_consensual_tag_value(files.iter(), &TagKey::CatalogNumber) {
-                    query = query.and().catalog_number(v);
-                };
-                if let Some(v) = find_consensual_tag_value(files.iter(), &TagKey::Barcode) {
-                    query = query.and().barcode(v);
-                }
+    }
 
-                let search = query.build();
-                async { MusicBrainzRelease::search(search).execute().await }
-                    .map(|result| {
-                        result.map_or_else(
-                            |_| stream::empty().left_stream(),
-                            |response| stream::iter(response.entities).right_stream(),
-                        )
+    /// Finds the consensual value for a certain tag in an iterator of tagged files.
+    ///
+    /// Returns `None` if there is no consensual value.
+    fn find_consensual_tag_value<'a>(&'a self, key: &TagKey) -> Option<&'a str> {
+        self.find_most_common_tag_value(key)
+            .and_then(MostCommonItem::into_concensus)
+    }
+
+    /// Find artist from the given files.
+    fn find_artist(&self) -> Option<&str> {
+        [TagKey::AlbumArtist, TagKey::Artist]
+            .iter()
+            .find_map(|key| self.find_most_common_tag_value(key))
+            .and_then(|most_common_artist| {
+                most_common_artist
+                    .clone()
+                    .into_concensus()
+                    .map(|artist_name| {
+                        if is_va_artist(artist_name) {
+                            "Various Artists"
+                        } else {
+                            artist_name
+                        }
                     })
-                    .flatten_stream()
-                    .map(|release| release.id)
-                    .then(find_release_by_mb_id)
-                    .right_stream()
-            }
-        })
-        .into_stream()
-        .flatten()
+                    .or_else(|| {
+                        most_common_artist
+                            .is_all_distinct()
+                            .then_some("Various Artists")
+                    })
+            })
+    }
+
+    /// Find album information for the given files.
+    pub fn find_releases(&self) -> impl Stream<Item = crate::Result<MusicBrainzRelease>> + '_ {
+        let artist = self.find_artist();
+        let album = self.find_consensual_tag_value(&TagKey::Album);
+        let artist_and_album = artist.and_then(|artist| album.map(|album| (artist, album)));
+
+        if let Some((artist, album)) = artist_and_album {
+            log::info!("Found artist and album: {} - {}", artist, album);
+        };
+
+        self.find_consensual_tag_value(&TagKey::MusicBrainzReleaseId)
+            .inspect(|mb_release_id| {
+                log::info!("Found MusicBrainz Release Id: {:?}", mb_release_id);
+            })
+            .map_or_else(
+                || future::ready(None).left_future(),
+                |mb_id| {
+                    async { find_release_by_mb_id(mb_id.to_string()).await.ok() }.right_future()
+                },
+            )
+            .map(move |result| {
+                if let Some(release) = result {
+                    stream::once(future::ok(release)).left_stream()
+                } else {
+                    let tracks = format!("{}", self.len());
+                    let mut query = MusicBrainzReleaseSearchQuery::query_builder();
+                    let mut query = query.tracks(&tracks);
+                    if let Some(v) = artist {
+                        query = query.and().artist(v);
+                    };
+                    if let Some(v) = album {
+                        query = query.and().release(v);
+                    };
+                    if let Some(v) = self.find_consensual_tag_value(&TagKey::CatalogNumber) {
+                        query = query.and().catalog_number(v);
+                    };
+                    if let Some(v) = self.find_consensual_tag_value(&TagKey::Barcode) {
+                        query = query.and().barcode(v);
+                    }
+
+                    let search = query.build();
+                    async { MusicBrainzRelease::search(search).execute().await }
+                        .map(|result| {
+                            result.map_or_else(
+                                |_| stream::empty().left_stream(),
+                                |response| stream::iter(response.entities).right_stream(),
+                            )
+                        })
+                        .flatten_stream()
+                        .map(|release| release.id)
+                        .then(find_release_by_mb_id)
+                        .right_stream()
+                }
+            })
+            .into_stream()
+            .flatten()
+    }
 }
 
 /// Fetch a MusicBrainz release by its release ID.
