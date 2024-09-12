@@ -148,19 +148,16 @@ impl Release for TrackCollection {
             .find_map(|key| self.find_most_common_tag_value(key))
             .and_then(|most_common_artist| {
                 most_common_artist
-                    .clone()
-                    .into_concensus()
-                    .map(|artist_name| {
+                    .is_all_distinct()
+                    .then_some("Various Artists")
+                    .or_else(|| {
+                        let artist_name = most_common_artist.into_inner();
                         if is_va_artist(artist_name) {
                             "Various Artists"
                         } else {
                             artist_name
                         }
-                    })
-                    .or_else(|| {
-                        most_common_artist
-                            .is_all_distinct()
-                            .then_some("Various Artists")
+                        .into()
                     })
             })
     }
