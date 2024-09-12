@@ -8,14 +8,15 @@
 
 //! Functions related to importing files.
 
-use crate::distance::Distance;
+use crate::distance::DistanceItem;
 use crate::lookup::TrackCollection;
 use crate::musicbrainz;
 use crate::release::Release;
 use crate::tag::TaggedFile;
 use crate::util::walk_dir;
 use futures::{future, stream::StreamExt};
-use std::collections::HashSet;
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, HashSet};
 use std::path::PathBuf;
 
 /// Run an import.
@@ -60,6 +61,7 @@ pub async fn run(input_path: PathBuf) -> crate::Result<()> {
 
         let track_collection = TrackCollection::new(tagged_files);
 
+        let mut heap = BinaryHeap::new();
         musicbrainz::find_releases(&track_collection)
             .filter_map(|result| async {
                 match result {
@@ -71,16 +73,36 @@ pub async fn run(input_path: PathBuf) -> crate::Result<()> {
                 }
             })
             .for_each(|release| {
-                let release_distance = &track_collection.distance_to(&release);
-                dbg!(&release);
-                log::info!(
+                let release_distance = track_collection.distance_to(&release);
+                log::debug!(
                     "Release '{}' has distance to track collection: {}",
                     release.title,
-                    release_distance.distance()
+                    release_distance.as_f64()
                 );
+                let item = DistanceItem::new(release, release_distance);
+                heap.push(Reverse(item));
+                if let Some(Reverse(best_match)) = heap.peek() {
+                    log::debug!(
+                        "Release '{}' is current best match with distance: {}",
+                        best_match.item.title,
+                        best_match.distance().as_f64()
+                    );
+                }
                 future::ready(())
             })
             .await;
+
+        log::info!("Found {} release candidates.", heap.len());
+        heap.iter().enumerate().for_each(|(index, candidate)| {
+            let candidate = &candidate.0;
+            log::info!(
+                "{:02}. {} - {} (Confidence: {:.3})",
+                index + 1,
+                candidate.item.release_artist().unwrap_or_default(),
+                candidate.item.release_title().unwrap_or_default(),
+                candidate.distance().as_f64()
+            );
+        });
     }
 
     Ok(())

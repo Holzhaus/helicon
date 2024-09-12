@@ -7,7 +7,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 //! Generic release implementations.
-use crate::distance::ReleaseDistance;
+use crate::distance::Distance;
 use musicbrainz_rs_nova::entity::release::Release as MusicBrainzRelease;
 
 /// Represent a generic release, independent of the underlying source.
@@ -26,11 +26,11 @@ pub trait Release {
     fn barcode(&self) -> Option<&str>;
 
     /// Calculate the distance between this release and another one.
-    fn distance_to<T>(&self, other: &T) -> ReleaseDistance
+    fn distance_to<T>(&self, other: &T) -> Distance
     where
         T: Release + ?Sized,
     {
-        ReleaseDistance::between(self, other)
+        Distance::between_releases(self, other)
     }
 }
 
