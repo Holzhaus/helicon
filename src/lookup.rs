@@ -121,7 +121,7 @@ impl TrackCollection {
         MostCommonItem::find(
             self.0
                 .iter()
-                .filter_map(|tagged_file| tagged_file.tags().iter().find_map(|tag| tag.get(key))),
+                .filter_map(|tagged_file| tagged_file.first_tag_value(key)),
         )
     }
 

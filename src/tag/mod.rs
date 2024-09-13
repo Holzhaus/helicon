@@ -293,4 +293,14 @@ impl TaggedFile {
     pub fn tags(&self) -> &[Box<dyn Tag>] {
         &self.content
     }
+
+    /// Yields all values for the given [`TagKey`].
+    pub fn tag_values(&self, key: TagKey) -> impl Iterator<Item = &str> {
+        self.tags().iter().filter_map(move |tag| tag.get(key))
+    }
+
+    /// Returns the first value for the given [`TagKey`].
+    pub fn first_tag_value(&self, key: TagKey) -> Option<&str> {
+        self.tag_values(key).next()
+    }
 }
