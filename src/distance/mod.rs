@@ -7,7 +7,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 //! Distance calculations for various items.
-use crate::release::Release;
+use crate::release::ReleaseLike;
 use std::borrow::{Borrow, Cow};
 use std::cmp;
 
@@ -121,8 +121,8 @@ where
 
 impl<S, T> DistanceBetween<&S, &T> for Distance
 where
-    S: Release,
-    T: Release,
+    S: ReleaseLike,
+    T: ReleaseLike,
 {
     fn between(lhs: &S, rhs: &T) -> Self {
         release::between(lhs, rhs)

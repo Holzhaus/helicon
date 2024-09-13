@@ -11,7 +11,7 @@
 use crate::distance::DistanceItem;
 use crate::lookup::TrackCollection;
 use crate::musicbrainz;
-use crate::release::Release;
+use crate::release::ReleaseLike;
 use crate::tag::TaggedFile;
 use crate::util::walk_dir;
 use futures::{future, stream::StreamExt};

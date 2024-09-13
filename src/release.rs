@@ -12,7 +12,7 @@ use musicbrainz_rs_nova::entity::release::Release as MusicBrainzRelease;
 use std::borrow::Cow;
 
 /// Represent a generic release, independent of the underlying source.
-pub trait Release {
+pub trait ReleaseLike {
     /// Number of tracks.
     fn track_count(&self) -> Option<usize>;
     /// Release title.
@@ -34,13 +34,13 @@ pub trait Release {
     fn distance_to<T>(&self, other: &T) -> Distance
     where
         Self: Sized,
-        T: Release,
+        T: ReleaseLike,
     {
         Distance::between(self, other)
     }
 }
 
-impl Release for MusicBrainzRelease {
+impl ReleaseLike for MusicBrainzRelease {
     fn track_count(&self) -> Option<usize> {
         self.media
             .as_ref()

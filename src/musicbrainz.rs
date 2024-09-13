@@ -8,7 +8,7 @@
 
 //! MusicBrainz helper functions.
 
-use crate::release::Release;
+use crate::release::ReleaseLike;
 use futures::{
     future::{self, FutureExt},
     stream::{self, StreamExt},
@@ -24,7 +24,7 @@ use std::borrow::Borrow;
 
 /// Find MusicBrainz Release information for the given (generic) Release.
 pub fn find_releases(
-    base_release: &impl Release,
+    base_release: &impl ReleaseLike,
 ) -> impl Stream<Item = crate::Result<MusicBrainzRelease>> + '_ {
     base_release
         .musicbrainz_release_id()

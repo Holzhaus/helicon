@@ -6,17 +6,17 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
-//! Functions for distance calculation between [`Release`] objects.
+//! Functions for distance calculation between [`ReleaseLike`] objects.
 
 use super::{Distance, DistanceBetween};
-use crate::release::Release;
+use crate::release::ReleaseLike;
 use std::borrow::Borrow;
 
 /// Calculate the distance between two releases.
 pub fn between<T1, T2>(lhs: &T1, rhs: &T2) -> Distance
 where
-    T1: Release + ?Sized,
-    T2: Release + ?Sized,
+    T1: ReleaseLike + ?Sized,
+    T2: ReleaseLike + ?Sized,
 {
     let release_title_distance =
         Distance::between(lhs.release_title(), rhs.release_title()).with_weight(3.0);

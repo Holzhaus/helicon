@@ -8,7 +8,7 @@
 
 //! Utilities for matching and lookup up albums and tracks.
 
-use crate::release::Release;
+use crate::release::ReleaseLike;
 use crate::tag::{TagKey, TaggedFile};
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -134,7 +134,7 @@ impl TrackCollection {
     }
 }
 
-impl Release for TrackCollection {
+impl ReleaseLike for TrackCollection {
     fn track_count(&self) -> Option<usize> {
         self.0.len().into()
     }
