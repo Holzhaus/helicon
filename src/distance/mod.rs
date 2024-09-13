@@ -11,6 +11,9 @@ use crate::release::Release;
 use std::borrow::{Borrow, Cow};
 use std::cmp;
 
+mod release;
+mod string;
+
 /// A distance in the range (0.0, 1.0) between two items.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Distance {
@@ -92,52 +95,6 @@ pub trait DistanceBetween<S, T> {
     fn between(lhs: S, rhs: T) -> Distance;
 }
 
-mod string {
-    //! Functions for distance calculation between strings.
-
-    use super::Distance;
-    use levenshtein::levenshtein;
-    use std::cmp;
-    use unidecode::unidecode;
-
-    /// Common suffixes that are stripped and added as a suffix during [`Self::normalize`].
-    const SUFFIXES: [&str; 3] = [", the", ", a", ", an"];
-
-    /// Normalize a string slice value for comparison.
-    fn normalize(value: &str) -> String {
-        // Normalize all strings to ASCII lowercase.
-        let mut value = unidecode(value);
-        value.make_ascii_lowercase();
-
-        // Move common suffixes (e.g., ", the") to the front of the string.
-        for suffix in SUFFIXES {
-            if let Some(stripped) = value.strip_suffix(suffix) {
-                let new_prefix = stripped.trim_start_matches(", ");
-                value = format!("{new_prefix} {value}");
-                break;
-            }
-        }
-
-        // Replace ampersands with "and".
-        value.replace('&', "and")
-    }
-
-    /// Calculate the case- and whitespace-insensitive distance between two strings, where 0.0 is
-    /// minimum and 1.0 is the maximum distance.
-    #[allow(clippy::cast_precision_loss)]
-    pub fn between(lhs: &str, rhs: &str) -> Distance {
-        let lhs = normalize(lhs);
-        let rhs = normalize(rhs);
-
-        let levenshtein_distance = levenshtein(&lhs, &rhs);
-        let max_possible_distance = cmp::max(lhs.len(), rhs.len());
-
-        // FIXME: It's extremely unlikely, but this conversion to f64 is fallible. Hence, it should use
-        // f64::try_from(usize) instead, but unfortunately that doesn't exist.
-        Distance::from(levenshtein_distance as f64 / max_possible_distance as f64)
-    }
-}
-
 impl DistanceBetween<&str, &str> for Distance {
     fn between(lhs: &str, rhs: &str) -> Distance {
         string::between(lhs, rhs)
@@ -159,58 +116,6 @@ where
             (Some(_), None) | (None, Some(_)) => Distance::from(1.0),
             (Some(lhs), Some(rhs)) => Distance::between(lhs, rhs),
         }
-    }
-}
-
-mod release {
-    //! Functions for distance calculation between [`Release`] objects.
-
-    use super::{Distance, DistanceBetween};
-    use crate::release::Release;
-    use std::borrow::Borrow;
-
-    /// Calculate the distance between two releases.
-    pub fn between<T1, T2>(lhs: &T1, rhs: &T2) -> Distance
-    where
-        T1: Release + ?Sized,
-        T2: Release + ?Sized,
-    {
-        let release_title_distance =
-            Distance::between(lhs.release_title(), rhs.release_title()).with_weight(3.0);
-        let release_artist_distance =
-            Distance::between(lhs.release_artist(), rhs.release_artist()).with_weight(3.0);
-        let musicbrainz_release_id_distance = Distance::from(
-            lhs.musicbrainz_release_id()
-                .and_then(|lhs_id| rhs.musicbrainz_release_id().map(|rhs_id| (lhs_id, rhs_id)))
-                .is_some_and(|(lhs, rhs)| {
-                    let lhs_id: &str = lhs.borrow();
-                    let lhs_id: &str = lhs_id.trim();
-
-                    let rhs_id: &str = rhs.borrow();
-                    let rhs_id: &str = rhs_id.trim();
-
-                    lhs_id == rhs_id && !lhs_id.is_empty()
-                }),
-        )
-        .with_weight(5.0);
-        let media_format_distance =
-            Distance::between(lhs.media_format(), rhs.media_format()).with_weight(1.0);
-        let record_label_distance =
-            Distance::between(lhs.record_label(), rhs.record_label()).with_weight(0.5);
-        let catalog_number_distance =
-            Distance::between(lhs.catalog_number(), rhs.catalog_number()).with_weight(0.5);
-        let barcode_distance = Distance::between(lhs.barcode(), rhs.barcode()).with_weight(0.5);
-
-        let distances = [
-            release_title_distance,
-            release_artist_distance,
-            musicbrainz_release_id_distance,
-            media_format_distance,
-            record_label_distance,
-            catalog_number_distance,
-            barcode_distance,
-        ];
-        Distance::from(distances.as_slice())
     }
 }
 
