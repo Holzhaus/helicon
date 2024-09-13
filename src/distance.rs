@@ -30,11 +30,6 @@ impl Distance {
     }
 
     /// Returns the distance between the items.
-    pub fn base_distance(&self) -> f64 {
-        self.base_distance
-    }
-
-    /// Returns the distance between the items.
     pub fn weighted_distance(&self) -> f64 {
         let weighted_distance = self.base_distance * self.weight;
         debug_assert!(weighted_distance.is_finite());
@@ -59,6 +54,12 @@ impl From<f64> for Distance {
     }
 }
 
+impl From<bool> for Distance {
+    fn from(value: bool) -> Self {
+        Distance::from(if value { 0.0 } else { 1.0 })
+    }
+}
+
 impl From<&[Distance]> for Distance {
     #[allow(clippy::cast_precision_loss)]
     fn from(value: &[Distance]) -> Self {
@@ -73,8 +74,8 @@ impl Eq for Distance {}
 
 impl Ord for Distance {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
-        (self.base_distance(), self.weight())
-            .partial_cmp(&(other.base_distance(), other.weight()))
+        self.weighted_distance()
+            .partial_cmp(&other.weighted_distance())
             .unwrap()
     }
 }
@@ -166,6 +167,7 @@ mod release {
 
     use super::{Distance, DistanceBetween};
     use crate::release::Release;
+    use std::borrow::Borrow;
 
     /// Calculate the distance between two releases.
     pub fn between<T1, T2>(lhs: &T1, rhs: &T2) -> Distance
@@ -177,6 +179,20 @@ mod release {
             Distance::between(lhs.release_title(), rhs.release_title()).with_weight(3.0);
         let release_artist_distance =
             Distance::between(lhs.release_artist(), rhs.release_artist()).with_weight(3.0);
+        let musicbrainz_release_id_distance = Distance::from(
+            lhs.musicbrainz_release_id()
+                .and_then(|lhs_id| rhs.musicbrainz_release_id().map(|rhs_id| (lhs_id, rhs_id)))
+                .is_some_and(|(lhs, rhs)| {
+                    let lhs_id: &str = lhs.borrow();
+                    let lhs_id: &str = lhs_id.trim();
+
+                    let rhs_id: &str = rhs.borrow();
+                    let rhs_id: &str = rhs_id.trim();
+
+                    lhs_id == rhs_id && !lhs_id.is_empty()
+                }),
+        )
+        .with_weight(5.0);
         let media_format_distance =
             Distance::between(lhs.media_format(), rhs.media_format()).with_weight(1.0);
         let record_label_distance =
@@ -188,6 +204,7 @@ mod release {
         let distances = [
             release_title_distance,
             release_artist_distance,
+            musicbrainz_release_id_distance,
             media_format_distance,
             record_label_distance,
             catalog_number_distance,
@@ -238,12 +255,119 @@ impl<T> Eq for DistanceItem<T> {}
 
 impl<T> PartialOrd for DistanceItem<T> {
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
-        Some(self.distance().cmp(other.distance()))
+        Some(self.cmp(other))
     }
 }
 
 impl<T> Ord for DistanceItem<T> {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
-        self.distance().partial_cmp(other.distance()).unwrap()
+        self.distance().cmp(other.distance())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    // Note this useful idiom: importing names from outer (for mod tests) scope.
+    use super::*;
+    use float_eq::assert_float_eq;
+
+    #[test]
+    fn test_distance_from_slice() {
+        let dist0 = Distance::from(1.0);
+        let dist1 = Distance::from(0.2);
+        let dist2 = Distance::from(0.5);
+        let dist3 = Distance::from(0.45);
+        let dist4 = Distance::from(0.35);
+
+        let total = Distance::from([dist0, dist1, dist2, dist3, dist4].as_slice());
+        assert_float_eq!(total.weighted_distance(), 0.5, abs <= 0.000_1);
+    }
+
+    #[test]
+    fn test_distance_from_slice_weighted() {
+        let dist0 = Distance::from(1.0).with_weight(2.5);
+        let dist1 = Distance::from(0.2).with_weight(5.0);
+        let dist2 = Distance::from(0.5).with_weight(0.5);
+        let dist3 = Distance::from(0.45).with_weight(3.0);
+        let dist4 = Distance::from(0.55).with_weight(5.0);
+
+        let total = Distance::from([dist0, dist1, dist2, dist3, dist4].as_slice());
+        assert_float_eq!(total.weighted_distance(), 0.490_625, abs <= 0.000_1);
+    }
+
+    #[test]
+    fn test_distance_ord_impl() {
+        let dist0 = Distance::from(0.000);
+        let dist1 = Distance::from(0.001);
+        let dist2 = Distance::from(0.002);
+
+        assert_eq!(dist0.cmp(&dist0), cmp::Ordering::Equal);
+        assert_eq!(dist1.cmp(&dist1), cmp::Ordering::Equal);
+        assert_eq!(dist2.cmp(&dist2), cmp::Ordering::Equal);
+
+        assert_eq!(dist0.cmp(&dist1), cmp::Ordering::Less);
+        assert_eq!(dist0.cmp(&dist2), cmp::Ordering::Less);
+        assert_eq!(dist1.cmp(&dist2), cmp::Ordering::Less);
+
+        assert_eq!(dist1.cmp(&dist0), cmp::Ordering::Greater);
+        assert_eq!(dist2.cmp(&dist0), cmp::Ordering::Greater);
+        assert_eq!(dist2.cmp(&dist1), cmp::Ordering::Greater);
+    }
+
+    #[test]
+    fn test_distance_partialord_impl() {
+        let dist0 = Distance::from(0.000);
+        let dist1 = Distance::from(0.001);
+        let dist2 = Distance::from(0.002);
+
+        assert_eq!(dist0.partial_cmp(&dist0).unwrap(), cmp::Ordering::Equal);
+        assert_eq!(dist1.partial_cmp(&dist1).unwrap(), cmp::Ordering::Equal);
+        assert_eq!(dist2.partial_cmp(&dist2).unwrap(), cmp::Ordering::Equal);
+
+        assert_eq!(dist0.partial_cmp(&dist1).unwrap(), cmp::Ordering::Less);
+        assert_eq!(dist0.partial_cmp(&dist2).unwrap(), cmp::Ordering::Less);
+        assert_eq!(dist1.partial_cmp(&dist2).unwrap(), cmp::Ordering::Less);
+
+        assert_eq!(dist1.partial_cmp(&dist0).unwrap(), cmp::Ordering::Greater);
+        assert_eq!(dist2.partial_cmp(&dist0).unwrap(), cmp::Ordering::Greater);
+        assert_eq!(dist2.partial_cmp(&dist1).unwrap(), cmp::Ordering::Greater);
+    }
+
+    #[test]
+    fn test_distanceitem_ord_impl() {
+        let item0 = DistanceItem::new((), Distance::from(0.000));
+        let item1 = DistanceItem::new((), Distance::from(0.001));
+        let item2 = DistanceItem::new((), Distance::from(0.002));
+
+        assert_eq!(item0.cmp(&item0), cmp::Ordering::Equal);
+        assert_eq!(item1.cmp(&item1), cmp::Ordering::Equal);
+        assert_eq!(item2.cmp(&item2), cmp::Ordering::Equal);
+
+        assert_eq!(item0.cmp(&item1), cmp::Ordering::Less);
+        assert_eq!(item0.cmp(&item2), cmp::Ordering::Less);
+        assert_eq!(item1.cmp(&item2), cmp::Ordering::Less);
+
+        assert_eq!(item1.cmp(&item0), cmp::Ordering::Greater);
+        assert_eq!(item2.cmp(&item0), cmp::Ordering::Greater);
+        assert_eq!(item2.cmp(&item1), cmp::Ordering::Greater);
+    }
+
+    #[test]
+    fn test_distanceitem_partialord_impl() {
+        let item0 = DistanceItem::new((), Distance::from(0.000));
+        let item1 = DistanceItem::new((), Distance::from(0.001));
+        let item2 = DistanceItem::new((), Distance::from(0.002));
+
+        assert_eq!(item0.partial_cmp(&item0).unwrap(), cmp::Ordering::Equal);
+        assert_eq!(item1.partial_cmp(&item1).unwrap(), cmp::Ordering::Equal);
+        assert_eq!(item2.partial_cmp(&item2).unwrap(), cmp::Ordering::Equal);
+
+        assert_eq!(item0.partial_cmp(&item1).unwrap(), cmp::Ordering::Less);
+        assert_eq!(item0.partial_cmp(&item2).unwrap(), cmp::Ordering::Less);
+        assert_eq!(item1.partial_cmp(&item2).unwrap(), cmp::Ordering::Less);
+
+        assert_eq!(item1.partial_cmp(&item0).unwrap(), cmp::Ordering::Greater);
+        assert_eq!(item2.partial_cmp(&item0).unwrap(), cmp::Ordering::Greater);
+        assert_eq!(item2.partial_cmp(&item1).unwrap(), cmp::Ordering::Greater);
     }
 }
