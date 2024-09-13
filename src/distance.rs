@@ -161,8 +161,19 @@ mod release {
     {
         let release_title_distance = Distance::between(lhs.release_title(), rhs.release_title());
         let release_artist_distance = Distance::between(lhs.release_artist(), rhs.release_artist());
+        let media_format_distance = Distance::between(lhs.media_format(), rhs.media_format());
+        let record_label_distance = Distance::between(lhs.record_label(), rhs.record_label());
+        let catalog_number_distance = Distance::between(lhs.catalog_number(), rhs.catalog_number());
+        let barcode_distance = Distance::between(lhs.barcode(), rhs.barcode());
 
-        let distances = [release_title_distance, release_artist_distance];
+        let distances = [
+            release_title_distance,
+            release_artist_distance,
+            media_format_distance,
+            record_label_distance,
+            catalog_number_distance,
+            barcode_distance,
+        ];
         Distance::from(distances.as_slice())
     }
 }

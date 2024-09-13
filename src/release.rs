@@ -21,6 +21,10 @@ pub trait Release {
     fn release_artist(&self) -> Option<Cow<'_, str>>;
     /// MusicBrainz Release ID
     fn musicbrainz_release_id(&self) -> Option<Cow<'_, str>>;
+    /// Media format
+    fn media_format(&self) -> Option<Cow<'_, str>>;
+    /// Record Label
+    fn record_label(&self) -> Option<Cow<'_, str>>;
     /// Catalog Number
     fn catalog_number(&self) -> Option<Cow<'_, str>>;
     /// Barcode
@@ -72,6 +76,24 @@ impl Release for MusicBrainzRelease {
 
     fn musicbrainz_release_id(&self) -> Option<Cow<'_, str>> {
         Cow::from(self.id.as_str()).into()
+    }
+
+    fn media_format(&self) -> Option<Cow<'_, str>> {
+        self.media
+            .iter()
+            .flat_map(|media| media.iter())
+            .find_map(|media| media.format.as_deref())
+            .map(Cow::from)
+    }
+
+    fn record_label(&self) -> Option<Cow<'_, str>> {
+        self.label_info.as_ref().and_then(|label_infos| {
+            label_infos
+                .iter()
+                .find_map(|label_info| label_info.label.as_ref())
+                .map(|label| &label.name)
+                .map(Cow::from)
+        })
     }
 
     fn catalog_number(&self) -> Option<Cow<'_, str>> {

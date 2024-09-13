@@ -169,6 +169,15 @@ impl Release for TrackCollection {
             .map(Cow::from)
     }
 
+    fn media_format(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(TagKey::Media).map(Cow::from)
+    }
+
+    fn record_label(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(TagKey::RecordLabel)
+            .map(Cow::from)
+    }
+
     fn catalog_number(&self) -> Option<Cow<'_, str>> {
         self.find_consensual_tag_value(TagKey::CatalogNumber)
             .map(Cow::from)
