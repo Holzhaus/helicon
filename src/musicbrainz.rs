@@ -20,6 +20,7 @@ use musicbrainz_rs_nova::{
     },
     Fetch, Search,
 };
+use std::borrow::Borrow;
 
 /// Find MusicBrainz Release information for the given (generic) Release.
 pub fn find_releases(
@@ -32,7 +33,10 @@ pub fn find_releases(
         })
         .map_or_else(
             || future::ready(None).left_future(),
-            |mb_id| async { find_release_by_mb_id(mb_id.to_string()).await.ok() }.right_future(),
+            |mb_id| {
+                let mb_id = mb_id.to_string();
+                async { find_release_by_mb_id(mb_id).await.ok() }.right_future()
+            },
         )
         .map(move |result| {
             if let Some(release) = result {
@@ -46,16 +50,16 @@ pub fn find_releases(
                         .unwrap_or_default(),
                 );
                 if let Some(v) = base_release.release_artist() {
-                    query = query.and().artist(v);
+                    query = query.and().artist(v.borrow());
                 };
                 if let Some(v) = base_release.release_title() {
-                    query = query.and().release(v);
+                    query = query.and().release(v.borrow());
                 };
                 if let Some(v) = base_release.catalog_number() {
-                    query = query.and().catalog_number(v);
+                    query = query.and().catalog_number(v.borrow());
                 };
                 if let Some(v) = base_release.barcode() {
-                    query = query.and().barcode(v);
+                    query = query.and().barcode(v.borrow());
                 }
 
                 let search = query.build();

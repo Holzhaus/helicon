@@ -10,6 +10,7 @@
 
 use crate::release::Release;
 use crate::tag::{TagKey, TaggedFile};
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 /// Represents the the count of a specific item and the first index at which that item was found.
@@ -138,11 +139,11 @@ impl Release for TrackCollection {
         self.0.len().into()
     }
 
-    fn release_title(&self) -> Option<&str> {
-        self.find_consensual_tag_value(TagKey::Album)
+    fn release_title(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(TagKey::Album).map(Cow::from)
     }
 
-    fn release_artist(&self) -> Option<&str> {
+    fn release_artist(&self) -> Option<Cow<'_, str>> {
         [TagKey::AlbumArtist, TagKey::Artist]
             .into_iter()
             .find_map(|key| self.find_most_common_tag_value(key))
@@ -160,18 +161,22 @@ impl Release for TrackCollection {
                         .into()
                     })
             })
+            .map(Cow::from)
     }
 
-    fn musicbrainz_release_id(&self) -> Option<&str> {
+    fn musicbrainz_release_id(&self) -> Option<Cow<'_, str>> {
         self.find_consensual_tag_value(TagKey::MusicBrainzReleaseId)
+            .map(Cow::from)
     }
 
-    fn catalog_number(&self) -> Option<&str> {
+    fn catalog_number(&self) -> Option<Cow<'_, str>> {
         self.find_consensual_tag_value(TagKey::CatalogNumber)
+            .map(Cow::from)
     }
 
-    fn barcode(&self) -> Option<&str> {
+    fn barcode(&self) -> Option<Cow<'_, str>> {
         self.find_consensual_tag_value(TagKey::Barcode)
+            .map(Cow::from)
     }
 }
 

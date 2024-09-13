@@ -8,6 +8,7 @@
 
 //! Distance calculations for various items.
 use crate::release::Release;
+use std::borrow::{Borrow, Cow};
 use std::cmp;
 
 /// A distance in the range (0.0, 1.0) between two items.
@@ -70,6 +71,12 @@ impl Ord for Distance {
     }
 }
 
+/// Trait that allows to calculate a distance between two items.
+pub trait DistanceBetween<S, T> {
+    /// Calculate the distance between two items.
+    fn between(lhs: S, rhs: T) -> Distance;
+}
+
 mod string {
     //! Functions for distance calculation between strings.
 
@@ -114,28 +121,36 @@ mod string {
         // f64::try_from(usize) instead, but unfortunately that doesn't exist.
         Distance::from(levenshtein_distance as f64 / max_possible_distance as f64)
     }
+}
 
-    /// Calculate the distance between two string options.
-    pub fn between_options(lhs: Option<&str>, rhs: Option<&str>) -> Distance {
-        match (lhs, rhs) {
-            (None, None) => Distance::from(0.0),
-            (Some(_), None) | (None, Some(_)) => Distance::from(1.0),
-            (Some(lhs), Some(rhs)) => between(lhs, rhs),
-        }
+impl DistanceBetween<&str, &str> for Distance {
+    fn between(lhs: &str, rhs: &str) -> Distance {
+        string::between(lhs, rhs)
+    }
+}
+impl DistanceBetween<Cow<'_, str>, Cow<'_, str>> for Distance {
+    fn between(lhs: Cow<'_, str>, rhs: Cow<'_, str>) -> Distance {
+        string::between(lhs.borrow(), rhs.borrow())
     }
 }
 
-impl Distance {
-    /// Calculate the distance between two string options.
-    pub fn between_string_options(lhs: Option<&str>, rhs: Option<&str>) -> Self {
-        string::between_options(lhs, rhs)
+impl<S, T> DistanceBetween<Option<S>, Option<T>> for Distance
+where
+    Self: DistanceBetween<S, T>,
+{
+    fn between(lhs: Option<S>, rhs: Option<T>) -> Distance {
+        match (lhs, rhs) {
+            (None, None) => Distance::from(0.0),
+            (Some(_), None) | (None, Some(_)) => Distance::from(1.0),
+            (Some(lhs), Some(rhs)) => Distance::between(lhs, rhs),
+        }
     }
 }
 
 mod release {
     //! Functions for distance calculation between [`Release`] objects.
 
-    use super::Distance;
+    use super::{Distance, DistanceBetween};
     use crate::release::Release;
 
     /// Calculate the distance between two releases.
@@ -144,23 +159,20 @@ mod release {
         T1: Release + ?Sized,
         T2: Release + ?Sized,
     {
-        let release_title_distance =
-            Distance::between_string_options(lhs.release_title(), rhs.release_title());
-        let release_artist_distance =
-            Distance::between_string_options(lhs.release_artist(), rhs.release_artist());
+        let release_title_distance = Distance::between(lhs.release_title(), rhs.release_title());
+        let release_artist_distance = Distance::between(lhs.release_artist(), rhs.release_artist());
 
         let distances = [release_title_distance, release_artist_distance];
         Distance::from(distances.as_slice())
     }
 }
 
-impl Distance {
-    /// Calculate the distance between two releases.
-    pub fn between_releases<T1, T2>(lhs: &T1, rhs: &T2) -> Self
-    where
-        T1: Release + ?Sized,
-        T2: Release + ?Sized,
-    {
+impl<S, T> DistanceBetween<&S, &T> for Distance
+where
+    S: Release,
+    T: Release,
+{
+    fn between(lhs: &S, rhs: &T) -> Self {
         release::between(lhs, rhs)
     }
 }

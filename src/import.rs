@@ -96,7 +96,7 @@ pub async fn run(input_path: PathBuf) -> crate::Result<()> {
         heap.iter().enumerate().for_each(|(index, candidate)| {
             let candidate = &candidate.0;
             log::info!(
-                "{:02}. {} - {} (Confidence: {:.3})",
+                "{:02}. {} - {} (Distance: {:.3})",
                 index + 1,
                 candidate.item.release_artist().unwrap_or_default(),
                 candidate.item.release_title().unwrap_or_default(),
