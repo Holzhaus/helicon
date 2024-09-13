@@ -15,7 +15,6 @@ use crate::release::Release;
 use crate::tag::TaggedFile;
 use crate::util::walk_dir;
 use futures::{future, stream::StreamExt};
-use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashSet};
 use std::path::PathBuf;
 
@@ -80,29 +79,24 @@ pub async fn run(input_path: PathBuf) -> crate::Result<()> {
                     release_distance.weighted_distance()
                 );
                 let item = DistanceItem::new(release, release_distance);
-                heap.push(Reverse(item));
-                if let Some(Reverse(best_match)) = heap.peek() {
-                    log::debug!(
-                        "Release '{}' is current best match with distance: {}",
-                        best_match.item.title,
-                        best_match.distance().weighted_distance()
-                    );
-                }
+                heap.push(item);
                 future::ready(())
             })
             .await;
 
         log::info!("Found {} release candidates.", heap.len());
-        heap.iter().enumerate().for_each(|(index, candidate)| {
-            let candidate = &candidate.0;
-            log::info!(
-                "{:02}. {} - {} (Distance: {:.3})",
-                index + 1,
-                candidate.item.release_artist().unwrap_or_default(),
-                candidate.item.release_title().unwrap_or_default(),
-                candidate.distance().weighted_distance()
-            );
-        });
+        heap.into_sorted_vec()
+            .iter()
+            .enumerate()
+            .for_each(|(index, candidate)| {
+                log::info!(
+                    "{:02}. {} - {} (Distance: {:.3})",
+                    index + 1,
+                    candidate.item.release_artist().unwrap_or_default(),
+                    candidate.item.release_title().unwrap_or_default(),
+                    candidate.distance().weighted_distance()
+                );
+            });
     }
 
     Ok(())
