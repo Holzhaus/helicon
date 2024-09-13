@@ -77,7 +77,7 @@ pub async fn run(input_path: PathBuf) -> crate::Result<()> {
                 log::debug!(
                     "Release '{}' has distance to track collection: {}",
                     release.title,
-                    release_distance.as_f64()
+                    release_distance.weighted_distance()
                 );
                 let item = DistanceItem::new(release, release_distance);
                 heap.push(Reverse(item));
@@ -85,7 +85,7 @@ pub async fn run(input_path: PathBuf) -> crate::Result<()> {
                     log::debug!(
                         "Release '{}' is current best match with distance: {}",
                         best_match.item.title,
-                        best_match.distance().as_f64()
+                        best_match.distance().weighted_distance()
                     );
                 }
                 future::ready(())
@@ -100,7 +100,7 @@ pub async fn run(input_path: PathBuf) -> crate::Result<()> {
                 index + 1,
                 candidate.item.release_artist().unwrap_or_default(),
                 candidate.item.release_title().unwrap_or_default(),
-                candidate.distance().as_f64()
+                candidate.distance().weighted_distance()
             );
         });
     }

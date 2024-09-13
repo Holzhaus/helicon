@@ -12,62 +12,76 @@ use std::borrow::{Borrow, Cow};
 use std::cmp;
 
 /// A distance in the range (0.0, 1.0) between two items.
-#[derive(Debug, Clone)]
-pub struct Distance(f64);
+#[derive(Debug, Clone, PartialEq)]
+pub struct Distance {
+    /// The unweighted base distance.
+    base_distance: f64,
+    /// The weight.
+    weight: f64,
+}
 
 impl Distance {
+    /// Assigns a weight to the distance.
+    pub fn with_weight(mut self, weight: f64) -> Self {
+        debug_assert!(weight.is_finite());
+        debug_assert!(weight >= 0.0);
+        self.weight = weight;
+        self
+    }
+
     /// Returns the distance between the items.
-    pub fn as_f64(&self) -> f64 {
-        debug_assert!(self.0.is_finite());
-        debug_assert!(self.0 >= 0.0);
-        debug_assert!(self.0 <= 1.0);
-        if self.0.is_nan() {
-            1.0
-        } else {
-            self.0.clamp(0.0, 1.0)
-        }
+    pub fn base_distance(&self) -> f64 {
+        self.base_distance
+    }
+
+    /// Returns the distance between the items.
+    pub fn weighted_distance(&self) -> f64 {
+        let weighted_distance = self.base_distance * self.weight;
+        debug_assert!(weighted_distance.is_finite());
+        weighted_distance
+    }
+
+    /// Returns the weight of the distance
+    pub fn weight(&self) -> f64 {
+        self.weight
     }
 }
 
 impl From<f64> for Distance {
     fn from(value: f64) -> Self {
-        Self(value)
+        debug_assert!(value.is_finite());
+        debug_assert!(value <= 1.0);
+        debug_assert!(value >= 0.0);
+        Self {
+            base_distance: value,
+            weight: 1.0,
+        }
     }
 }
 
 impl From<&[Distance]> for Distance {
     #[allow(clippy::cast_precision_loss)]
     fn from(value: &[Distance]) -> Self {
-        let base_distance: f64 = value.iter().map(Distance::as_f64).sum();
-        let total_distance = base_distance / (value.len() as f64);
+        let total_weighted_distance: f64 = value.iter().map(Distance::weighted_distance).sum();
+        let total_weight: f64 = value.iter().map(Distance::weight).sum();
+        let total_distance = total_weighted_distance / total_weight;
         Distance::from(total_distance)
-    }
-}
-
-impl PartialEq for Distance {
-    fn eq(&self, other: &Self) -> bool {
-        let lhs = self.as_f64();
-        debug_assert!(!lhs.is_nan());
-        let rhs = other.as_f64();
-        debug_assert!(!rhs.is_nan());
-
-        lhs == rhs
     }
 }
 
 impl Eq for Distance {}
 
-impl PartialOrd for Distance {
-    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
-        Some(self.cmp(other))
+impl Ord for Distance {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        (self.base_distance(), self.weight())
+            .partial_cmp(&(other.base_distance(), other.weight()))
+            .unwrap()
     }
 }
 
-impl Ord for Distance {
-    fn cmp(&self, other: &Self) -> cmp::Ordering {
-        let lhs = self.as_f64();
-        let rhs = other.as_f64();
-        lhs.partial_cmp(&rhs).unwrap()
+impl PartialOrd for Distance {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -159,12 +173,17 @@ mod release {
         T1: Release + ?Sized,
         T2: Release + ?Sized,
     {
-        let release_title_distance = Distance::between(lhs.release_title(), rhs.release_title());
-        let release_artist_distance = Distance::between(lhs.release_artist(), rhs.release_artist());
-        let media_format_distance = Distance::between(lhs.media_format(), rhs.media_format());
-        let record_label_distance = Distance::between(lhs.record_label(), rhs.record_label());
-        let catalog_number_distance = Distance::between(lhs.catalog_number(), rhs.catalog_number());
-        let barcode_distance = Distance::between(lhs.barcode(), rhs.barcode());
+        let release_title_distance =
+            Distance::between(lhs.release_title(), rhs.release_title()).with_weight(3.0);
+        let release_artist_distance =
+            Distance::between(lhs.release_artist(), rhs.release_artist()).with_weight(3.0);
+        let media_format_distance =
+            Distance::between(lhs.media_format(), rhs.media_format()).with_weight(1.0);
+        let record_label_distance =
+            Distance::between(lhs.record_label(), rhs.record_label()).with_weight(0.5);
+        let catalog_number_distance =
+            Distance::between(lhs.catalog_number(), rhs.catalog_number()).with_weight(0.5);
+        let barcode_distance = Distance::between(lhs.barcode(), rhs.barcode()).with_weight(0.5);
 
         let distances = [
             release_title_distance,
@@ -189,6 +208,7 @@ where
 }
 
 /// An Item that is bundled together with its distance to a reference item.
+#[derive(Debug, Clone)]
 pub struct DistanceItem<T> {
     /// The item.
     pub item: T,
@@ -218,12 +238,12 @@ impl<T> Eq for DistanceItem<T> {}
 
 impl<T> PartialOrd for DistanceItem<T> {
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
-        Some(self.cmp(other))
+        Some(self.distance().cmp(other.distance()))
     }
 }
 
 impl<T> Ord for DistanceItem<T> {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
-        self.distance().cmp(other.distance())
+        self.distance().partial_cmp(other.distance()).unwrap()
     }
 }
