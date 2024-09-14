@@ -49,3 +49,58 @@ pub fn between(lhs: &str, rhs: &str) -> Distance {
     // f64::try_from(usize) instead, but unfortunately that doesn't exist.
     Distance::from(levenshtein_distance as f64 / max_possible_distance as f64)
 }
+
+#[cfg(test)]
+mod tests {
+    // Note this useful idiom: importing names from outer (for mod tests) scope.
+    use super::*;
+    use float_eq::assert_float_eq;
+
+    #[test]
+    fn test_string_distance_normalize_case() {
+        let normalized = normalize("FoO bAr");
+        assert_eq!("foo bar", normalized);
+    }
+
+    #[test]
+    fn test_string_distance_normalize_suffix() {
+        let normalized = normalize("Foo, The");
+        assert_eq!("the foo", normalized);
+    }
+
+    #[test]
+    fn test_string_distance_normalize_unicode() {
+        let normalized = normalize("chopin's étude");
+        assert_eq!("chopin's etude", normalized);
+    }
+
+    #[test]
+    fn test_string_distance_exact() {
+        let distance = between("foo", "foo");
+        assert_float_eq!(distance.weighted_distance(), 0.0, abs <= 0.000_1);
+    }
+
+    #[test]
+    fn test_string_distance_distinct() {
+        let distance = between("foo", "bar");
+        assert_float_eq!(distance.weighted_distance(), 1.0, abs <= 0.000_1);
+    }
+
+    #[test]
+    fn test_string_distance_longer() {
+        let distance = between("foo", "foobar");
+        assert_float_eq!(distance.weighted_distance(), 0.5, abs <= 0.000_1);
+    }
+
+    #[test]
+    fn test_string_distance_shorter() {
+        let distance = between("foobar", "foo");
+        assert_float_eq!(distance.weighted_distance(), 0.5, abs <= 0.000_1);
+    }
+
+    #[test]
+    fn test_string_distance_suffix() {
+        let distance = between("Foo & Bar, The", "The Foo and Bar");
+        assert_float_eq!(distance.weighted_distance(), 0.0, abs <= 0.000_1);
+    }
+}
