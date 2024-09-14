@@ -7,7 +7,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 //! Generic release implementations.
-use crate::distance::{Distance, DistanceBetween};
+use crate::distance::Distance;
 use musicbrainz_rs_nova::entity::release::Release as MusicBrainzRelease;
 use std::borrow::Cow;
 
@@ -36,7 +36,7 @@ pub trait ReleaseLike {
         Self: Sized,
         T: ReleaseLike,
     {
-        Distance::between(self, other)
+        Distance::between_releases(self, other)
     }
 }
 

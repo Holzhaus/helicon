@@ -13,6 +13,8 @@ mod flac;
 #[cfg(feature = "id3")]
 mod id3;
 
+use crate::track::TrackLike;
+use std::borrow::Cow;
 use std::path::Path;
 
 /// A tag key describes the kind of information in a generic, format-independent way.
@@ -301,5 +303,22 @@ impl TaggedFile {
     /// Returns the first value for the given [`TagKey`].
     pub fn first_tag_value(&self, key: TagKey) -> Option<&str> {
         self.tag_values(key).next()
+    }
+}
+
+impl TrackLike for TaggedFile {
+    fn track_title(&self) -> Option<Cow<'_, str>> {
+        self.first_tag_value(TagKey::TrackTitle).map(Cow::from)
+    }
+
+    fn track_artist(&self) -> Option<Cow<'_, str>> {
+        self.first_tag_value(TagKey::Artist)
+            .or(self.first_tag_value(TagKey::AlbumArtist))
+            .map(Cow::from)
+    }
+
+    fn musicbrainz_recording_id(&self) -> Option<Cow<'_, str>> {
+        self.first_tag_value(TagKey::MusicBrainzRecordingId)
+            .map(Cow::from)
     }
 }

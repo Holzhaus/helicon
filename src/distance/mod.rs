@@ -8,11 +8,13 @@
 
 //! Distance calculations for various items.
 use crate::release::ReleaseLike;
+use crate::track::TrackLike;
 use std::borrow::{Borrow, Cow};
 use std::cmp;
 
 mod release;
 mod string;
+mod track;
 
 /// A distance in the range (0.0, 1.0) between two items.
 #[derive(Debug, Clone, PartialEq)]
@@ -42,6 +44,16 @@ impl Distance {
     /// Returns the weight of the distance
     pub fn weight(&self) -> f64 {
         self.weight
+    }
+
+    /// Calculate distance between two [`ReleaseLike`] items.
+    pub fn between_releases(lhs: &impl ReleaseLike, rhs: &impl ReleaseLike) -> Self {
+        release::between(lhs, rhs)
+    }
+
+    /// Calculate distance between two [`TrackLike`] items.
+    pub fn between_tracks(lhs: &impl TrackLike, rhs: &impl TrackLike) -> Self {
+        track::between(lhs, rhs)
     }
 }
 
@@ -115,16 +127,6 @@ where
             (Some(_), None) | (None, Some(_)) => Distance::from(1.0),
             (Some(lhs), Some(rhs)) => Distance::between(lhs, rhs),
         }
-    }
-}
-
-impl<S, T> DistanceBetween<&S, &T> for Distance
-where
-    S: ReleaseLike,
-    T: ReleaseLike,
-{
-    fn between(lhs: &S, rhs: &T) -> Self {
-        release::between(lhs, rhs)
     }
 }
 

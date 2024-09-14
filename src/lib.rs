@@ -53,6 +53,7 @@ mod lookup;
 mod musicbrainz;
 mod release;
 mod tag;
+mod track;
 mod util;
 
 pub use self::error::{ErrorType as Error, Result};
