@@ -10,6 +10,7 @@
 
 use crate::release::ReleaseLike;
 use crate::tag::{TagKey, TaggedFile};
+use crate::track::TrackLike;
 use std::borrow::Cow;
 use std::collections::HashMap;
 
@@ -186,6 +187,10 @@ impl ReleaseLike for TrackCollection {
     fn barcode(&self) -> Option<Cow<'_, str>> {
         self.find_consensual_tag_value(TagKey::Barcode)
             .map(Cow::from)
+    }
+
+    fn tracks(&self) -> impl Iterator<Item = &(impl TrackLike + '_)> {
+        self.0.iter()
     }
 }
 

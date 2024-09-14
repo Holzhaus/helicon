@@ -8,6 +8,7 @@
 
 //! Generic release implementations.
 use crate::distance::Distance;
+use crate::track::TrackLike;
 use musicbrainz_rs_nova::entity::release::Release as MusicBrainzRelease;
 use std::borrow::Cow;
 
@@ -30,6 +31,9 @@ pub trait ReleaseLike {
     /// Barcode
     fn barcode(&self) -> Option<Cow<'_, str>>;
 
+    /// Yields the tracks contained in the release.
+    fn tracks(&self) -> impl Iterator<Item = &(impl TrackLike + '_)>;
+
     /// Calculate the distance between this release and another one.
     fn distance_to<T>(&self, other: &T) -> Distance
     where
@@ -51,6 +55,14 @@ impl ReleaseLike for MusicBrainzRelease {
                     .sum::<u32>()
             })
             .and_then(|track_count| usize::try_from(track_count).ok())
+    }
+
+    fn tracks(&self) -> impl Iterator<Item = &(impl TrackLike + '_)> {
+        self.media
+            .iter()
+            .flat_map(|vec| vec.iter())
+            .flat_map(|media| media.tracks.iter())
+            .flat_map(|vec| vec.iter())
     }
 
     fn release_title(&self) -> Option<Cow<'_, str>> {
