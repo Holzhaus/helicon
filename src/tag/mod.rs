@@ -16,7 +16,7 @@ mod id3;
 use std::path::Path;
 
 /// A tag key describes the kind of information in a generic, format-independent way.
-#[allow(dead_code)]
+#[expect(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TagKey {
     /// AcoustID associated with the track.
@@ -231,7 +231,6 @@ pub enum TagKey {
 
 /// The tag type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
 pub enum TagType {
     /// ID3v2.2 tag
     ID3v22,
@@ -246,7 +245,7 @@ pub enum TagType {
 /// A tag tag can be used for reading.
 pub trait Tag {
     /// Get the tag type.
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     fn tag_type(&self) -> TagType;
     /// Get the string value for the tag key.
     fn get(&self, key: TagKey) -> Option<&str>;

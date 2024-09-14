@@ -26,7 +26,7 @@ impl FlacTag {
 
     /// Get the vorbis key name for a tag key.
     fn tag_key_to_frame(key: TagKey) -> Option<&'static str> {
-        #[allow(clippy::match_same_arms)]
+        #[expect(clippy::match_same_arms)]
         match key {
             TagKey::AcoustId => "ACOUSTID_ID".into(),
             TagKey::AcoustIdFingerprint => "ACOUSTID_FINGERPRINT".into(),

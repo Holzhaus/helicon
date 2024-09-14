@@ -37,7 +37,7 @@ fn normalize(value: &str) -> String {
 
 /// Calculate the case- and whitespace-insensitive distance between two strings, where 0.0 is
 /// minimum and 1.0 is the maximum distance.
-#[allow(clippy::cast_precision_loss)]
+#[expect(clippy::cast_precision_loss)]
 pub fn between(lhs: &str, rhs: &str) -> Distance {
     let lhs = normalize(lhs);
     let rhs = normalize(rhs);

@@ -64,7 +64,6 @@ impl From<bool> for Distance {
 }
 
 impl From<&[Distance]> for Distance {
-    #[allow(clippy::cast_precision_loss)]
     fn from(value: &[Distance]) -> Self {
         let total_weighted_distance: f64 = value.iter().map(Distance::weighted_distance).sum();
         let total_weight: f64 = value.iter().map(Distance::weight).sum();

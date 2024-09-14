@@ -35,7 +35,7 @@ impl ID3v2Tag {
 
     /// Get the ID3 frame for a tag key.
     fn tag_key_to_frame(&self, key: TagKey) -> Option<FrameId<'_>> {
-        #[allow(clippy::match_same_arms)]
+        #[expect(clippy::match_same_arms)]
         match key {
             TagKey::AcoustId => FrameId::ExtendedText("Acoustid Id").into(),
             TagKey::AcoustIdFingerprint => FrameId::ExtendedText("Acoustid Fingerprint").into(),
