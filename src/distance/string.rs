@@ -25,8 +25,8 @@ fn normalize(value: &str) -> String {
     // Move common suffixes (e.g., ", the") to the front of the string.
     for suffix in SUFFIXES {
         if let Some(stripped) = value.strip_suffix(suffix) {
-            let new_prefix = stripped.trim_start_matches(", ");
-            value = format!("{new_prefix} {value}");
+            let new_prefix = suffix.trim_start_matches(", ");
+            value = format!("{new_prefix} {stripped}");
             break;
         }
     }
