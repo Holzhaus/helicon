@@ -317,6 +317,15 @@ impl TrackLike for TaggedFile {
             .map(Cow::from)
     }
 
+    fn track_number(&self) -> Option<Cow<'_, str>> {
+        self.first_tag_value(TagKey::TrackNumber).map(Cow::from)
+    }
+
+    fn track_length(&self) -> Option<chrono::TimeDelta> {
+        // TODO: Implement track length detection.
+        None
+    }
+
     fn musicbrainz_recording_id(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(TagKey::MusicBrainzRecordingId)
             .map(Cow::from)

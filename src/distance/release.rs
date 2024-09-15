@@ -247,24 +247,9 @@ where
 #[cfg(test)]
 mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
+    use super::super::tests::TestTrack;
     use super::*;
     use float_eq::assert_float_eq;
-    use std::borrow::Cow;
-
-    struct TestTrack(&'static str);
-    impl TrackLike for TestTrack {
-        fn track_title(&self) -> Option<Cow<'_, str>> {
-            Cow::from(self.0).into()
-        }
-
-        fn track_artist(&self) -> Option<Cow<'_, str>> {
-            None
-        }
-
-        fn musicbrainz_recording_id(&self) -> Option<Cow<'_, str>> {
-            None
-        }
-    }
 
     #[test]
     fn test_track_assignment_exact() {

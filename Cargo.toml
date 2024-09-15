@@ -18,6 +18,8 @@ id3 = { version = "1", optional = true }
 metaflac = { version = "0", optional = true }
 futures = "0"
 hungarian = "1"
+chrono = { version = "0", features = [] }
+num = "0.4"
 
 [dev-dependencies]
 float_eq = "1"

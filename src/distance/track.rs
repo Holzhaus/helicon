@@ -23,6 +23,14 @@ where
     let track_artist_distance = rhs
         .track_artist()
         .map(|rhs_artist| Distance::between(lhs.track_artist(), Some(rhs_artist)).with_weight(3.0));
+    let track_number_distance = lhs
+        .track_number()
+        .and_then(|lhs_len| rhs.track_number().map(|rhs_len| (lhs_len, rhs_len)))
+        .map(|(lhs_len, rhs_len)| Distance::between(lhs_len, rhs_len));
+    let track_length_distance = lhs
+        .track_length()
+        .and_then(|lhs_len| rhs.track_length().map(|rhs_len| (lhs_len, rhs_len)))
+        .map(|(lhs_len, rhs_len)| Distance::between(lhs_len, rhs_len));
     let musicbrainz_recording_id_distance = lhs
         .musicbrainz_recording_id()
         .and_then(|lhs_id| {
@@ -42,6 +50,8 @@ where
     let distances: Vec<_> = [
         Some(track_title_distance),
         track_artist_distance,
+        track_number_distance,
+        track_length_distance,
         musicbrainz_recording_id_distance,
     ]
     .into_iter()
@@ -53,24 +63,9 @@ where
 #[cfg(test)]
 mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
+    use super::super::tests::TestTrack;
     use super::*;
     use float_eq::assert_float_eq;
-    use std::borrow::Cow;
-
-    struct TestTrack(&'static str);
-    impl TrackLike for TestTrack {
-        fn track_title(&self) -> Option<Cow<'_, str>> {
-            Cow::from(self.0).into()
-        }
-
-        fn track_artist(&self) -> Option<Cow<'_, str>> {
-            None
-        }
-
-        fn musicbrainz_recording_id(&self) -> Option<Cow<'_, str>> {
-            None
-        }
-    }
 
     #[test]
     fn test_track_distance_title_exact() {

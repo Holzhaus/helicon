@@ -9,11 +9,14 @@
 //! Distance calculations for various items.
 use crate::release::ReleaseLike;
 use crate::track::TrackLike;
+use num::rational::Ratio;
+use num::ToPrimitive;
 use std::borrow::{Borrow, Cow};
 use std::cmp;
 
 mod release;
 mod string;
+mod time;
 mod track;
 
 /// A distance in the range (0.0, 1.0) between two items.
@@ -75,6 +78,15 @@ impl From<bool> for Distance {
     }
 }
 
+impl<T> From<Ratio<T>> for Distance
+where
+    Ratio<T>: ToPrimitive,
+{
+    fn from(value: Ratio<T>) -> Self {
+        value.to_f64().map(Distance::from).unwrap()
+    }
+}
+
 impl From<&[Distance]> for Distance {
     fn from(value: &[Distance]) -> Self {
         let total_weighted_distance: f64 = value.iter().map(Distance::weighted_distance).sum();
@@ -106,14 +118,27 @@ pub trait DistanceBetween<S, T> {
     fn between(lhs: S, rhs: T) -> Distance;
 }
 
+impl DistanceBetween<i64, i64> for Distance {
+    fn between(lhs: i64, rhs: i64) -> Distance {
+        Distance::from(Ratio::new(lhs, rhs))
+    }
+}
+
 impl DistanceBetween<&str, &str> for Distance {
     fn between(lhs: &str, rhs: &str) -> Distance {
         string::between(lhs, rhs)
     }
 }
+
 impl DistanceBetween<Cow<'_, str>, Cow<'_, str>> for Distance {
     fn between(lhs: Cow<'_, str>, rhs: Cow<'_, str>) -> Distance {
         string::between(lhs.borrow(), rhs.borrow())
+    }
+}
+
+impl DistanceBetween<chrono::TimeDelta, chrono::TimeDelta> for Distance {
+    fn between(lhs: chrono::TimeDelta, rhs: chrono::TimeDelta) -> Distance {
+        time::between(lhs, rhs)
     }
 }
 
@@ -176,6 +201,29 @@ mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
     use float_eq::assert_float_eq;
+
+    pub struct TestTrack(pub &'static str);
+    impl TrackLike for TestTrack {
+        fn track_title(&self) -> Option<Cow<'_, str>> {
+            Cow::from(self.0).into()
+        }
+
+        fn track_artist(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn track_number(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn track_length(&self) -> Option<chrono::TimeDelta> {
+            None
+        }
+
+        fn musicbrainz_recording_id(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+    }
 
     #[test]
     fn test_distance_from_slice() {

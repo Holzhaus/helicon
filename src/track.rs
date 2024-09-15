@@ -17,6 +17,10 @@ pub trait TrackLike {
     fn track_title(&self) -> Option<Cow<'_, str>>;
     /// Track artist.
     fn track_artist(&self) -> Option<Cow<'_, str>>;
+    /// Track number.
+    fn track_number(&self) -> Option<Cow<'_, str>>;
+    /// Track length.
+    fn track_length(&self) -> Option<chrono::TimeDelta>;
     /// MusicBrainz Recording ID
     fn musicbrainz_recording_id(&self) -> Option<Cow<'_, str>>;
 
@@ -52,6 +56,15 @@ impl TrackLike for MusicBrainzReleaseTrack {
                 }),
         )
         .into()
+    }
+
+    fn track_number(&self) -> Option<Cow<'_, str>> {
+        Cow::from(&self.number).into()
+    }
+
+    fn track_length(&self) -> Option<chrono::TimeDelta> {
+        self.length
+            .map(|length| chrono::TimeDelta::seconds(length.into()))
     }
 
     fn musicbrainz_recording_id(&self) -> Option<Cow<'_, str>> {
