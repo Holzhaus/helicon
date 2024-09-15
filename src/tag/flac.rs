@@ -9,6 +9,7 @@
 //! Support for FLAC tags.
 
 use crate::tag::{Tag, TagKey, TagType};
+use std::borrow::Cow;
 use std::path::Path;
 
 /// FLAC tag.
@@ -18,6 +19,13 @@ pub struct FlacTag {
 }
 
 impl FlacTag {
+    #[cfg(test)]
+    pub fn new() -> Self {
+        FlacTag {
+            data: metaflac::Tag::new(),
+        }
+    }
+
     /// Read the FLAC tag from the path
     pub fn read_from_path(path: impl AsRef<Path>) -> crate::Result<Self> {
         let data = metaflac::Tag::read_from_path(path)?;
@@ -133,5 +141,26 @@ impl Tag for FlacTag {
         Self::tag_key_to_frame(key)
             .and_then(|key| self.data.get_vorbis(key))
             .and_then(|mut iterator| iterator.next())
+    }
+
+    fn set(&mut self, key: TagKey, value: Cow<'_, str>) {
+        if let Some(frame) = Self::tag_key_to_frame(key) {
+            self.data.set_vorbis(frame, vec![value]);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tag::{Tag, TagKey};
+
+    #[test]
+    fn test_get_and_set() {
+        let mut tag = FlacTag::new();
+        assert!(tag.get(TagKey::Genre).is_none());
+
+        tag.set(TagKey::Genre, Cow::from("Hard Bop"));
+        assert_eq!(tag.get(TagKey::Genre), Some("Hard Bop"));
     }
 }

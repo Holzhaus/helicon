@@ -9,7 +9,8 @@
 //! Support for ID3 tags.
 
 use crate::tag::{Tag, TagKey, TagType};
-use id3::TagLike;
+use id3::{frame::ExtendedText, TagLike};
+use std::borrow::Cow;
 use std::path::Path;
 
 /// ID3 frame ID.
@@ -29,6 +30,13 @@ pub struct ID3v2Tag {
 }
 
 impl ID3v2Tag {
+    #[cfg(test)]
+    pub fn new() -> Self {
+        ID3v2Tag {
+            data: id3::Tag::new(),
+        }
+    }
+
     /// Read the ID3 tag from the path
     pub fn read_from_path(path: impl AsRef<Path>) -> crate::Result<Self> {
         let data = id3::Tag::read_from_path(path)?;
@@ -166,18 +174,20 @@ impl ID3v2Tag {
     }
 
     /// Get the content of a text frame as string.
-    fn get(&self, frame_id: &str) -> Option<&str> {
+    fn get_frames<'a>(&'a self, frame_id: &'a str) -> impl Iterator<Item = &'a str> {
         self.data
             .get(frame_id)
-            .and_then(|frame| frame.content().text())
+            .and_then(|frame| frame.content().text_values())
+            .into_iter()
+            .flatten()
     }
 
     /// Get the content of an extended text frame as string.
-    fn get_extended_text(&self, description: &str) -> Option<&str> {
+    fn get_extended_texts<'a>(&'a self, description: &'a str) -> impl Iterator<Item = &'a str> {
         self.data
             .extended_texts()
-            .find(|t| t.description == description)
-            .and_then(|t| t.value.strip_suffix('\0'))
+            .filter(move |extended_text| extended_text.description == description)
+            .map(|extended_text| extended_text.value.as_str())
     }
 }
 
@@ -193,8 +203,50 @@ impl Tag for ID3v2Tag {
     fn get(&self, key: TagKey) -> Option<&str> {
         self.tag_key_to_frame(key)
             .and_then(|frame_id| match frame_id {
-                FrameId::Text(value) => self.get(value),
-                FrameId::ExtendedText(value) => self.get_extended_text(value),
+                FrameId::Text(value) => self.get_frames(value).next(),
+                FrameId::ExtendedText(value) => self.get_extended_texts(value).next(),
             })
+    }
+
+    #[expect(unused_results)]
+    fn set(&mut self, key: TagKey, value: Cow<'_, str>) {
+        let frame = self.tag_key_to_frame(key);
+        if let Some(frame) = frame {
+            match frame {
+                FrameId::Text(id) => {
+                    self.data.set_text(id, value);
+                }
+                FrameId::ExtendedText(description) => {
+                    self.data.add_frame(ExtendedText {
+                        description: description.to_string(),
+                        value: value.into_owned(),
+                    });
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tag::{Tag, TagKey};
+
+    #[test]
+    fn test_get_and_set_text() {
+        let mut tag = ID3v2Tag::new();
+        assert!(tag.get(TagKey::Genre).is_none());
+
+        tag.set(TagKey::Genre, Cow::from("Hard Bop"));
+        assert_eq!(tag.get(TagKey::Genre), Some("Hard Bop"));
+    }
+
+    #[test]
+    fn test_get_and_set_extended_text() {
+        let mut tag = ID3v2Tag::new();
+        assert!(tag.get(TagKey::Artists).is_none());
+
+        tag.set(TagKey::Artists, Cow::from("Rita Reys"));
+        assert_eq!(tag.get(TagKey::Artists), Some("Rita Reys"));
     }
 }

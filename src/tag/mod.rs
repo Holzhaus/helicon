@@ -7,6 +7,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 //! Tags and tag-related functions.
+use std::borrow::Cow;
 use std::path::Path;
 
 #[cfg(feature = "flac")]
@@ -246,6 +247,8 @@ pub trait Tag {
     fn tag_type(&self) -> TagType;
     /// Get the string value for the tag key.
     fn get(&self, key: TagKey) -> Option<&str>;
+    /// Set the value for tag key to multiple values.
+    fn set(&mut self, key: TagKey, value: Cow<'_, str>);
 }
 
 /// Return a vector of tags from the file at the given path.
