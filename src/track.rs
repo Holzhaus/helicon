@@ -64,7 +64,7 @@ impl TrackLike for MusicBrainzReleaseTrack {
 
     fn track_length(&self) -> Option<chrono::TimeDelta> {
         self.length
-            .map(|length| chrono::TimeDelta::seconds(length.into()))
+            .map(|length| chrono::TimeDelta::milliseconds(length.into()))
     }
 
     fn musicbrainz_recording_id(&self) -> Option<Cow<'_, str>> {
