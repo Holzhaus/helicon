@@ -99,3 +99,49 @@ pub async fn find_release_by_mb_id(id: String) -> crate::Result<MusicBrainzRelea
         .map(|result| result.map_err(crate::Error::from))
         .await
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::release::ReleaseLike;
+    use crate::track::TrackLike;
+    use musicbrainz_rs_nova::entity::release::Release as MusicBrainzRelease;
+
+    const MUSICBRAINZ_RELEASE_JSON: &str = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/data/musicbrainz/release.json"
+    ));
+
+    #[test]
+    fn test_releaselike_impl() {
+        let release: MusicBrainzRelease = serde_json::from_str(MUSICBRAINZ_RELEASE_JSON).unwrap();
+
+        assert_eq!(
+            release.release_title().unwrap(),
+            "Ahmad Jamal at the Pershing: But Not for Me"
+        );
+        assert_eq!(release.release_artist().unwrap(), "The Ahmad Jamal Trio");
+        assert_eq!(release.track_count().unwrap(), 8);
+        assert_eq!(
+            release.musicbrainz_release_id().unwrap(),
+            "0008f765-032b-46cd-ab69-2220edab1837"
+        );
+        assert_eq!(release.media_format().unwrap(), "12\" Vinyl");
+        assert_eq!(release.record_label().unwrap(), "Argo");
+        assert_eq!(release.catalog_number().unwrap(), "LP-628");
+        assert_eq!(release.barcode(), None);
+    }
+
+    #[test]
+    fn test_tracklike_impl() {
+        let release: MusicBrainzRelease = serde_json::from_str(MUSICBRAINZ_RELEASE_JSON).unwrap();
+        let track = release.tracks().skip(5).take(1).next().unwrap();
+
+        assert_eq!(track.track_title().unwrap(), "Poinciana");
+        assert_eq!(track.track_artist().unwrap(), "Ahmad Jamal");
+        assert_eq!(track.track_number().unwrap(), "6");
+        assert_eq!(
+            track.track_length().unwrap(),
+            chrono::TimeDelta::milliseconds(487_533)
+        );
+    }
+}
