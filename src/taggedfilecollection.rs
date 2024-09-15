@@ -9,8 +9,9 @@
 //! Utilities for matching and lookup up albums and tracks.
 
 use crate::release::ReleaseLike;
-use crate::tag::{TagKey, TaggedFile};
+use crate::tag::TagKey;
 use crate::track::TrackLike;
+use crate::TaggedFile;
 use std::borrow::Cow;
 use std::collections::HashMap;
 
@@ -109,10 +110,12 @@ fn is_va_artist(value: &str) -> bool {
 }
 
 /// A collection of tracks on the local disk.
-pub struct TrackCollection(Vec<TaggedFile>);
+#[derive(Debug)]
+pub struct TaggedFileCollection(Vec<TaggedFile>);
 
-impl TrackCollection {
+impl TaggedFileCollection {
     /// Creates a new collection from a `Vec` of `TaggedFile` instances.
+    #[must_use]
     pub fn new(tracks: Vec<TaggedFile>) -> Self {
         Self(tracks)
     }
@@ -135,7 +138,7 @@ impl TrackCollection {
     }
 }
 
-impl ReleaseLike for TrackCollection {
+impl ReleaseLike for TaggedFileCollection {
     fn track_count(&self) -> Option<usize> {
         self.0.len().into()
     }

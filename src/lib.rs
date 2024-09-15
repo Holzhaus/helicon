@@ -49,11 +49,14 @@
 mod distance;
 mod error;
 pub mod import;
-mod lookup;
 mod musicbrainz;
 mod release;
 mod tag;
+mod taggedfile;
+mod taggedfilecollection;
 mod track;
 mod util;
 
 pub use self::error::{ErrorType as Error, Result};
+pub use self::taggedfile::TaggedFile;
+pub use self::taggedfilecollection::TaggedFileCollection;

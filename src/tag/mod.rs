@@ -7,18 +7,14 @@
 // SPDX-License-Identifier: MPL-2.0
 
 //! Tags and tag-related functions.
+use std::path::Path;
 
 #[cfg(feature = "flac")]
 mod flac;
 #[cfg(feature = "id3")]
 mod id3;
 
-use crate::track::TrackLike;
-use std::borrow::Cow;
-use std::path::Path;
-
 /// A tag key describes the kind of information in a generic, format-independent way.
-#[expect(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TagKey {
     /// AcoustID associated with the track.
@@ -247,87 +243,36 @@ pub enum TagType {
 /// A tag tag can be used for reading.
 pub trait Tag {
     /// Get the tag type.
-    #[expect(dead_code)]
     fn tag_type(&self) -> TagType;
     /// Get the string value for the tag key.
     fn get(&self, key: TagKey) -> Option<&str>;
 }
 
-/// A tagged file that contains zero or more tags.
-pub struct TaggedFile {
-    /// Tags that are present in the file.
-    content: Vec<Box<dyn Tag>>,
-}
-
-impl TaggedFile {
-    /// Creates a [`TaggedFile`] from the path.
-    pub fn read_from_path(path: impl AsRef<Path>) -> crate::Result<Self> {
-        path.as_ref()
-            .extension()
-            .map(std::ffi::OsStr::to_ascii_lowercase)
-            .ok_or(crate::Error::UnknownFileType)
-            .and_then(|extension| {
-                extension
-                    .to_str()
-                    .ok_or(crate::Error::UnknownFileType)
-                    .map(|ext| match ext {
-                        #[cfg(feature = "id3")]
-                        "mp3" => id3::ID3v2Tag::read_from_path(&path)
-                            .map(Box::new)
-                            .map(|tag| Box::<dyn Tag>::from(tag))
-                            .map(|tag| vec![tag]),
-                        #[cfg(feature = "flac")]
-                        "flac" => flac::FlacTag::read_from_path(&path)
-                            .map(Box::new)
-                            .map(|tag| Box::<dyn Tag>::from(tag))
-                            .map(|tag| vec![tag]),
-                        ext => {
-                            log::debug!("Unknown file extension {:?}", ext);
-                            Err(crate::Error::UnknownFileType)
-                        }
-                    })?
-            })
-            .map(|content| Self { content })
-    }
-
-    /// Returns zero or more [`Tag`] objects.
-    pub fn tags(&self) -> &[Box<dyn Tag>] {
-        &self.content
-    }
-
-    /// Yields all values for the given [`TagKey`].
-    pub fn tag_values(&self, key: TagKey) -> impl Iterator<Item = &str> {
-        self.tags().iter().filter_map(move |tag| tag.get(key))
-    }
-
-    /// Returns the first value for the given [`TagKey`].
-    pub fn first_tag_value(&self, key: TagKey) -> Option<&str> {
-        self.tag_values(key).next()
-    }
-}
-
-impl TrackLike for TaggedFile {
-    fn track_title(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::TrackTitle).map(Cow::from)
-    }
-
-    fn track_artist(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::Artist)
-            .or(self.first_tag_value(TagKey::AlbumArtist))
-            .map(Cow::from)
-    }
-
-    fn track_number(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::TrackNumber).map(Cow::from)
-    }
-
-    fn track_length(&self) -> Option<chrono::TimeDelta> {
-        // TODO: Implement track length detection.
-        None
-    }
-
-    fn musicbrainz_recording_id(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::MusicBrainzRecordingId)
-            .map(Cow::from)
-    }
+/// Return a vector of tags from the file at the given path.
+pub fn read_tags_from_path(path: impl AsRef<Path>) -> crate::Result<Vec<Box<dyn Tag>>> {
+    path.as_ref()
+        .extension()
+        .map(std::ffi::OsStr::to_ascii_lowercase)
+        .ok_or(crate::Error::UnknownFileType)
+        .and_then(|extension| {
+            extension
+                .to_str()
+                .ok_or(crate::Error::UnknownFileType)
+                .map(|ext| match ext {
+                    #[cfg(feature = "id3")]
+                    "mp3" => id3::ID3v2Tag::read_from_path(&path)
+                        .map(Box::new)
+                        .map(|tag| Box::<dyn Tag>::from(tag))
+                        .map(|tag| vec![tag]),
+                    #[cfg(feature = "flac")]
+                    "flac" => flac::FlacTag::read_from_path(&path)
+                        .map(Box::new)
+                        .map(|tag| Box::<dyn Tag>::from(tag))
+                        .map(|tag| vec![tag]),
+                    ext => {
+                        log::debug!("Unknown file extension {:?}", ext);
+                        Err(crate::Error::UnknownFileType)
+                    }
+                })?
+        })
 }

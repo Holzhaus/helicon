@@ -9,11 +9,10 @@
 //! Functions related to importing files.
 
 use crate::distance::DistanceItem;
-use crate::lookup::TrackCollection;
 use crate::musicbrainz;
 use crate::release::ReleaseLike;
-use crate::tag::TaggedFile;
 use crate::util::walk_dir;
+use crate::{TaggedFile, TaggedFileCollection};
 use futures::{future, stream::StreamExt};
 use std::collections::{BinaryHeap, HashSet};
 use std::path::PathBuf;
@@ -58,7 +57,7 @@ pub async fn run(input_path: PathBuf) -> crate::Result<()> {
             tagged_files.len()
         );
 
-        let track_collection = TrackCollection::new(tagged_files);
+        let track_collection = TaggedFileCollection::new(tagged_files);
 
         let mut heap = BinaryHeap::new();
         musicbrainz::find_releases(&track_collection)

@@ -13,6 +13,7 @@ use id3::TagLike;
 use std::path::Path;
 
 /// ID3 frame ID.
+#[derive(Debug)]
 enum FrameId<'a> {
     /// Text frame.
     Text(&'a str),
@@ -21,6 +22,7 @@ enum FrameId<'a> {
 }
 
 /// ID3 tag (version 2).
+#[derive(Debug)]
 pub struct ID3v2Tag {
     /// The underlying tag data.
     data: id3::Tag,
