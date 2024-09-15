@@ -90,10 +90,15 @@ pub async fn run(input_path: PathBuf) -> crate::Result<()> {
             .enumerate()
             .for_each(|(index, candidate)| {
                 log::info!(
-                    "{:02}. {} - {} (Distance: {:.3})",
+                    "{:02}. {} - {} ({}distance: {:.3})",
                     index + 1,
                     candidate.item.release_artist().unwrap_or_default(),
                     candidate.item.release_title().unwrap_or_default(),
+                    candidate
+                        .item
+                        .track_count()
+                        .map(|c| format!("{c} tracks, "))
+                        .unwrap_or_default(),
                     candidate.distance().weighted_distance()
                 );
             });
