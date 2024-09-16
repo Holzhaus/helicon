@@ -10,7 +10,8 @@
 
 use crate::tag::{Tag, TagKey, TagType};
 use id3::{frame::ExtendedText, TagLike};
-use std::borrow::Cow;
+use std::borrow::{Borrow, Cow};
+use std::iter;
 use std::path::Path;
 
 /// ID3 frame ID.
@@ -20,6 +21,8 @@ enum FrameId<'a> {
     Text(&'a str),
     /// Extended Text frame (`TXXX`).
     ExtendedText(&'a str),
+    /// Text Frame with multiple values.
+    MultiValuedText(&'a str, &'a str),
 }
 
 /// ID3 tag (version 2).
@@ -53,7 +56,11 @@ impl ID3v2Tag {
             TagKey::AlbumArtist => FrameId::Text("TPE2").into(),
             TagKey::AlbumArtistSortOrder => FrameId::Text("TSO2").into(),
             TagKey::AlbumSortOrder => FrameId::Text("TSOA").into(),
-            TagKey::Arranger => None, // TODO: Add mapping to "TIPL:arranger" (ID3v2.4) or "IPLS:arranger" (ID3v2.3)
+            TagKey::Arranger => match self.data.version() {
+                id3::Version::Id3v22 => None,
+                id3::Version::Id3v23 => FrameId::MultiValuedText("IPLS", "arranger").into(),
+                id3::Version::Id3v24 => FrameId::MultiValuedText("TIPL", "arranger").into(),
+            },
             TagKey::Artist => FrameId::Text("TPE1").into(),
             TagKey::ArtistSortOrder => FrameId::Text("TSOP").into(),
             TagKey::Artists => FrameId::ExtendedText("ARTISTS").into(),
@@ -75,7 +82,11 @@ impl ID3v2Tag {
             },
             TagKey::EncodedBy => FrameId::Text("TENC").into(),
             TagKey::EncoderSettings => FrameId::Text("TSSE").into(),
-            TagKey::Engineer => None, // TODO: Add mapping to "TIPL:engineer" (ID3v2.4) or "IPLS:engineer" (ID3v2.3)
+            TagKey::Engineer => match self.data.version() {
+                id3::Version::Id3v22 => None,
+                id3::Version::Id3v23 => FrameId::MultiValuedText("IPLS", "engineer").into(),
+                id3::Version::Id3v24 => FrameId::MultiValuedText("TIPL", "engineer").into(),
+            },
             TagKey::GaplessPlayback => None,
             TagKey::Genre => FrameId::Text("TCON").into(),
             TagKey::Grouping => FrameId::Text("TIT1").into(), // TODO: Add mapping to "GRP1", too?
@@ -86,8 +97,16 @@ impl ID3v2Tag {
             TagKey::Lyricist => FrameId::Text("TEXT").into(),
             TagKey::Lyrics => None, // TODO: Add mapping to USLT:description
             TagKey::Media => FrameId::Text("TMED").into(),
-            TagKey::DjMixer => None, // TODO: Add mapping to "TIPL:DJ-mix" (ID3v2.4) or "IPLS:DJ-mix" (ID3v2.3)
-            TagKey::Mixer => None, // TODO: Add mapping to "TIPL:mix" (ID3v2.4) or "IPLS:mix" (ID3v2.3)
+            TagKey::DjMixer => match self.data.version() {
+                id3::Version::Id3v22 => None,
+                id3::Version::Id3v23 => FrameId::MultiValuedText("IPLS", "DJ-mix").into(),
+                id3::Version::Id3v24 => FrameId::MultiValuedText("TIPL", "DJ-mix").into(),
+            },
+            TagKey::Mixer => match self.data.version() {
+                id3::Version::Id3v22 => None,
+                id3::Version::Id3v23 => FrameId::MultiValuedText("IPLS", "mix").into(),
+                id3::Version::Id3v24 => FrameId::MultiValuedText("TIPL", "mix").into(),
+            },
             TagKey::Mood => match self.data.version() {
                 id3::Version::Id3v22 | id3::Version::Id3v23 => None,
                 id3::Version::Id3v24 => FrameId::Text("TMOO").into(),
@@ -130,7 +149,11 @@ impl ID3v2Tag {
             TagKey::Performer => None, // TODO: Add mapping to "TMCL:instrument" (ID3v2.4) or "IPLS:instrument" (ID3v2.3)
             TagKey::Podcast => None,
             TagKey::PodcastUrl => None,
-            TagKey::Producer => None, // TODO: Add mapping to "TIPL:producer" (ID3v2.4) or "IPLS:producer" (ID3v2.3)
+            TagKey::Producer => match self.data.version() {
+                id3::Version::Id3v22 => None,
+                id3::Version::Id3v23 => FrameId::MultiValuedText("IPLS", "producer").into(),
+                id3::Version::Id3v24 => FrameId::MultiValuedText("TIPL", "producer").into(),
+            },
             TagKey::Rating => FrameId::Text("POPM").into(),
             TagKey::RecordLabel => FrameId::Text("TPUB").into(),
             TagKey::ReleaseCountry => {
@@ -189,6 +212,23 @@ impl ID3v2Tag {
             .filter(move |extended_text| extended_text.description == description)
             .map(|extended_text| extended_text.value.as_str())
     }
+
+    /// Get the content of multi-valued text frames (e.g., TIPL, IPLS) as string pairs.
+    fn get_multi_valued_texts<'a>(
+        &'a self,
+        frame_id: &'a str,
+    ) -> impl Iterator<Item = (&'a str, &'a str)> {
+        // TODO: Once it becomes stable, `std::iter::Iterator::array_chunks` should be used instead.
+        let descriptions = self
+            .get_frames(frame_id)
+            .enumerate()
+            .filter_map(|(i, v)| ((i & 1) == 0).then_some(v));
+        let values = self
+            .get_frames(frame_id)
+            .enumerate()
+            .filter_map(|(i, v)| ((i & 1) == 1).then_some(v));
+        descriptions.zip(values)
+    }
 }
 
 impl Tag for ID3v2Tag {
@@ -203,8 +243,11 @@ impl Tag for ID3v2Tag {
     fn get(&self, key: TagKey) -> Option<&str> {
         self.tag_key_to_frame(key)
             .and_then(|frame_id| match frame_id {
-                FrameId::Text(value) => self.get_frames(value).next(),
-                FrameId::ExtendedText(value) => self.get_extended_texts(value).next(),
+                FrameId::Text(id) => self.get_frames(id).next(),
+                FrameId::ExtendedText(id) => self.get_extended_texts(id).next(),
+                FrameId::MultiValuedText(id, desc) => self
+                    .get_multi_valued_texts(id)
+                    .find_map(|(frame_desc, text)| (frame_desc == desc).then_some(text)),
             })
     }
 
@@ -221,6 +264,17 @@ impl Tag for ID3v2Tag {
                         description: description.to_string(),
                         value: value.into_owned(),
                     });
+                }
+                FrameId::MultiValuedText(id, desc) => {
+                    let new_value = self
+                        .get_multi_valued_texts(id)
+                        .filter(|(frame_desc, _)| frame_desc != &desc)
+                        .chain(iter::once((desc, value.borrow())))
+                        .fold(String::new(), |acc: String, (desc, text)| {
+                            let sep = if acc.is_empty() { "" } else { "\0" };
+                            acc + sep + desc + "\0" + text
+                        });
+                    self.data.set_text(id, new_value);
                 }
             }
         }
@@ -248,5 +302,20 @@ mod tests {
 
         tag.set(TagKey::Artists, Cow::from("Rita Reys"));
         assert_eq!(tag.get(TagKey::Artists), Some("Rita Reys"));
+    }
+
+    #[test]
+    fn test_get_and_set_multivalued_text() {
+        let mut tag = ID3v2Tag::new();
+        assert!(tag.get(TagKey::Producer).is_none());
+
+        tag.set(TagKey::Producer, Cow::from("Dave Usher"));
+        assert_eq!(tag.get(TagKey::Producer), Some("Dave Usher"));
+
+        assert!(tag.get(TagKey::Engineer).is_none());
+
+        tag.set(TagKey::Engineer, Cow::from("Malcolm Chisholm"));
+        assert_eq!(tag.get(TagKey::Engineer), Some("Malcolm Chisholm"));
+        assert_eq!(tag.get(TagKey::Producer), Some("Dave Usher"));
     }
 }
