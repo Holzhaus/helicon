@@ -20,6 +20,7 @@ mod time;
 mod track;
 
 /// A distance in the range (0.0, 1.0) between two items.
+#[expect(missing_copy_implementations)]
 #[derive(Debug, Clone, PartialEq)]
 pub struct Distance {
     /// The unweighted base distance.

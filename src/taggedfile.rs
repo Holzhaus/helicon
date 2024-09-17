@@ -32,6 +32,12 @@ impl fmt::Debug for TaggedFile {
 }
 
 impl TaggedFile {
+    #[cfg(test)]
+    #[must_use]
+    pub fn new(content: Vec<Box<dyn Tag>>) -> Self {
+        TaggedFile { content }
+    }
+
     /// Creates a [`TaggedFile`] from the path.
     ///
     /// # Errors
@@ -56,6 +62,19 @@ impl TaggedFile {
     #[must_use]
     pub fn first_tag_value(&self, key: TagKey) -> Option<&str> {
         self.tag_values(key).next()
+    }
+
+    /// Assign metadata from another `TrackLike` struct (e.g. a MusicBrainz track).
+    pub fn copy_metadata(&mut self, other: &impl TrackLike) {
+        for tag in &mut self.content {
+            tag.set_or_clear(TagKey::TrackTitle, other.track_title());
+            tag.set_or_clear(TagKey::Artist, other.track_artist());
+            tag.set_or_clear(TagKey::TrackNumber, other.track_number());
+            tag.set_or_clear(
+                TagKey::MusicBrainzRecordingId,
+                other.musicbrainz_recording_id(),
+            );
+        }
     }
 }
 
@@ -82,5 +101,64 @@ impl TrackLike for TaggedFile {
     fn musicbrainz_recording_id(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(TagKey::MusicBrainzRecordingId)
             .map(Cow::from)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use musicbrainz_rs_nova::entity::release::{
+        Release as MusicBrainzRelease, Track as MusicBrainzTrack,
+    };
+
+    const MUSICBRAINZ_RELEASE_JSON: &str = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/data/musicbrainz/release.json"
+    ));
+
+    #[cfg(feature = "id3")]
+    #[test]
+    fn test_copy_metadata_id3() {
+        use crate::tag::id3::ID3v2Tag;
+
+        let release: MusicBrainzRelease = serde_json::from_str(MUSICBRAINZ_RELEASE_JSON).unwrap();
+        let track: &MusicBrainzTrack =
+            &release.media.as_ref().unwrap()[0].tracks.as_ref().unwrap()[0];
+
+        let mut tagged_file = TaggedFile::new(vec![Box::new(ID3v2Tag::new())]);
+        assert!(tagged_file.track_title().is_none());
+        assert!(tagged_file.track_artist().is_none());
+        assert!(tagged_file.track_number().is_none());
+        assert!(tagged_file.musicbrainz_recording_id().is_none());
+
+        tagged_file.copy_metadata(track);
+
+        assert!(tagged_file.track_title().is_some());
+        assert!(tagged_file.track_artist().is_some());
+        assert!(tagged_file.track_number().is_some());
+        assert!(tagged_file.musicbrainz_recording_id().is_some());
+    }
+
+    #[cfg(feature = "flac")]
+    #[test]
+    fn test_copy_metadata_flac() {
+        use crate::tag::flac::FlacTag;
+
+        let release: MusicBrainzRelease = serde_json::from_str(MUSICBRAINZ_RELEASE_JSON).unwrap();
+        let track: &MusicBrainzTrack =
+            &release.media.as_ref().unwrap()[0].tracks.as_ref().unwrap()[0];
+
+        let mut tagged_file = TaggedFile::new(vec![Box::new(FlacTag::new())]);
+        assert!(tagged_file.track_title().is_none());
+        assert!(tagged_file.track_artist().is_none());
+        assert!(tagged_file.track_number().is_none());
+        assert!(tagged_file.musicbrainz_recording_id().is_none());
+
+        tagged_file.copy_metadata(track);
+
+        assert!(tagged_file.track_title().is_some());
+        assert!(tagged_file.track_artist().is_some());
+        assert!(tagged_file.track_number().is_some());
+        assert!(tagged_file.musicbrainz_recording_id().is_some());
     }
 }

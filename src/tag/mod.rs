@@ -11,9 +11,9 @@ use std::borrow::Cow;
 use std::path::Path;
 
 #[cfg(feature = "flac")]
-mod flac;
+pub mod flac;
 #[cfg(feature = "id3")]
-mod id3;
+pub mod id3;
 
 /// A tag key describes the kind of information in a generic, format-independent way.
 #[derive(Debug, Clone, Copy, PartialEq)]

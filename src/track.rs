@@ -25,7 +25,6 @@ pub trait TrackLike {
     fn musicbrainz_recording_id(&self) -> Option<Cow<'_, str>>;
 
     /// Calculate the distance between this release and another one.
-    #[expect(dead_code)]
     fn distance_to<T>(&self, other: &T) -> Distance
     where
         Self: Sized,
