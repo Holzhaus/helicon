@@ -162,6 +162,12 @@ mod tests {
     use crate::tag::{Tag, TagKey};
     use paste::paste;
 
+    #[test]
+    fn test_tag_type() {
+        let tag = FlacTag::new();
+        assert_eq!(tag.tag_type(), TagType::Flac);
+    }
+
     macro_rules! add_tests {
         ($tagkey:expr, $fnsuffix:ident) => {
             paste! {
