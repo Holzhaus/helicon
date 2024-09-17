@@ -297,6 +297,7 @@ impl Tag for ID3v2Tag {
                     self.data
                         .remove_unique_file_identifier_by_owner_identifier(owner_id);
                 }
+                #[expect(unused_results)]
                 FrameId::MultiValuedText(id, desc) => {
                     let new_value = self
                         .get_multi_valued_texts(id)
@@ -305,7 +306,11 @@ impl Tag for ID3v2Tag {
                             let sep = if acc.is_empty() { "" } else { "\0" };
                             acc + sep + desc + "\0" + text
                         });
-                    self.data.set_text(id, new_value);
+                    if new_value.is_empty() {
+                        self.data.remove(id);
+                    } else {
+                        self.data.set_text(id, new_value);
+                    }
                 }
             }
         }
