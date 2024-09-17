@@ -160,40 +160,152 @@ impl Tag for FlacTag {
 mod tests {
     use super::*;
     use crate::tag::{Tag, TagKey};
+    use paste::paste;
 
-    #[test]
-    fn test_get_and_set() {
-        let mut tag = FlacTag::new();
-        assert!(tag.get(TagKey::Genre).is_none());
+    macro_rules! add_tests {
+        ($tagkey:expr, $fnsuffix:ident) => {
+            paste! {
+                #[test]
+                fn [<test_get_set_ $fnsuffix>]() {
+                    let mut tag = FlacTag::new();
+                    assert!(tag.get($tagkey).is_none());
 
-        tag.set(TagKey::Genre, Cow::from("Hard Bop"));
-        assert_eq!(tag.get(TagKey::Genre), Some("Hard Bop"));
+                    tag.set($tagkey, Cow::from("Example Value"));
+                    assert_eq!(tag.get($tagkey), Some("Example Value"));
+                }
+
+                #[test]
+                fn [<test_clear_ $fnsuffix>]() {
+                    let mut tag = FlacTag::new();
+                    assert!(tag.get($tagkey).is_none());
+
+                    tag.set($tagkey, Cow::from("Example Value"));
+                    assert!(tag.get($tagkey).is_some());
+
+                    tag.clear($tagkey);
+                    assert!(tag.get($tagkey).is_none());
+                }
+
+                #[test]
+                fn [<test_set_or_clear_ $fnsuffix>]() {
+                    let mut tag = FlacTag::new();
+                    assert!(tag.get($tagkey).is_none());
+
+                    tag.set_or_clear($tagkey, Some(Cow::from("Example Value")));
+                    assert!(tag.get($tagkey).is_some());
+
+                    tag.set_or_clear($tagkey, Some(Cow::from("Other Value")));
+                    assert!(tag.get($tagkey).is_some());
+
+                    tag.set_or_clear($tagkey, None);
+                    assert!(tag.get($tagkey).is_none());
+                }
+            }
+        };
     }
 
-    #[test]
-    fn test_clear() {
-        let mut tag = FlacTag::new();
-        assert!(tag.get(TagKey::Genre).is_none());
-
-        tag.set(TagKey::Genre, Cow::from("Hard Bop"));
-        assert!(tag.get(TagKey::Genre).is_some());
-
-        tag.clear(TagKey::Genre);
-        assert!(tag.get(TagKey::Genre).is_none());
-    }
-
-    #[test]
-    fn test_set_or_clear_some() {
-        let mut tag = FlacTag::new();
-        assert!(tag.get(TagKey::Genre).is_none());
-
-        tag.set_or_clear(TagKey::Genre, Some(Cow::from("Hard Bop")));
-        assert!(tag.get(TagKey::Genre).is_some());
-
-        tag.set_or_clear(TagKey::Genre, Some(Cow::from("Jazz")));
-        assert!(tag.get(TagKey::Genre).is_some());
-
-        tag.set_or_clear(TagKey::Genre, None);
-        assert!(tag.get(TagKey::Genre).is_none());
-    }
+    add_tests!(TagKey::AcoustId, acoustid);
+    add_tests!(TagKey::AcoustIdFingerprint, acoustidfingerprint);
+    add_tests!(TagKey::Album, album);
+    add_tests!(TagKey::AlbumArtist, albumartist);
+    add_tests!(TagKey::AlbumArtistSortOrder, albumartistsortorder);
+    add_tests!(TagKey::AlbumSortOrder, albumsortorder);
+    add_tests!(TagKey::Arranger, arranger);
+    add_tests!(TagKey::Artist, artist);
+    add_tests!(TagKey::ArtistSortOrder, artistsortorder);
+    add_tests!(TagKey::Artists, artists);
+    add_tests!(TagKey::Asin, asin);
+    add_tests!(TagKey::Barcode, barcode);
+    add_tests!(TagKey::Bpm, bpm);
+    add_tests!(TagKey::CatalogNumber, catalognumber);
+    add_tests!(TagKey::Comment, comment);
+    add_tests!(TagKey::Compilation, compilation);
+    add_tests!(TagKey::Composer, composer);
+    add_tests!(TagKey::ComposerSortOrder, composersortorder);
+    add_tests!(TagKey::Conductor, conductor);
+    add_tests!(TagKey::Copyright, copyright);
+    add_tests!(TagKey::Director, director);
+    add_tests!(TagKey::DiscNumber, discnumber);
+    add_tests!(TagKey::DiscSubtitle, discsubtitle);
+    add_tests!(TagKey::EncodedBy, encodedby);
+    add_tests!(TagKey::EncoderSettings, encodersettings);
+    add_tests!(TagKey::Engineer, engineer);
+    //add_tests!(TagKey::GaplessPlayback, gaplessplayback);
+    add_tests!(TagKey::Genre, genre);
+    add_tests!(TagKey::Grouping, grouping);
+    add_tests!(TagKey::InitialKey, initialkey);
+    add_tests!(TagKey::Isrc, isrc);
+    add_tests!(TagKey::Language, language);
+    add_tests!(TagKey::License, license);
+    add_tests!(TagKey::Lyricist, lyricist);
+    add_tests!(TagKey::Lyrics, lyrics);
+    add_tests!(TagKey::Media, media);
+    add_tests!(TagKey::DjMixer, djmixer);
+    add_tests!(TagKey::Mixer, mixer);
+    add_tests!(TagKey::Mood, mood);
+    add_tests!(TagKey::Movement, movement);
+    add_tests!(TagKey::MovementCount, movementcount);
+    add_tests!(TagKey::MovementNumber, movementnumber);
+    add_tests!(TagKey::MusicBrainzArtistId, musicbrainzartistid);
+    add_tests!(TagKey::MusicBrainzDiscId, musicbrainzdiscid);
+    add_tests!(
+        TagKey::MusicBrainzOriginalArtistId,
+        musicbrainzoriginalartistid
+    );
+    add_tests!(
+        TagKey::MusicBrainzOriginalReleaseId,
+        musicbrainzoriginalreleaseid
+    );
+    add_tests!(TagKey::MusicBrainzRecordingId, musicbrainzrecordingid);
+    add_tests!(
+        TagKey::MusicBrainzReleaseArtistId,
+        musicbrainzreleaseartistid
+    );
+    add_tests!(TagKey::MusicBrainzReleaseGroupId, musicbrainzreleasegroupid);
+    add_tests!(TagKey::MusicBrainzReleaseId, musicbrainzreleaseid);
+    add_tests!(TagKey::MusicBrainzTrackId, musicbrainztrackid);
+    add_tests!(TagKey::MusicBrainzTrmId, musicbrainztrmid);
+    add_tests!(TagKey::MusicBrainzWorkId, musicbrainzworkid);
+    //add_tests!(TagKey::MusicIpFingerprint, musicipfingerprint);
+    add_tests!(TagKey::MusicIpPuid, musicippuid);
+    //add_tests!(TagKey::OriginalAlbum, originalalbum);
+    //add_tests!(TagKey::OriginalArtist, originalartist);
+    add_tests!(TagKey::OriginalFilename, originalfilename);
+    add_tests!(TagKey::OriginalReleaseDate, originalreleasedate);
+    add_tests!(TagKey::OriginalReleaseYear, originalreleaseyear);
+    add_tests!(TagKey::Performer, performer);
+    //add_tests!(TagKey::Podcast, podcast);
+    //add_tests!(TagKey::PodcastUrl, podcasturl);
+    add_tests!(TagKey::Producer, producer);
+    //add_tests!(TagKey::Rating, rating);
+    add_tests!(TagKey::RecordLabel, recordlabel);
+    add_tests!(TagKey::ReleaseCountry, releasecountry);
+    add_tests!(TagKey::ReleaseDate, releasedate);
+    //add_tests!(TagKey::ReleaseYear, releaseyear);
+    add_tests!(TagKey::ReleaseStatus, releasestatus);
+    add_tests!(TagKey::ReleaseType, releasetype);
+    add_tests!(TagKey::Remixer, remixer);
+    add_tests!(TagKey::ReplayGainAlbumGain, replaygainalbumgain);
+    add_tests!(TagKey::ReplayGainAlbumPeak, replaygainalbumpeak);
+    add_tests!(TagKey::ReplayGainAlbumRange, replaygainalbumrange);
+    add_tests!(
+        TagKey::ReplayGainReferenceLoudness,
+        replaygainreferenceloudness
+    );
+    add_tests!(TagKey::ReplayGainTrackGain, replaygaintrackgain);
+    add_tests!(TagKey::ReplayGainTrackPeak, replaygaintrackpeak);
+    add_tests!(TagKey::ReplayGainTrackRange, replaygaintrackrange);
+    add_tests!(TagKey::Script, script);
+    //add_tests!(TagKey::ShowName, showname);
+    //add_tests!(TagKey::ShowNameSortOrder, shownamesortorder);
+    add_tests!(TagKey::ShowMovement, showmovement);
+    add_tests!(TagKey::Subtitle, subtitle);
+    add_tests!(TagKey::TotalDiscs, totaldiscs);
+    add_tests!(TagKey::TotalTracks, totaltracks);
+    add_tests!(TagKey::TrackNumber, tracknumber);
+    add_tests!(TagKey::TrackTitle, tracktitle);
+    add_tests!(TagKey::TrackTitleSortOrder, tracktitlesortorder);
+    add_tests!(TagKey::ArtistWebsite, artistwebsite);
+    add_tests!(TagKey::WorkTitle, worktitle);
+    add_tests!(TagKey::Writer, writer);
 }
