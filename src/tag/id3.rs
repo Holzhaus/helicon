@@ -10,7 +10,7 @@
 
 use crate::tag::{Tag, TagKey, TagType};
 use id3::{
-    frame::{ExtendedText, UniqueFileIdentifier},
+    frame::{Comment, ExtendedText, UniqueFileIdentifier},
     TagLike,
 };
 use std::borrow::{Borrow, Cow};
@@ -28,6 +28,8 @@ enum FrameId<'a> {
     MultiValuedText(&'a str, &'a str),
     /// Unique File Identifier frame (`UFID`).
     UniqueFileIdentifier(&'a str),
+    /// Comment frame (`COMM`).
+    Comment(&'a str),
 }
 
 /// ID3 tag (version 2).
@@ -80,7 +82,7 @@ impl ID3v2Tag {
             TagKey::Barcode => FrameId::ExtendedText("BARCODE").into(),
             TagKey::Bpm => FrameId::Text("TBPM").into(),
             TagKey::CatalogNumber => FrameId::ExtendedText("CATALOGNUMBER").into(),
-            TagKey::Comment => None, // Add mapping to "COMM:description"
+            TagKey::Comment => FrameId::Comment("description").into(), // TODO: Check if "description" is meant literally here.
             TagKey::Compilation => FrameId::Text("TCMP").into(),
             TagKey::Composer => FrameId::Text("TCOM").into(),
             TagKey::ComposerSortOrder => FrameId::Text("TSOC").into(),
@@ -279,6 +281,13 @@ impl Tag for ID3v2Tag {
                 FrameId::MultiValuedText(id, desc) => self
                     .get_multi_valued_texts(id)
                     .find_map(|(frame_desc, text)| (frame_desc == desc).then_some(text)),
+                FrameId::Comment(desc) => self.data.comments().find_map(|comment| {
+                    if comment.lang == "eng" && comment.description == desc {
+                        Some(comment.text.as_str())
+                    } else {
+                        None
+                    }
+                }),
             })
     }
 
@@ -311,6 +320,9 @@ impl Tag for ID3v2Tag {
                     } else {
                         self.data.set_text(id, new_value);
                     }
+                }
+                FrameId::Comment(desc) => {
+                    self.data.remove_comment(Some(desc), None);
                 }
             }
         }
@@ -346,6 +358,14 @@ impl Tag for ID3v2Tag {
                     self.data.add_frame(UniqueFileIdentifier {
                         owner_identifier: owner_id.to_string(),
                         identifier: value.as_bytes().to_vec(),
+                    });
+                }
+                #[expect(unused_results)]
+                FrameId::Comment(desc) => {
+                    self.data.add_frame(Comment {
+                        lang: "eng".to_string(),
+                        description: desc.to_string(),
+                        text: value.to_string(),
                     });
                 }
             }
@@ -397,7 +417,7 @@ mod tests {
     add_test_get_and_set_all_id3_versions!(TagKey::Barcode, barcode);
     add_test_get_and_set_all_id3_versions!(TagKey::Bpm, bpm);
     add_test_get_and_set_all_id3_versions!(TagKey::CatalogNumber, catalognumber);
-    //add_test_get_and_set_all_id3_versions!(TagKey::Comment, comment);
+    add_test_get_and_set_all_id3_versions!(TagKey::Comment, comment);
     add_test_get_and_set_all_id3_versions!(TagKey::Compilation, compilation);
     add_test_get_and_set_all_id3_versions!(TagKey::Composer, composer);
     add_test_get_and_set_all_id3_versions!(TagKey::ComposerSortOrder, composersortorder);
