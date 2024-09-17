@@ -45,6 +45,13 @@ impl ID3v2Tag {
         }
     }
 
+    #[cfg(test)]
+    pub fn with_version(version: id3::Version) -> Self {
+        ID3v2Tag {
+            data: id3::Tag::with_version(version),
+        }
+    }
+
     /// Read the ID3 tag from the path
     pub fn read_from_path(path: impl AsRef<Path>) -> crate::Result<Self> {
         let data = id3::Tag::read_from_path(path)?;
@@ -345,54 +352,161 @@ impl Tag for ID3v2Tag {
 mod tests {
     use super::*;
     use crate::tag::{Tag, TagKey};
+    use id3::Version;
+    use paste::paste;
 
-    #[test]
-    fn test_get_and_set_text() {
-        let mut tag = ID3v2Tag::new();
-        assert!(tag.get(TagKey::Genre).is_none());
+    macro_rules! add_test_get_and_set_with_id3_version {
+        ($tagkey:expr, $version:expr, $fnsuffix:ident) => {
+            paste! {
+                #[test]
+                fn [<test_get_and_set_ $fnsuffix>]() {
+                    let mut tag = ID3v2Tag::with_version($version);
+                    assert!(tag.get($tagkey).is_none());
 
-        tag.set(TagKey::Genre, Cow::from("Hard Bop"));
-        assert_eq!(tag.get(TagKey::Genre), Some("Hard Bop"));
+                    tag.set($tagkey, Cow::from("Example Value"));
+                    assert_eq!(tag.get($tagkey), Some("Example Value"));
+                }
+            }
+        };
+    }
+    macro_rules! add_test_get_and_set_all_id3_versions {
+        ($tagkey:pat_param, $fnsuffix:ident) => {
+            paste! {
+            add_test_get_and_set_with_id3_version!($tagkey, Version::Id3v22, [< $fnsuffix _id3v22>]);
+            add_test_get_and_set_with_id3_version!($tagkey, Version::Id3v23, [< $fnsuffix _id3v23>]);
+            add_test_get_and_set_with_id3_version!($tagkey, Version::Id3v24, [< $fnsuffix _id3v24>]);
+            }
+        };
     }
 
-    #[test]
-    fn test_get_and_set_extended_text() {
-        let mut tag = ID3v2Tag::new();
-        assert!(tag.get(TagKey::Artists).is_none());
-
-        tag.set(TagKey::Artists, Cow::from("Rita Reys"));
-        assert_eq!(tag.get(TagKey::Artists), Some("Rita Reys"));
-    }
-
-    #[test]
-    fn test_get_and_set_multivalued_text() {
-        let mut tag = ID3v2Tag::new();
-        assert!(tag.get(TagKey::Producer).is_none());
-
-        tag.set(TagKey::Producer, Cow::from("Dave Usher"));
-        assert_eq!(tag.get(TagKey::Producer), Some("Dave Usher"));
-
-        assert!(tag.get(TagKey::Engineer).is_none());
-
-        tag.set(TagKey::Engineer, Cow::from("Malcolm Chisholm"));
-        assert_eq!(tag.get(TagKey::Engineer), Some("Malcolm Chisholm"));
-        assert_eq!(tag.get(TagKey::Producer), Some("Dave Usher"));
-    }
-
-    #[test]
-    fn test_get_and_set_unique_file_identifier() {
-        let mut tag = ID3v2Tag::new();
-        assert!(tag.get(TagKey::MusicBrainzRecordingId).is_none());
-
-        tag.set(
-            TagKey::MusicBrainzRecordingId,
-            Cow::from("9d444787-3f25-4c16-9261-597b9ab021cc"),
-        );
-        assert_eq!(
-            tag.get(TagKey::MusicBrainzRecordingId),
-            Some("9d444787-3f25-4c16-9261-597b9ab021cc")
-        );
-    }
+    add_test_get_and_set_all_id3_versions!(TagKey::AcoustId, acoustid);
+    add_test_get_and_set_all_id3_versions!(TagKey::AcoustIdFingerprint, acoustidfingerprint);
+    add_test_get_and_set_all_id3_versions!(TagKey::Album, album);
+    add_test_get_and_set_all_id3_versions!(TagKey::AlbumArtist, albumartist);
+    add_test_get_and_set_all_id3_versions!(TagKey::AlbumArtistSortOrder, albumartistsortorder);
+    add_test_get_and_set_all_id3_versions!(TagKey::AlbumSortOrder, albumsortorder);
+    add_test_get_and_set_all_id3_versions!(TagKey::Artist, artist);
+    add_test_get_and_set_all_id3_versions!(TagKey::ArtistSortOrder, artistsortorder);
+    add_test_get_and_set_all_id3_versions!(TagKey::Artists, artists);
+    add_test_get_and_set_all_id3_versions!(TagKey::Asin, asin);
+    add_test_get_and_set_all_id3_versions!(TagKey::Barcode, barcode);
+    add_test_get_and_set_all_id3_versions!(TagKey::Bpm, bpm);
+    add_test_get_and_set_all_id3_versions!(TagKey::CatalogNumber, catalognumber);
+    //add_test_get_and_set_all_id3_versions!(TagKey::Comment, comment);
+    add_test_get_and_set_all_id3_versions!(TagKey::Compilation, compilation);
+    add_test_get_and_set_all_id3_versions!(TagKey::Composer, composer);
+    add_test_get_and_set_all_id3_versions!(TagKey::ComposerSortOrder, composersortorder);
+    add_test_get_and_set_all_id3_versions!(TagKey::Conductor, conductor);
+    add_test_get_and_set_all_id3_versions!(TagKey::Copyright, copyright);
+    add_test_get_and_set_all_id3_versions!(TagKey::Director, director);
+    add_test_get_and_set_all_id3_versions!(TagKey::DiscNumber, discnumber);
+    add_test_get_and_set_with_id3_version!(
+        TagKey::DiscSubtitle,
+        Version::Id3v24,
+        discsubtitle_id3v24
+    );
+    add_test_get_and_set_all_id3_versions!(TagKey::EncodedBy, encodedby);
+    add_test_get_and_set_all_id3_versions!(TagKey::EncoderSettings, encodersettings);
+    //add_test_get_and_set_all_id3_versions!(TagKey::GaplessPlayback, gaplessplayback);
+    add_test_get_and_set_all_id3_versions!(TagKey::Genre, genre);
+    add_test_get_and_set_all_id3_versions!(TagKey::Grouping, grouping);
+    add_test_get_and_set_all_id3_versions!(TagKey::InitialKey, initialkey);
+    add_test_get_and_set_all_id3_versions!(TagKey::Isrc, isrc);
+    add_test_get_and_set_all_id3_versions!(TagKey::Language, language);
+    //add_test_get_and_set_all_id3_versions!(TagKey::License, license);
+    add_test_get_and_set_all_id3_versions!(TagKey::Lyricist, lyricist);
+    //add_test_get_and_set_all_id3_versions!(TagKey::Lyrics, lyrics);
+    add_test_get_and_set_all_id3_versions!(TagKey::Media, media);
+    add_test_get_and_set_with_id3_version!(TagKey::Mood, Version::Id3v24, mood_id3v24);
+    add_test_get_and_set_all_id3_versions!(TagKey::Movement, movement);
+    add_test_get_and_set_all_id3_versions!(TagKey::MovementCount, movementcount);
+    add_test_get_and_set_all_id3_versions!(TagKey::MovementNumber, movementnumber);
+    add_test_get_and_set_all_id3_versions!(TagKey::MusicBrainzArtistId, musicbrainzartistid);
+    add_test_get_and_set_all_id3_versions!(TagKey::MusicBrainzDiscId, musicbrainzdiscid);
+    add_test_get_and_set_all_id3_versions!(
+        TagKey::MusicBrainzOriginalArtistId,
+        musicbrainzoriginalartistid
+    );
+    add_test_get_and_set_all_id3_versions!(
+        TagKey::MusicBrainzOriginalReleaseId,
+        musicbrainzoriginalreleaseid
+    );
+    add_test_get_and_set_all_id3_versions!(TagKey::MusicBrainzRecordingId, musicbrainzrecordingid);
+    add_test_get_and_set_all_id3_versions!(
+        TagKey::MusicBrainzReleaseArtistId,
+        musicbrainzreleaseartistid
+    );
+    add_test_get_and_set_all_id3_versions!(
+        TagKey::MusicBrainzReleaseGroupId,
+        musicbrainzreleasegroupid
+    );
+    add_test_get_and_set_all_id3_versions!(TagKey::MusicBrainzReleaseId, musicbrainzreleaseid);
+    add_test_get_and_set_all_id3_versions!(TagKey::MusicBrainzTrackId, musicbrainztrackid);
+    add_test_get_and_set_all_id3_versions!(TagKey::MusicBrainzTrmId, musicbrainztrmid);
+    add_test_get_and_set_all_id3_versions!(TagKey::MusicBrainzWorkId, musicbrainzworkid);
+    add_test_get_and_set_all_id3_versions!(TagKey::MusicIpFingerprint, musicipfingerprint);
+    add_test_get_and_set_all_id3_versions!(TagKey::MusicIpPuid, musicippuid);
+    add_test_get_and_set_all_id3_versions!(TagKey::OriginalAlbum, originalalbum);
+    add_test_get_and_set_all_id3_versions!(TagKey::OriginalArtist, originalartist);
+    add_test_get_and_set_all_id3_versions!(TagKey::OriginalFilename, originalfilename);
+    add_test_get_and_set_with_id3_version!(
+        TagKey::OriginalReleaseDate,
+        Version::Id3v23,
+        originalreleasedate_id3v23
+    );
+    add_test_get_and_set_with_id3_version!(
+        TagKey::OriginalReleaseDate,
+        Version::Id3v24,
+        originalreleasedate_id3v24
+    );
+    //add_test_get_and_set_all_id3_versions!(TagKey::OriginalReleaseYear, originalreleaseyear);
+    //add_test_get_and_set_all_id3_versions!(TagKey::Performer, performer);
+    //add_test_get_and_set_all_id3_versions!(TagKey::Podcast, podcast);
+    //add_test_get_and_set_all_id3_versions!(TagKey::PodcastUrl, podcasturl);
+    add_test_get_and_set_all_id3_versions!(TagKey::Rating, rating);
+    add_test_get_and_set_all_id3_versions!(TagKey::RecordLabel, recordlabel);
+    add_test_get_and_set_all_id3_versions!(TagKey::ReleaseCountry, releasecountry);
+    add_test_get_and_set_with_id3_version!(
+        TagKey::ReleaseDate,
+        Version::Id3v23,
+        releasedate_id3v23
+    );
+    add_test_get_and_set_with_id3_version!(
+        TagKey::ReleaseDate,
+        Version::Id3v24,
+        releasedate_id3v24
+    );
+    add_test_get_and_set_with_id3_version!(
+        TagKey::ReleaseYear,
+        Version::Id3v23,
+        releaseyear_id3v23
+    );
+    add_test_get_and_set_all_id3_versions!(TagKey::ReleaseStatus, releasestatus);
+    add_test_get_and_set_all_id3_versions!(TagKey::ReleaseType, releasetype);
+    add_test_get_and_set_all_id3_versions!(TagKey::Remixer, remixer);
+    add_test_get_and_set_all_id3_versions!(TagKey::ReplayGainAlbumGain, replaygainalbumgain);
+    add_test_get_and_set_all_id3_versions!(TagKey::ReplayGainAlbumPeak, replaygainalbumpeak);
+    add_test_get_and_set_all_id3_versions!(TagKey::ReplayGainAlbumRange, replaygainalbumrange);
+    add_test_get_and_set_all_id3_versions!(
+        TagKey::ReplayGainReferenceLoudness,
+        replaygainreferenceloudness
+    );
+    add_test_get_and_set_all_id3_versions!(TagKey::ReplayGainTrackGain, replaygaintrackgain);
+    add_test_get_and_set_all_id3_versions!(TagKey::ReplayGainTrackPeak, replaygaintrackpeak);
+    add_test_get_and_set_all_id3_versions!(TagKey::ReplayGainTrackRange, replaygaintrackrange);
+    add_test_get_and_set_all_id3_versions!(TagKey::Script, script);
+    //add_test_get_and_set_all_id3_versions!(TagKey::ShowName, showname);
+    //add_test_get_and_set_all_id3_versions!(TagKey::ShowNameSortOrder, shownamesortorder);
+    add_test_get_and_set_all_id3_versions!(TagKey::ShowMovement, showmovement);
+    add_test_get_and_set_all_id3_versions!(TagKey::Subtitle, subtitle);
+    add_test_get_and_set_all_id3_versions!(TagKey::TotalDiscs, totaldiscs);
+    add_test_get_and_set_all_id3_versions!(TagKey::TotalTracks, totaltracks);
+    add_test_get_and_set_all_id3_versions!(TagKey::TrackNumber, tracknumber);
+    add_test_get_and_set_all_id3_versions!(TagKey::TrackTitle, tracktitle);
+    add_test_get_and_set_all_id3_versions!(TagKey::TrackTitleSortOrder, tracktitlesortorder);
+    add_test_get_and_set_all_id3_versions!(TagKey::ArtistWebsite, artistwebsite);
+    add_test_get_and_set_all_id3_versions!(TagKey::WorkTitle, worktitle);
+    add_test_get_and_set_all_id3_versions!(TagKey::Writer, writer);
 
     #[test]
     fn test_clear() {
@@ -419,5 +533,79 @@ mod tests {
 
         tag.set_or_clear(TagKey::Genre, None);
         assert!(tag.get(TagKey::Genre).is_none());
+    }
+
+    #[test]
+    fn test_get_and_set_multivalued_text() {
+        let mut tag = ID3v2Tag::new();
+        assert!(tag.get(TagKey::Arranger).is_none());
+        assert!(tag.get(TagKey::Engineer).is_none());
+        assert!(tag.get(TagKey::DjMixer).is_none());
+        assert!(tag.get(TagKey::Mixer).is_none());
+        assert!(tag.get(TagKey::Producer).is_none());
+
+        tag.set(TagKey::Arranger, Cow::from("An awesome Arranger"));
+
+        assert_eq!(tag.get(TagKey::Arranger), Some("An awesome Arranger"));
+        assert!(tag.get(TagKey::Engineer).is_none());
+        assert!(tag.get(TagKey::DjMixer).is_none());
+        assert!(tag.get(TagKey::Mixer).is_none());
+        assert!(tag.get(TagKey::Producer).is_none());
+
+        tag.set(TagKey::Engineer, Cow::from("Mrs. Engineer"));
+
+        assert_eq!(tag.get(TagKey::Arranger), Some("An awesome Arranger"));
+        assert_eq!(tag.get(TagKey::Engineer), Some("Mrs. Engineer"));
+        assert!(tag.get(TagKey::DjMixer).is_none());
+        assert!(tag.get(TagKey::Mixer).is_none());
+        assert!(tag.get(TagKey::Producer).is_none());
+
+        tag.set(TagKey::DjMixer, Cow::from("Mr. DJ"));
+
+        assert_eq!(tag.get(TagKey::Arranger), Some("An awesome Arranger"));
+        assert_eq!(tag.get(TagKey::Engineer), Some("Mrs. Engineer"));
+        assert_eq!(tag.get(TagKey::DjMixer), Some("Mr. DJ"));
+        assert!(tag.get(TagKey::Mixer).is_none());
+        assert!(tag.get(TagKey::Producer).is_none());
+
+        tag.set(TagKey::Mixer, Cow::from("Miss Mixer"));
+
+        assert_eq!(tag.get(TagKey::Arranger), Some("An awesome Arranger"));
+        assert_eq!(tag.get(TagKey::Engineer), Some("Mrs. Engineer"));
+        assert_eq!(tag.get(TagKey::DjMixer), Some("Mr. DJ"));
+        assert_eq!(tag.get(TagKey::Mixer), Some("Miss Mixer"));
+        assert!(tag.get(TagKey::Producer).is_none());
+
+        tag.set(TagKey::Producer, Cow::from("Producer Dude"));
+
+        assert_eq!(tag.get(TagKey::Arranger), Some("An awesome Arranger"));
+        assert_eq!(tag.get(TagKey::Engineer), Some("Mrs. Engineer"));
+        assert_eq!(tag.get(TagKey::DjMixer), Some("Mr. DJ"));
+        assert_eq!(tag.get(TagKey::Mixer), Some("Miss Mixer"));
+        assert_eq!(tag.get(TagKey::Producer), Some("Producer Dude"));
+
+        tag.clear(TagKey::DjMixer);
+
+        assert_eq!(tag.get(TagKey::Arranger), Some("An awesome Arranger"));
+        assert_eq!(tag.get(TagKey::Engineer), Some("Mrs. Engineer"));
+        assert!(tag.get(TagKey::DjMixer).is_none());
+        assert_eq!(tag.get(TagKey::Mixer), Some("Miss Mixer"));
+        assert_eq!(tag.get(TagKey::Producer), Some("Producer Dude"));
+
+        tag.clear(TagKey::Arranger);
+
+        assert!(tag.get(TagKey::Arranger).is_none());
+        assert_eq!(tag.get(TagKey::Engineer), Some("Mrs. Engineer"));
+        assert!(tag.get(TagKey::DjMixer).is_none());
+        assert_eq!(tag.get(TagKey::Mixer), Some("Miss Mixer"));
+        assert_eq!(tag.get(TagKey::Producer), Some("Producer Dude"));
+
+        tag.set_or_clear(TagKey::Mixer, None);
+
+        assert!(tag.get(TagKey::Arranger).is_none());
+        assert_eq!(tag.get(TagKey::Engineer), Some("Mrs. Engineer"));
+        assert!(tag.get(TagKey::DjMixer).is_none());
+        assert!(tag.get(TagKey::Mixer).is_none());
+        assert_eq!(tag.get(TagKey::Producer), Some("Producer Dude"));
     }
 }
