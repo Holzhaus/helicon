@@ -251,7 +251,6 @@ impl Tag for ID3v2Tag {
             })
     }
 
-    #[expect(unused_results)]
     fn set(&mut self, key: TagKey, value: Cow<'_, str>) {
         let frame = self.tag_key_to_frame(key);
         if let Some(frame) = frame {
@@ -259,6 +258,7 @@ impl Tag for ID3v2Tag {
                 FrameId::Text(id) => {
                     self.data.set_text(id, value);
                 }
+                #[expect(unused_results)]
                 FrameId::ExtendedText(description) => {
                     self.data.add_frame(ExtendedText {
                         description: description.to_string(),
