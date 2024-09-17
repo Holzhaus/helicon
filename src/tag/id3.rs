@@ -381,6 +381,24 @@ mod tests {
     use paste::paste;
 
     #[test]
+    fn test_tag_type_id3v22() {
+        let tag = ID3v2Tag::with_version(Version::Id3v22);
+        assert_eq!(tag.tag_type(), TagType::ID3v22);
+    }
+
+    #[test]
+    fn test_tag_type_id3v23() {
+        let tag = ID3v2Tag::with_version(Version::Id3v23);
+        assert_eq!(tag.tag_type(), TagType::ID3v23);
+    }
+
+    #[test]
+    fn test_tag_type_id3v24() {
+        let tag = ID3v2Tag::with_version(Version::Id3v24);
+        assert_eq!(tag.tag_type(), TagType::ID3v24);
+    }
+
+    #[test]
     fn test_get_set_clear_multivalued_text() {
         let mut tag = ID3v2Tag::new();
         assert!(tag.get(TagKey::Arranger).is_none());
