@@ -148,6 +148,12 @@ impl Tag for FlacTag {
             self.data.set_vorbis(frame, vec![value]);
         }
     }
+
+    fn clear(&mut self, key: TagKey) {
+        if let Some(frame) = Self::tag_key_to_frame(key) {
+            self.data.remove_vorbis(frame);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -162,5 +168,32 @@ mod tests {
 
         tag.set(TagKey::Genre, Cow::from("Hard Bop"));
         assert_eq!(tag.get(TagKey::Genre), Some("Hard Bop"));
+    }
+
+    #[test]
+    fn test_clear() {
+        let mut tag = FlacTag::new();
+        assert!(tag.get(TagKey::Genre).is_none());
+
+        tag.set(TagKey::Genre, Cow::from("Hard Bop"));
+        assert!(tag.get(TagKey::Genre).is_some());
+
+        tag.clear(TagKey::Genre);
+        assert!(tag.get(TagKey::Genre).is_none());
+    }
+
+    #[test]
+    fn test_set_or_clear_some() {
+        let mut tag = FlacTag::new();
+        assert!(tag.get(TagKey::Genre).is_none());
+
+        tag.set_or_clear(TagKey::Genre, Some(Cow::from("Hard Bop")));
+        assert!(tag.get(TagKey::Genre).is_some());
+
+        tag.set_or_clear(TagKey::Genre, Some(Cow::from("Jazz")));
+        assert!(tag.get(TagKey::Genre).is_some());
+
+        tag.set_or_clear(TagKey::Genre, None);
+        assert!(tag.get(TagKey::Genre).is_none());
     }
 }

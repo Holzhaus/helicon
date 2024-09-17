@@ -251,6 +251,31 @@ impl Tag for ID3v2Tag {
             })
     }
 
+    fn clear(&mut self, key: TagKey) {
+        let frame = self.tag_key_to_frame(key);
+        if let Some(frame) = frame {
+            match frame {
+                #[expect(unused_results)]
+                FrameId::Text(id) => {
+                    self.data.remove(id);
+                }
+                FrameId::ExtendedText(description) => {
+                    self.data.remove_extended_text(Some(description), None);
+                }
+                FrameId::MultiValuedText(id, desc) => {
+                    let new_value = self
+                        .get_multi_valued_texts(id)
+                        .filter(|(frame_desc, _)| frame_desc != &desc)
+                        .fold(String::new(), |acc: String, (desc, text)| {
+                            let sep = if acc.is_empty() { "" } else { "\0" };
+                            acc + sep + desc + "\0" + text
+                        });
+                    self.data.set_text(id, new_value);
+                }
+            }
+        }
+    }
+
     fn set(&mut self, key: TagKey, value: Cow<'_, str>) {
         let frame = self.tag_key_to_frame(key);
         if let Some(frame) = frame {
@@ -317,5 +342,32 @@ mod tests {
         tag.set(TagKey::Engineer, Cow::from("Malcolm Chisholm"));
         assert_eq!(tag.get(TagKey::Engineer), Some("Malcolm Chisholm"));
         assert_eq!(tag.get(TagKey::Producer), Some("Dave Usher"));
+    }
+
+    #[test]
+    fn test_clear() {
+        let mut tag = ID3v2Tag::new();
+        assert!(tag.get(TagKey::Genre).is_none());
+
+        tag.set(TagKey::Genre, Cow::from("Hard Bop"));
+        assert!(tag.get(TagKey::Genre).is_some());
+
+        tag.clear(TagKey::Genre);
+        assert!(tag.get(TagKey::Genre).is_none());
+    }
+
+    #[test]
+    fn test_set_or_clear_some() {
+        let mut tag = ID3v2Tag::new();
+        assert!(tag.get(TagKey::Genre).is_none());
+
+        tag.set_or_clear(TagKey::Genre, Some(Cow::from("Hard Bop")));
+        assert!(tag.get(TagKey::Genre).is_some());
+
+        tag.set_or_clear(TagKey::Genre, Some(Cow::from("Jazz")));
+        assert!(tag.get(TagKey::Genre).is_some());
+
+        tag.set_or_clear(TagKey::Genre, None);
+        assert!(tag.get(TagKey::Genre).is_none());
     }
 }

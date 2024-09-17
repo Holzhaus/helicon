@@ -249,6 +249,16 @@ pub trait Tag {
     fn get(&self, key: TagKey) -> Option<&str>;
     /// Set the value for tag key to multiple values.
     fn set(&mut self, key: TagKey, value: Cow<'_, str>);
+    /// Unset the value for the tag key.
+    fn clear(&mut self, key: TagKey);
+    /// Set or clear the value for tag key.
+    fn set_or_clear(&mut self, key: TagKey, value: Option<Cow<'_, str>>) {
+        if let Some(val) = value {
+            self.set(key, val);
+        } else {
+            self.clear(key);
+        }
+    }
 }
 
 /// Return a vector of tags from the file at the given path.
