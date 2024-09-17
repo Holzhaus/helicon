@@ -9,7 +9,10 @@
 //! Support for ID3 tags.
 
 use crate::tag::{Tag, TagKey, TagType};
-use id3::{frame::ExtendedText, TagLike};
+use id3::{
+    frame::{ExtendedText, UniqueFileIdentifier},
+    TagLike,
+};
 use std::borrow::{Borrow, Cow};
 use std::iter;
 use std::path::Path;
@@ -23,6 +26,8 @@ enum FrameId<'a> {
     ExtendedText(&'a str),
     /// Text Frame with multiple values.
     MultiValuedText(&'a str, &'a str),
+    /// Unique File Identifier frame (`UFID`).
+    UniqueFileIdentifier(&'a str),
 }
 
 /// ID3 tag (version 2).
@@ -122,7 +127,9 @@ impl ID3v2Tag {
             TagKey::MusicBrainzOriginalReleaseId => {
                 FrameId::ExtendedText("MusicBrainz Original Album Id").into()
             }
-            TagKey::MusicBrainzRecordingId => None, // TODO: Add mapping to "UFID:http://musicbrainz.org"
+            TagKey::MusicBrainzRecordingId => {
+                FrameId::UniqueFileIdentifier("http://musicbrainz.org").into()
+            }
             TagKey::MusicBrainzReleaseArtistId => {
                 FrameId::ExtendedText("MusicBrainz Album Artist Id").into()
             }
@@ -229,6 +236,19 @@ impl ID3v2Tag {
             .filter_map(|(i, v)| ((i & 1) == 1).then_some(v));
         descriptions.zip(values)
     }
+
+    /// Get the content of unique file identifier frames as byte slices.
+    fn get_unique_file_identifiers<'a>(
+        &'a self,
+        owner_id: &'a str,
+    ) -> impl Iterator<Item = &'a [u8]> {
+        self.data
+            .unique_file_identifiers()
+            .filter(move |unique_file_identifier| {
+                unique_file_identifier.owner_identifier == owner_id
+            })
+            .map(|unique_file_identifier| unique_file_identifier.identifier.as_slice())
+    }
 }
 
 impl Tag for ID3v2Tag {
@@ -245,6 +265,10 @@ impl Tag for ID3v2Tag {
             .and_then(|frame_id| match frame_id {
                 FrameId::Text(id) => self.get_frames(id).next(),
                 FrameId::ExtendedText(id) => self.get_extended_texts(id).next(),
+                FrameId::UniqueFileIdentifier(id) => self
+                    .get_unique_file_identifiers(id)
+                    .map(std::str::from_utf8)
+                    .find_map(Result::ok),
                 FrameId::MultiValuedText(id, desc) => self
                     .get_multi_valued_texts(id)
                     .find_map(|(frame_desc, text)| (frame_desc == desc).then_some(text)),
@@ -261,6 +285,10 @@ impl Tag for ID3v2Tag {
                 }
                 FrameId::ExtendedText(description) => {
                     self.data.remove_extended_text(Some(description), None);
+                }
+                FrameId::UniqueFileIdentifier(owner_id) => {
+                    self.data
+                        .remove_unique_file_identifier_by_owner_identifier(owner_id);
                 }
                 FrameId::MultiValuedText(id, desc) => {
                     let new_value = self
@@ -300,6 +328,13 @@ impl Tag for ID3v2Tag {
                             acc + sep + desc + "\0" + text
                         });
                     self.data.set_text(id, new_value);
+                }
+                #[expect(unused_results)]
+                FrameId::UniqueFileIdentifier(owner_id) => {
+                    self.data.add_frame(UniqueFileIdentifier {
+                        owner_identifier: owner_id.to_string(),
+                        identifier: value.as_bytes().to_vec(),
+                    });
                 }
             }
         }
@@ -342,6 +377,21 @@ mod tests {
         tag.set(TagKey::Engineer, Cow::from("Malcolm Chisholm"));
         assert_eq!(tag.get(TagKey::Engineer), Some("Malcolm Chisholm"));
         assert_eq!(tag.get(TagKey::Producer), Some("Dave Usher"));
+    }
+
+    #[test]
+    fn test_get_and_set_unique_file_identifier() {
+        let mut tag = ID3v2Tag::new();
+        assert!(tag.get(TagKey::MusicBrainzRecordingId).is_none());
+
+        tag.set(
+            TagKey::MusicBrainzRecordingId,
+            Cow::from("9d444787-3f25-4c16-9261-597b9ab021cc"),
+        );
+        assert_eq!(
+            tag.get(TagKey::MusicBrainzRecordingId),
+            Some("9d444787-3f25-4c16-9261-597b9ab021cc")
+        );
     }
 
     #[test]
