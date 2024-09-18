@@ -35,6 +35,13 @@ fn normalize(value: &str) -> String {
     value.replace('&', "and")
 }
 
+/// Return `true` if both strings are equal and non-empty when trimmed.
+pub fn is_nonempty_and_equal_trimmed<T: AsRef<str>, S: AsRef<str>>(lhs: T, rhs: S) -> bool {
+    let lhs = lhs.as_ref().trim();
+    let rhs = rhs.as_ref().trim();
+    lhs == rhs && !lhs.is_empty()
+}
+
 /// Calculate the case- and whitespace-insensitive distance between two strings, where 0.0 is
 /// minimum and 1.0 is the maximum distance.
 #[expect(clippy::cast_precision_loss)]

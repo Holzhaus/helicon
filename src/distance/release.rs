@@ -8,10 +8,9 @@
 
 //! Functions for distance calculation between [`ReleaseLike`] objects.
 
-use super::{Distance, DistanceBetween};
+use super::{string, Distance};
 use crate::release::ReleaseLike;
 use crate::track::TrackLike;
-use std::borrow::Borrow;
 use std::iter;
 
 /// Convert an `f64` into an `u64`.
@@ -75,7 +74,9 @@ impl TrackAssignment {
             .clone()
             .with_weight(matched_tracks_weight);
         let unmatched_tracks_dist = Distance::from(1.0).with_weight(unmatched_tracks_weight);
-        Distance::from([matched_tracks_dist, unmatched_tracks_dist].as_slice())
+        [matched_tracks_dist, unmatched_tracks_dist]
+            .into_iter()
+            .sum::<Distance>()
             .with_weight(matched_tracks_weight + unmatched_tracks_weight)
     }
 
@@ -203,45 +204,45 @@ where
     T2: ReleaseLike + ?Sized,
 {
     let release_title_distance =
-        Distance::between(lhs.release_title(), rhs.release_title()).with_weight(3.0);
+        Distance::between_options_or_maximum(lhs.release_title(), rhs.release_title())
+            .with_weight(3.0);
     let release_artist_distance =
-        Distance::between(lhs.release_artist(), rhs.release_artist()).with_weight(3.0);
-    let musicbrainz_release_id_distance = Distance::from(
-        lhs.musicbrainz_release_id()
-            .and_then(|lhs_id| rhs.musicbrainz_release_id().map(|rhs_id| (lhs_id, rhs_id)))
-            .is_some_and(|(lhs, rhs)| {
-                let lhs_id: &str = lhs.borrow();
-                let lhs_id: &str = lhs_id.trim();
-
-                let rhs_id: &str = rhs.borrow();
-                let rhs_id: &str = rhs_id.trim();
-
-                lhs_id == rhs_id && !lhs_id.is_empty()
-            }),
-    )
-    .with_weight(5.0);
+        Distance::between_options_if_both_some(lhs.release_artist(), rhs.release_artist())
+            .map(|distance| distance.with_weight(3.0));
+    let musicbrainz_release_id_distance = lhs
+        .musicbrainz_release_id()
+        .zip(rhs.musicbrainz_release_id())
+        .map(|(a, b)| string::is_nonempty_and_equal_trimmed(a, b))
+        .map(Distance::from)
+        .map(|distance| distance.with_weight(5.0));
     let media_format_distance =
-        Distance::between(lhs.media_format(), rhs.media_format()).with_weight(1.0);
+        Distance::between_options_if_both_some(lhs.media_format(), rhs.media_format())
+            .map(|distance| distance.with_weight(1.0));
     let record_label_distance =
-        Distance::between(lhs.record_label(), rhs.record_label()).with_weight(0.5);
+        Distance::between_options_if_both_some(lhs.record_label(), rhs.record_label())
+            .map(|distance| distance.with_weight(0.5));
     let catalog_number_distance =
-        Distance::between(lhs.catalog_number(), rhs.catalog_number()).with_weight(0.5);
-    let barcode_distance = Distance::between(lhs.barcode(), rhs.barcode()).with_weight(0.5);
+        Distance::between_options_if_both_some(lhs.catalog_number(), rhs.catalog_number())
+            .map(|distance| distance.with_weight(0.5));
+    let barcode_distance = Distance::between_options_if_both_some(lhs.barcode(), rhs.barcode())
+        .map(|distance| distance.with_weight(0.5));
 
     let track_assignment = TrackAssignment::compute_from(lhs.tracks(), rhs.tracks());
     let track_assignment_distance = track_assignment.as_distance();
 
-    let distances = [
-        release_title_distance,
+    [
+        Some(release_title_distance),
         release_artist_distance,
         musicbrainz_release_id_distance,
         media_format_distance,
         record_label_distance,
         catalog_number_distance,
         barcode_distance,
-        track_assignment_distance,
-    ];
-    Distance::from(distances.as_slice())
+        Some(track_assignment_distance),
+    ]
+    .into_iter()
+    .flatten()
+    .sum()
 }
 
 #[cfg(test)]

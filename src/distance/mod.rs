@@ -13,6 +13,7 @@ use num::rational::Ratio;
 use num::ToPrimitive;
 use std::borrow::{Borrow, Cow};
 use std::cmp;
+use std::iter::Sum;
 
 mod release;
 mod string;
@@ -88,12 +89,21 @@ where
     }
 }
 
-impl From<&[Distance]> for Distance {
-    fn from(value: &[Distance]) -> Self {
-        let total_weighted_distance: f64 = value.iter().map(Distance::weighted_distance).sum();
-        let total_weight: f64 = value.iter().map(Distance::weight).sum();
-        let total_distance = total_weighted_distance / total_weight;
-        Distance::from(total_distance)
+impl Sum<Distance> for Distance {
+    // Required method
+    fn sum<I>(iter: I) -> Self
+    where
+        I: Iterator<Item = Distance>,
+    {
+        let (total_weighted_dist, total_weight) =
+            iter.fold((0.0f64, 0.0f64), |(weighted_dist, weight), distance| {
+                (
+                    weighted_dist + distance.weighted_distance(),
+                    weight + distance.weight,
+                )
+            });
+
+        Distance::from(total_weighted_dist / total_weight)
     }
 }
 
@@ -114,6 +124,8 @@ impl PartialOrd for Distance {
 }
 
 /// Trait that allows to calculate a distance between two items.
+///
+/// This should only be implemented for simple items, where no additional configuration is needed.
 pub trait DistanceBetween<S, T> {
     /// Calculate the distance between two items.
     fn between(lhs: S, rhs: T) -> Distance;
@@ -143,16 +155,40 @@ impl DistanceBetween<chrono::TimeDelta, chrono::TimeDelta> for Distance {
     }
 }
 
-impl<S, T> DistanceBetween<Option<S>, Option<T>> for Distance
-where
-    Self: DistanceBetween<S, T>,
-{
-    fn between(lhs: Option<S>, rhs: Option<T>) -> Distance {
+impl Distance {
+    /// Return the distance between the two items, `default_some` if one of them is `None` and
+    /// `None` if both are `None`.
+    pub fn between_options<S, T>(
+        lhs: Option<S>,
+        rhs: Option<T>,
+        default_some: Option<Distance>,
+    ) -> Option<Distance>
+    where
+        Self: DistanceBetween<S, T>,
+    {
         match (lhs, rhs) {
-            (None, None) => Distance::from(0.0),
-            (Some(_), None) | (None, Some(_)) => Distance::from(1.0),
-            (Some(lhs), Some(rhs)) => Distance::between(lhs, rhs),
+            (None, None) => None,
+            (Some(_), None) | (None, Some(_)) => default_some,
+            (Some(lhs), Some(rhs)) => Some(Distance::between(lhs, rhs)),
         }
+    }
+
+    /// Return the distance between the two items, the maximum distance if one of them is `None` and
+    /// the minimum distance if both are `None`.
+    pub fn between_options_or_maximum<S, T>(lhs: Option<S>, rhs: Option<T>) -> Distance
+    where
+        Self: DistanceBetween<S, T>,
+    {
+        Self::between_options(lhs, rhs, Distance::from(1.0).into())
+            .unwrap_or_else(|| Distance::from(0.0))
+    }
+
+    /// Return the distance between the two items if both are `Some`, otherwise return `None`.
+    pub fn between_options_if_both_some<S, T>(lhs: Option<S>, rhs: Option<T>) -> Option<Distance>
+    where
+        Self: DistanceBetween<S, T>,
+    {
+        Self::between_options(lhs, rhs, None)
     }
 }
 
@@ -234,7 +270,7 @@ mod tests {
         let dist3 = Distance::from(0.45);
         let dist4 = Distance::from(0.35);
 
-        let total = Distance::from([dist0, dist1, dist2, dist3, dist4].as_slice());
+        let total: Distance = [dist0, dist1, dist2, dist3, dist4].into_iter().sum();
         assert_float_eq!(total.weighted_distance(), 0.5, abs <= 0.000_1);
     }
 
@@ -246,7 +282,7 @@ mod tests {
         let dist3 = Distance::from(0.45).with_weight(3.0);
         let dist4 = Distance::from(0.55).with_weight(5.0);
 
-        let total = Distance::from([dist0, dist1, dist2, dist3, dist4].as_slice());
+        let total: Distance = [dist0, dist1, dist2, dist3, dist4].into_iter().sum();
         assert_float_eq!(total.weighted_distance(), 0.490_625, abs <= 0.000_1);
     }
 

@@ -8,9 +8,8 @@
 
 //! Functions for distance calculation between [`ReleaseLike`] objects.
 
-use super::{Distance, DistanceBetween};
+use super::{string, Distance};
 use crate::track::TrackLike;
-use std::borrow::Borrow;
 
 /// Calculate the distance between two releases.
 pub fn between<T1, T2>(lhs: &T1, rhs: &T2) -> Distance
@@ -19,35 +18,21 @@ where
     T2: TrackLike + ?Sized,
 {
     let track_title_distance =
-        Distance::between(lhs.track_title(), rhs.track_title()).with_weight(3.0);
-    let track_artist_distance = rhs
-        .track_artist()
-        .map(|rhs_artist| Distance::between(lhs.track_artist(), Some(rhs_artist)).with_weight(3.0));
-    let track_number_distance = lhs
-        .track_number()
-        .and_then(|lhs_len| rhs.track_number().map(|rhs_len| (lhs_len, rhs_len)))
-        .map(|(lhs_len, rhs_len)| Distance::between(lhs_len, rhs_len));
-    let track_length_distance = lhs
-        .track_length()
-        .and_then(|lhs_len| rhs.track_length().map(|rhs_len| (lhs_len, rhs_len)))
-        .map(|(lhs_len, rhs_len)| Distance::between(lhs_len, rhs_len));
+        Distance::between_options_or_maximum(lhs.track_title(), rhs.track_title()).with_weight(3.0);
+    let track_artist_distance =
+        Distance::between_options_if_both_some(lhs.track_artist(), rhs.track_artist())
+            .map(|distance| distance.with_weight(3.0));
+    let track_number_distance =
+        Distance::between_options_if_both_some(lhs.track_number(), rhs.track_number());
+    let track_length_distance =
+        Distance::between_options_if_both_some(lhs.track_length(), rhs.track_length());
     let musicbrainz_recording_id_distance = lhs
         .musicbrainz_recording_id()
-        .and_then(|lhs_id| {
-            rhs.musicbrainz_recording_id()
-                .map(|rhs_id| (lhs_id, rhs_id))
-        })
-        .map(|(lhs, rhs)| {
-            let lhs_id: &str = lhs.borrow();
-            let lhs_id: &str = lhs_id.trim();
+        .zip(rhs.musicbrainz_recording_id())
+        .map(|(a, b)| string::is_nonempty_and_equal_trimmed(a, b))
+        .map(Distance::from);
 
-            let rhs_id: &str = rhs.borrow();
-            let rhs_id: &str = rhs_id.trim();
-
-            Distance::from(lhs_id == rhs_id && !lhs_id.is_empty()).with_weight(5.0)
-        });
-
-    let distances: Vec<_> = [
+    [
         Some(track_title_distance),
         track_artist_distance,
         track_number_distance,
@@ -56,8 +41,7 @@ where
     ]
     .into_iter()
     .flatten()
-    .collect();
-    Distance::from(distances.as_slice())
+    .sum()
 }
 
 #[cfg(test)]
