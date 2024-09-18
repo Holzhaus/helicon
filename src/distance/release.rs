@@ -204,27 +204,38 @@ where
     T2: ReleaseLike + ?Sized,
 {
     let release_title_distance =
-        Distance::between_options_or_maximum(lhs.release_title(), rhs.release_title())
+        Distance::between_options_or_minmax(lhs.release_title(), rhs.release_title())
             .with_weight(3.0);
-    let release_artist_distance =
-        Distance::between_options_if_both_some(lhs.release_artist(), rhs.release_artist())
-            .map(|distance| distance.with_weight(3.0));
+    let release_artist_distance = lhs
+        .release_artist()
+        .zip(rhs.release_artist())
+        .map(Distance::between_tuple_items)
+        .map(|distance| distance.with_weight(3.0));
     let musicbrainz_release_id_distance = lhs
         .musicbrainz_release_id()
         .zip(rhs.musicbrainz_release_id())
         .map(|(a, b)| string::is_nonempty_and_equal_trimmed(a, b))
         .map(Distance::from)
         .map(|distance| distance.with_weight(5.0));
-    let media_format_distance =
-        Distance::between_options_if_both_some(lhs.media_format(), rhs.media_format())
-            .map(|distance| distance.with_weight(1.0));
-    let record_label_distance =
-        Distance::between_options_if_both_some(lhs.record_label(), rhs.record_label())
-            .map(|distance| distance.with_weight(0.5));
-    let catalog_number_distance =
-        Distance::between_options_if_both_some(lhs.catalog_number(), rhs.catalog_number())
-            .map(|distance| distance.with_weight(0.5));
-    let barcode_distance = Distance::between_options_if_both_some(lhs.barcode(), rhs.barcode())
+    let media_format_distance = lhs
+        .media_format()
+        .zip(rhs.media_format())
+        .map(Distance::between_tuple_items)
+        .map(|distance| distance.with_weight(1.0));
+    let record_label_distance = lhs
+        .record_label()
+        .zip(rhs.record_label())
+        .map(Distance::between_tuple_items)
+        .map(|distance| distance.with_weight(0.5));
+    let catalog_number_distance = lhs
+        .catalog_number()
+        .zip(rhs.catalog_number())
+        .map(Distance::between_tuple_items)
+        .map(|distance| distance.with_weight(0.5));
+    let barcode_distance = lhs
+        .barcode()
+        .zip(rhs.barcode())
+        .map(Distance::between_tuple_items)
         .map(|distance| distance.with_weight(0.5));
 
     let track_assignment = TrackAssignment::compute_from(lhs.tracks(), rhs.tracks());

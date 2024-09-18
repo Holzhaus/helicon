@@ -60,6 +60,14 @@ impl Distance {
     pub fn between_tracks(lhs: &impl TrackLike, rhs: &impl TrackLike) -> Self {
         track::between(lhs, rhs)
     }
+
+    /// Calculate distance between two [`TrackLike`] items.
+    pub fn between_tuple_items<T, S>((lhs, rhs): (T, S)) -> Self
+    where
+        Self: DistanceBetween<T, S>,
+    {
+        Distance::between(lhs, rhs)
+    }
 }
 
 impl From<f64> for Distance {
@@ -156,39 +164,17 @@ impl DistanceBetween<chrono::TimeDelta, chrono::TimeDelta> for Distance {
 }
 
 impl Distance {
-    /// Return the distance between the two items, `default_some` if one of them is `None` and
-    /// `None` if both are `None`.
-    pub fn between_options<S, T>(
-        lhs: Option<S>,
-        rhs: Option<T>,
-        default_some: Option<Distance>,
-    ) -> Option<Distance>
+    /// Return the distance between the two items, the maximum distance if one of them is `None` and
+    /// the minimum distance if both are `None`.
+    pub fn between_options_or_minmax<S, T>(lhs: Option<S>, rhs: Option<T>) -> Distance
     where
         Self: DistanceBetween<S, T>,
     {
         match (lhs, rhs) {
-            (None, None) => None,
-            (Some(_), None) | (None, Some(_)) => default_some,
-            (Some(lhs), Some(rhs)) => Some(Distance::between(lhs, rhs)),
+            (None, None) => Distance::from(0.0),
+            (Some(_), None) | (None, Some(_)) => Distance::from(1.0),
+            (Some(lhs), Some(rhs)) => Distance::between(lhs, rhs),
         }
-    }
-
-    /// Return the distance between the two items, the maximum distance if one of them is `None` and
-    /// the minimum distance if both are `None`.
-    pub fn between_options_or_maximum<S, T>(lhs: Option<S>, rhs: Option<T>) -> Distance
-    where
-        Self: DistanceBetween<S, T>,
-    {
-        Self::between_options(lhs, rhs, Distance::from(1.0).into())
-            .unwrap_or_else(|| Distance::from(0.0))
-    }
-
-    /// Return the distance between the two items if both are `Some`, otherwise return `None`.
-    pub fn between_options_if_both_some<S, T>(lhs: Option<S>, rhs: Option<T>) -> Option<Distance>
-    where
-        Self: DistanceBetween<S, T>,
-    {
-        Self::between_options(lhs, rhs, None)
     }
 }
 

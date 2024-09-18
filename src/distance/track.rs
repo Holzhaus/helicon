@@ -18,14 +18,20 @@ where
     T2: TrackLike + ?Sized,
 {
     let track_title_distance =
-        Distance::between_options_or_maximum(lhs.track_title(), rhs.track_title()).with_weight(3.0);
-    let track_artist_distance =
-        Distance::between_options_if_both_some(lhs.track_artist(), rhs.track_artist())
-            .map(|distance| distance.with_weight(3.0));
-    let track_number_distance =
-        Distance::between_options_if_both_some(lhs.track_number(), rhs.track_number());
-    let track_length_distance =
-        Distance::between_options_if_both_some(lhs.track_length(), rhs.track_length());
+        Distance::between_options_or_minmax(lhs.track_title(), rhs.track_title()).with_weight(3.0);
+    let track_artist_distance = lhs
+        .track_artist()
+        .zip(rhs.track_artist())
+        .map(Distance::between_tuple_items)
+        .map(|distance| distance.with_weight(3.0));
+    let track_number_distance = lhs
+        .track_number()
+        .zip(rhs.track_number())
+        .map(Distance::between_tuple_items);
+    let track_length_distance = lhs
+        .track_length()
+        .zip(rhs.track_length())
+        .map(Distance::between_tuple_items);
     let musicbrainz_recording_id_distance = lhs
         .musicbrainz_recording_id()
         .zip(rhs.musicbrainz_recording_id())
