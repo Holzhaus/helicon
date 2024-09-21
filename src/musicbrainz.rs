@@ -8,11 +8,12 @@
 
 //! MusicBrainz helper functions.
 
+use crate::distance::{DistanceItem, ReleaseSimilarity};
 use crate::release::ReleaseLike;
+use crate::Config;
 use futures::{
-    future::{self, FutureExt},
+    future::TryFutureExt,
     stream::{self, StreamExt},
-    Stream,
 };
 use musicbrainz_rs_nova::{
     entity::release::{
@@ -21,63 +22,92 @@ use musicbrainz_rs_nova::{
     Fetch, Search,
 };
 use std::borrow::Borrow;
+use std::collections::BinaryHeap;
 
 /// Find MusicBrainz Release information for the given (generic) Release.
-pub fn find_releases(
+pub async fn find_releases(
+    config: &Config,
     base_release: &impl ReleaseLike,
-) -> impl Stream<Item = crate::Result<MusicBrainzRelease>> + '_ {
-    base_release
-        .musicbrainz_release_id()
-        .inspect(|mb_release_id| {
-            log::info!("Found MusicBrainz Release Id: {:?}", mb_release_id);
-        })
-        .map_or_else(
-            || future::ready(None).left_future(),
-            |mb_id| {
-                let mb_id = mb_id.to_string();
-                async { find_release_by_mb_id(mb_id).await.ok() }.right_future()
-            },
-        )
-        .map(move |result| {
-            if let Some(release) = result {
-                stream::once(future::ok(release)).left_stream()
-            } else {
-                let mut query = MusicBrainzReleaseSearchQuery::query_builder();
-                let mut query = query.tracks(
-                    &base_release
-                        .track_count()
-                        .map(|track_count| track_count.to_string())
-                        .unwrap_or_default(),
-                );
-                if let Some(v) = base_release.release_artist() {
-                    query = query.and().artist(v.borrow());
-                };
-                if let Some(v) = base_release.release_title() {
-                    query = query.and().release(v.borrow());
-                };
-                if let Some(v) = base_release.catalog_number() {
-                    query = query.and().catalog_number(v.borrow());
-                };
-                if let Some(v) = base_release.barcode() {
-                    query = query.and().barcode(v.borrow());
-                }
+) -> crate::Result<Vec<(MusicBrainzRelease, ReleaseSimilarity)>> {
+    if let Some(mb_id) = base_release.musicbrainz_release_id() {
+        let release = find_release_by_mb_id(mb_id.into_owned()).await?;
+        let release_similarity = base_release.similarity_to(&release, config);
+        let item = (release, release_similarity);
+        return Ok(vec![item]);
+    }
 
-                let search = query.build();
-                async { MusicBrainzRelease::search(search).execute().await }
-                    .map(|result| {
-                        result.map_or_else(
-                            |_| stream::empty().left_stream(),
-                            |response| stream::iter(response.entities).right_stream(),
-                        )
-                    })
-                    .flatten_stream()
-                    .map(|release| release.id)
-                    .then(find_release_by_mb_id)
-                    .right_stream()
-            }
+    let similar_release_ids = find_release_ids_by_similarity(base_release).await?;
+    let heap = BinaryHeap::with_capacity(similar_release_ids.len());
+    let heap = stream::iter(similar_release_ids)
+        .map(find_release_by_mb_id)
+        .buffer_unordered(10)
+        .fold(heap, |mut heap, result| async {
+            let Ok(release) = result else {
+                return heap;
+            };
+
+            let release_similarity = base_release.similarity_to(&release, config);
+            let release_distance = release_similarity.total_distance();
+            log::debug!(
+                "Release '{}' has distance to track collection: {}",
+                release.title,
+                release_distance.weighted_distance()
+            );
+            let item = DistanceItem::new((release, release_similarity), release_distance);
+            heap.push(item);
+            heap
         })
-        .into_stream()
-        .flatten()
+        .await;
+
+    let releases: Vec<(MusicBrainzRelease, ReleaseSimilarity)> = heap
+        .into_sorted_vec()
+        .into_iter()
+        .map(|dist_item: DistanceItem<(MusicBrainzRelease, ReleaseSimilarity)>| dist_item.item)
+        .collect();
+    log::info!("Found {} release candidates.", releases.len());
+    Ok(releases)
+}
+
+/// Search for similar releases based on the metadata of an existing [`ReleaseLike`].
+pub async fn find_release_ids_by_similarity(
+    base_release: &impl ReleaseLike,
+) -> crate::Result<Vec<String>> {
+    let mut query = MusicBrainzReleaseSearchQuery::query_builder();
+    let mut query = query.tracks(
+        &base_release
+            .track_count()
+            .map(|track_count| track_count.to_string())
+            .unwrap_or_default(),
+    );
+    if let Some(v) = base_release.release_artist() {
+        query = query.and().artist(v.borrow());
+    };
+    if let Some(v) = base_release.release_title() {
+        query = query.and().release(v.borrow());
+    };
+    if let Some(v) = base_release.catalog_number() {
+        query = query.and().catalog_number(v.borrow());
+    };
+    if let Some(v) = base_release.barcode() {
+        query = query.and().barcode(v.borrow());
+    }
+
+    let search_query = query.build();
+    let response = MusicBrainzRelease::search(search_query.clone())
+        .execute()
+        .await?;
+
+    log::debug!(
+        "Found {} releases using query: {}",
+        response.entities.len(),
+        search_query
+    );
+    let mb_ids = response
+        .entities
+        .into_iter()
+        .map(|release| release.id)
+        .collect();
+    Ok(mb_ids)
 }
 
 /// Fetch a MusicBrainz release by its release ID.
@@ -96,7 +126,7 @@ pub async fn find_release_by_mb_id(id: String) -> crate::Result<MusicBrainzRelea
         .with_artist_relations()
         .with_url_relations()
         .execute()
-        .map(|result| result.map_err(crate::Error::from))
+        .map_err(crate::Error::from)
         .await
 }
 

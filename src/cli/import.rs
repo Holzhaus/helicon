@@ -8,14 +8,12 @@
 
 //! Functions related to importing files.
 
-use crate::distance::DistanceItem;
 use crate::musicbrainz;
 use crate::release::ReleaseLike;
 use crate::util::walk_dir;
 use crate::{Config, TaggedFile, TaggedFileCollection};
 use clap::Parser;
-use futures::{future, stream::StreamExt};
-use std::collections::{BinaryHeap, HashSet};
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 /// Command line arguments for the `import` CLI command.
@@ -69,48 +67,21 @@ pub async fn run(config: &Config, args: Args) -> crate::Result<()> {
 
         let track_collection = TaggedFileCollection::new(tagged_files);
 
-        let mut heap = BinaryHeap::new();
-        musicbrainz::find_releases(&track_collection)
-            .filter_map(|result| async {
-                match result {
-                    Ok(release) => Some(release),
-                    Err(err) => {
-                        log::warn!("Failed to retrieve release: {}", err);
-                        None
-                    }
-                }
-            })
-            .for_each(|release| {
-                let release_similarity = track_collection.similarity_to(&release, config);
-                let release_distance = release_similarity.total_distance();
-                log::debug!(
-                    "Release '{}' has distance to track collection: {}",
-                    release.title,
-                    release_distance.weighted_distance()
-                );
-                let item = DistanceItem::new((release, release_similarity), release_distance);
-                heap.push(item);
-                future::ready(())
-            })
-            .await;
-
-        log::info!("Found {} release candidates.", heap.len());
-        heap.into_sorted_vec()
+        musicbrainz::find_releases(config, &track_collection)
+            .await?
             .iter()
             .enumerate()
-            .for_each(|(index, candidate)| {
+            .for_each(|(index, (candidate, similarity))| {
                 log::info!(
                     "{:02}. {} - {} ({}distance: {:.3})",
                     index + 1,
-                    candidate.item.0.release_artist().unwrap_or_default(),
-                    candidate.item.0.release_title().unwrap_or_default(),
+                    candidate.release_artist().unwrap_or_default(),
+                    candidate.release_title().unwrap_or_default(),
                     candidate
-                        .item
-                        .0
                         .track_count()
                         .map(|c| format!("{c} tracks, "))
                         .unwrap_or_default(),
-                    candidate.distance().weighted_distance()
+                    similarity.total_distance().weighted_distance()
                 );
             });
     }

@@ -26,6 +26,9 @@ pub enum ErrorType {
     /// A MusicBrainz API request failed.
     #[error("API request failed")]
     Request(#[from] musicbrainz_rs_nova::Error),
+    /// A MusicBrainz API request failed.
+    #[error("MusicBrainz lookup failed")]
+    MusicBrainzLookupFailed(&'static str),
     /// Errors raised by the [`id3`] crate.
     #[cfg(feature = "id3")]
     #[error("Failed to read ID3 tag")]
