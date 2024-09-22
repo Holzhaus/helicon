@@ -13,9 +13,17 @@ use crate::musicbrainz;
 use crate::release::ReleaseLike;
 use crate::util::walk_dir;
 use crate::{Config, TaggedFile, TaggedFileCollection};
+use clap::Parser;
 use futures::{future, stream::StreamExt};
 use std::collections::{BinaryHeap, HashSet};
 use std::path::PathBuf;
+
+/// Command line arguments for the `import` CLI command.
+#[derive(Parser, Debug)]
+pub struct Args {
+    /// Path to import.
+    path: PathBuf,
+}
 
 /// Run an import.
 ///
@@ -23,7 +31,9 @@ use std::path::PathBuf;
 ///
 /// If the underlying [`walk_dir`] function encounters any form of I/O or other error, an error
 /// variant will be returned.
-pub async fn run(config: &Config, input_path: PathBuf) -> crate::Result<()> {
+pub async fn run(config: &Config, args: Args) -> crate::Result<()> {
+    let input_path = args.path;
+
     let supported_extensions = HashSet::from(["mp3", "flac"]);
     for item in walk_dir(input_path) {
         let (path, _dirs, files) = item?;

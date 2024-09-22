@@ -11,7 +11,7 @@
 mod import;
 
 use crate::Config;
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use env_logger::{Builder, WriteStyle};
 use log::LevelFilter;
 use std::path::PathBuf;
@@ -20,14 +20,22 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// Path to import.
-    path: PathBuf,
+    /// Command to run
+    #[command(subcommand)]
+    command: Commands,
     /// Show debug information.
     #[arg(short, long)]
     verbose: bool,
     /// Path to configuration file.
     #[arg(short, long, required = false)]
     config_path: Option<PathBuf>,
+}
+
+/// Supported CLI Commands.
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Import files into your collection.
+    Import(import::Args),
 }
 
 impl Args {
@@ -64,5 +72,8 @@ pub async fn main() -> crate::Result<()> {
         .write_style(WriteStyle::Auto)
         .init();
 
-    import::run(&config, args.path).await
+    match args.command {
+        Commands::Import(cmd_args) => import::run(&config, cmd_args),
+    }
+    .await
 }
