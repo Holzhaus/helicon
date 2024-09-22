@@ -46,6 +46,7 @@
 #![warn(dead_code)]
 #![warn(variant_size_differences)]
 
+mod cli;
 mod config;
 mod distance;
 mod error;
@@ -58,6 +59,7 @@ mod taggedfilecollection;
 mod track;
 mod util;
 
+pub use self::cli::main;
 pub use self::config::Config;
 pub use self::error::{ErrorType as Error, Result};
 pub use self::taggedfile::TaggedFile;
