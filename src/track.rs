@@ -8,6 +8,7 @@
 
 //! Generic release implementations.
 use crate::distance::Distance;
+use crate::Config;
 use musicbrainz_rs_nova::entity::release::Track as MusicBrainzReleaseTrack;
 use std::borrow::Cow;
 
@@ -25,12 +26,12 @@ pub trait TrackLike {
     fn musicbrainz_recording_id(&self) -> Option<Cow<'_, str>>;
 
     /// Calculate the distance between this release and another one.
-    fn distance_to<T>(&self, other: &T) -> Distance
+    fn distance_to<T>(&self, other: &T, config: &Config) -> Distance
     where
         Self: Sized,
         T: TrackLike,
     {
-        Distance::between_tracks(self, other)
+        Distance::between_tracks(config, self, other)
     }
 }
 

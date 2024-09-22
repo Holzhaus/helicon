@@ -1,0 +1,16 @@
+[weights.track]
+track_title = 3.0
+track_artist = 3.0
+track_number = 1.0
+track_length = 1.0
+musicbrainz_recording_id = 5.0
+
+[weights.release]
+release_title = 3.0
+release_artist = 3.0
+musicbrainz_release_id = 5.0
+media_format = 1.0
+record_label = 0.5
+catalog_number = 0.5
+barcode = 0.5
+track_assignment = 1.0

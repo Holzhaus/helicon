@@ -9,6 +9,7 @@
 //! Distance calculations for various items.
 use crate::release::ReleaseLike;
 use crate::track::TrackLike;
+use crate::Config;
 use num::rational::Ratio;
 use num::ToPrimitive;
 use std::borrow::{Borrow, Cow};
@@ -52,13 +53,17 @@ impl Distance {
     }
 
     /// Calculate distance between two [`ReleaseLike`] items.
-    pub fn between_releases(lhs: &impl ReleaseLike, rhs: &impl ReleaseLike) -> Self {
-        release::between(lhs, rhs)
+    pub fn between_releases(
+        config: &Config,
+        lhs: &impl ReleaseLike,
+        rhs: &impl ReleaseLike,
+    ) -> Self {
+        release::between(config, lhs, rhs)
     }
 
     /// Calculate distance between two [`TrackLike`] items.
-    pub fn between_tracks(lhs: &impl TrackLike, rhs: &impl TrackLike) -> Self {
-        track::between(lhs, rhs)
+    pub fn between_tracks(config: &Config, lhs: &impl TrackLike, rhs: &impl TrackLike) -> Self {
+        track::between(config, lhs, rhs)
     }
 
     /// Calculate distance between two [`TrackLike`] items.

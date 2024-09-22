@@ -12,7 +12,7 @@ use crate::distance::DistanceItem;
 use crate::musicbrainz;
 use crate::release::ReleaseLike;
 use crate::util::walk_dir;
-use crate::{TaggedFile, TaggedFileCollection};
+use crate::{Config, TaggedFile, TaggedFileCollection};
 use futures::{future, stream::StreamExt};
 use std::collections::{BinaryHeap, HashSet};
 use std::path::PathBuf;
@@ -23,7 +23,7 @@ use std::path::PathBuf;
 ///
 /// If the underlying [`walk_dir`] function encounters any form of I/O or other error, an error
 /// variant will be returned.
-pub async fn run(input_path: PathBuf) -> crate::Result<()> {
+pub async fn run(config: &Config, input_path: PathBuf) -> crate::Result<()> {
     let supported_extensions = HashSet::from(["mp3", "flac"]);
     for item in walk_dir(input_path) {
         let (path, _dirs, files) = item?;
@@ -71,7 +71,7 @@ pub async fn run(input_path: PathBuf) -> crate::Result<()> {
                 }
             })
             .for_each(|release| {
-                let release_distance = track_collection.distance_to(&release);
+                let release_distance = track_collection.distance_to(&release, config);
                 log::debug!(
                     "Release '{}' has distance to track collection: {}",
                     release.title,

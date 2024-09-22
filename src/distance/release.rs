@@ -11,6 +11,7 @@
 use super::{string, Distance};
 use crate::release::ReleaseLike;
 use crate::track::TrackLike;
+use crate::Config;
 use std::iter;
 
 /// Convert an `f64` into an `u64`.
@@ -83,6 +84,7 @@ impl TrackAssignment {
     /// Compute the best match between two Iterators of [`TrackLike`] items and returns a
     /// [`TrackAssignment`] struct.
     pub fn compute_from<'a>(
+        config: &Config,
         lhs: impl Iterator<Item = &'a (impl TrackLike + 'a)>,
         rhs: impl Iterator<Item = &'a (impl TrackLike + 'a)>,
     ) -> TrackAssignment {
@@ -99,7 +101,7 @@ impl TrackAssignment {
         let track_distance_matrix: Option<Vec<u64>> = lhs_tracks
             .iter()
             .flat_map(|lhs_track| iter::repeat(lhs_track).zip(rhs_tracks.iter()))
-            .map(|(lhs_track, rhs_track)| Distance::between_tracks(*lhs_track, *rhs_track))
+            .map(|(lhs_track, rhs_track)| Distance::between_tracks(config, *lhs_track, *rhs_track))
             .map(|distance| {
                 f64_to_u64((distance.weighted_distance() * TRACK_DISTANCE_PRECISION_FACTOR).trunc())
             })
@@ -198,47 +200,74 @@ impl TrackAssignment {
 }
 
 /// Calculate the distance between two releases.
-pub fn between<T1, T2>(lhs: &T1, rhs: &T2) -> Distance
+pub fn between<T1, T2>(config: &Config, lhs: &T1, rhs: &T2) -> Distance
 where
     T1: ReleaseLike + ?Sized,
     T2: ReleaseLike + ?Sized,
 {
+    let weights = &config.weights.release;
+
     let release_title_distance =
-        Distance::between_options_or_minmax(lhs.release_title(), rhs.release_title())
-            .with_weight(3.0);
+        Distance::between_options_or_minmax(lhs.release_title(), rhs.release_title()).with_weight(
+            weights
+                .release_title
+                .expect("undefined release_title weight"),
+        );
     let release_artist_distance = lhs
         .release_artist()
         .zip(rhs.release_artist())
         .map(Distance::between_tuple_items)
-        .map(|distance| distance.with_weight(3.0));
+        .map(|distance| {
+            distance.with_weight(
+                weights
+                    .release_artist
+                    .expect("undefined release_artist weight"),
+            )
+        });
     let musicbrainz_release_id_distance = lhs
         .musicbrainz_release_id()
         .zip(rhs.musicbrainz_release_id())
         .map(|(a, b)| string::is_nonempty_and_equal_trimmed(a, b))
         .map(Distance::from)
-        .map(|distance| distance.with_weight(5.0));
+        .map(|distance| {
+            distance.with_weight(
+                weights
+                    .musicbrainz_release_id
+                    .expect("undefined musicbrainz_release_id weight"),
+            )
+        });
     let media_format_distance = lhs
         .media_format()
         .zip(rhs.media_format())
         .map(Distance::between_tuple_items)
-        .map(|distance| distance.with_weight(1.0));
+        .map(|distance| {
+            distance.with_weight(weights.media_format.expect("undefined media_format weight"))
+        });
     let record_label_distance = lhs
         .record_label()
         .zip(rhs.record_label())
         .map(Distance::between_tuple_items)
-        .map(|distance| distance.with_weight(0.5));
+        .map(|distance| {
+            distance.with_weight(weights.record_label.expect("undefined record_label weight"))
+        });
     let catalog_number_distance = lhs
         .catalog_number()
         .zip(rhs.catalog_number())
         .map(Distance::between_tuple_items)
-        .map(|distance| distance.with_weight(0.5));
+        .map(|distance| {
+            distance.with_weight(
+                weights
+                    .catalog_number
+                    .expect("undefined catalog_number weight"),
+            )
+        });
     let barcode_distance = lhs
         .barcode()
         .zip(rhs.barcode())
         .map(Distance::between_tuple_items)
-        .map(|distance| distance.with_weight(0.5));
+        .map(|distance| distance.with_weight(weights.barcode.expect("undefined barcode weight")));
 
-    let track_assignment = TrackAssignment::compute_from(lhs.tracks(), rhs.tracks());
+    let track_assignment = TrackAssignment::compute_from(config, lhs.tracks(), rhs.tracks());
     let track_assignment_distance = track_assignment.as_distance();
 
     [
@@ -273,7 +302,8 @@ mod tests {
             TestTrack("xyz"),
         ];
 
-        let assignment = TrackAssignment::compute_from(tracks.iter(), tracks.iter());
+        let config = Config::default();
+        let assignment = TrackAssignment::compute_from(&config, tracks.iter(), tracks.iter());
         assert_eq!(assignment.matched_tracks.len(), 5);
         assert_eq!(assignment.unmatched_tracks.len(), 0);
         assert_float_eq!(
@@ -300,7 +330,8 @@ mod tests {
             TestTrack("uvw"),
         ];
 
-        let assignment = TrackAssignment::compute_from(lhs.iter(), rhs.iter());
+        let config = Config::default();
+        let assignment = TrackAssignment::compute_from(&config, lhs.iter(), rhs.iter());
         assert_eq!(assignment.matched_tracks.len(), 5);
         assert_eq!(assignment.unmatched_tracks.len(), 0);
         assert_float_eq!(
@@ -315,7 +346,8 @@ mod tests {
         let lhs = [TestTrack("foo"), TestTrack("bar")];
         let rhs = [TestTrack("qrst"), TestTrack("xyz")];
 
-        let assignment = TrackAssignment::compute_from(lhs.iter(), rhs.iter());
+        let config = Config::default();
+        let assignment = TrackAssignment::compute_from(&config, lhs.iter(), rhs.iter());
         assert_eq!(assignment.matched_tracks.len(), 2);
         assert_eq!(assignment.unmatched_tracks.len(), 0);
         assert_float_eq!(assignment.as_distance().base_distance, 1.0, abs <= 0.000_1);
@@ -331,7 +363,8 @@ mod tests {
         let lhs = [TestTrack("foo"), TestTrack("bar"), TestTrack("uvw")];
         let rhs = [TestTrack("qrst"), TestTrack("xyz")];
 
-        let assignment = TrackAssignment::compute_from(lhs.iter(), rhs.iter());
+        let config = Config::default();
+        let assignment = TrackAssignment::compute_from(&config, lhs.iter(), rhs.iter());
         assert_eq!(assignment.matched_tracks.len(), 2);
         assert_eq!(assignment.unmatched_tracks.len(), 1);
         assert_eq!(
@@ -351,7 +384,8 @@ mod tests {
         let lhs = [TestTrack("foo"), TestTrack("bar")];
         let rhs = [TestTrack("uvw"), TestTrack("qrst"), TestTrack("xyz")];
 
-        let assignment = TrackAssignment::compute_from(lhs.iter(), rhs.iter());
+        let config = Config::default();
+        let assignment = TrackAssignment::compute_from(&config, lhs.iter(), rhs.iter());
         assert_eq!(assignment.matched_tracks.len(), 2);
         assert_eq!(assignment.unmatched_tracks.len(), 1);
         assert_eq!(

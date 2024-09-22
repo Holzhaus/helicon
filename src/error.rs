@@ -14,6 +14,9 @@ use thiserror::Error;
 /// Main error type.
 #[derive(Error, Debug)]
 pub enum ErrorType {
+    /// Configuration error.
+    #[error("Configuration Error ({0})")]
+    Config(#[from] crate::config::ConfigError),
     /// I/O Error.
     #[error("Input/Output error ({:?})", .0)]
     Io(#[from] io::Error),

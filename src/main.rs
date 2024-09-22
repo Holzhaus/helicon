@@ -11,7 +11,7 @@
 use clap::Parser;
 use env_logger::{Builder, WriteStyle};
 use log::LevelFilter;
-use mbtagger::import;
+use mbtagger::{import, Config};
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
@@ -22,6 +22,9 @@ struct Args {
     /// Show debug information.
     #[arg(short, long)]
     verbose: bool,
+    /// Path to configuration file.
+    #[arg(short, long, required = false)]
+    config_path: Option<PathBuf>,
 }
 
 impl Args {
@@ -30,6 +33,13 @@ impl Args {
             LevelFilter::Debug
         } else {
             LevelFilter::Info
+        }
+    }
+
+    fn config(&self) -> mbtagger::Result<Config> {
+        match &self.config_path {
+            Some(path) => Config::load_from_path(path).map(|config| config.with_defaults()),
+            None => Ok(Config::default()),
         }
     }
 }
@@ -41,5 +51,5 @@ async fn main() -> mbtagger::Result<()> {
         .filter(None, args.log_level_filter())
         .write_style(WriteStyle::Auto)
         .init();
-    import::run(args.path).await
+    import::run(&args.config()?, args.path).await
 }
