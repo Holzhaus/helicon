@@ -50,7 +50,6 @@ mod cli;
 mod config;
 mod distance;
 mod error;
-pub mod import;
 mod musicbrainz;
 mod release;
 mod tag;

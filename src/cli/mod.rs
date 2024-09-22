@@ -8,7 +8,9 @@
 
 //! Command line interface.
 
-use crate::{import, Config};
+mod import;
+
+use crate::Config;
 use clap::Parser;
 use env_logger::{Builder, WriteStyle};
 use log::LevelFilter;
