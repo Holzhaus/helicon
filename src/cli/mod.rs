@@ -8,6 +8,7 @@
 
 //! Command line interface.
 
+mod config;
 mod import;
 
 use crate::Config;
@@ -34,6 +35,8 @@ struct Args {
 /// Supported CLI Commands.
 #[derive(Subcommand, Debug)]
 enum Commands {
+    /// Show your current configuration.
+    Config(config::Args),
     /// Import files into your collection.
     Import(import::Args),
 }
@@ -73,7 +76,7 @@ pub async fn main() -> crate::Result<()> {
         .init();
 
     match args.command {
-        Commands::Import(cmd_args) => import::run(&config, cmd_args),
+        Commands::Import(cmd_args) => import::run(&config, cmd_args).await,
+        Commands::Config(cmd_args) => config::run(&config, cmd_args),
     }
-    .await
 }
