@@ -1,4 +1,5 @@
 [lookup]
+connection_limit = 10
 release_candidate_limit = 5
 
 [weights.track]

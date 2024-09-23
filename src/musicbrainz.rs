@@ -40,7 +40,7 @@ pub async fn find_releases(
     let heap = BinaryHeap::with_capacity(similar_release_ids.len());
     let heap = stream::iter(similar_release_ids)
         .map(find_release_by_mb_id)
-        .buffer_unordered(10)
+        .buffer_unordered(config.lookup.connection_limit.unwrap_or(1))
         .fold(heap, |mut heap, result| async {
             let Ok(release) = result else {
                 return heap;

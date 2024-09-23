@@ -119,6 +119,8 @@ impl MergeableConfig for DistanceWeights {
 #[expect(missing_copy_implementations)]
 #[derive(Debug, Default, Clone, Deserialize, Serialize)]
 pub struct LookupConfig {
+    /// Number of concurrent connections to use.
+    pub connection_limit: Option<usize>,
     /// Do not fetch more than this number of candidate releases from MusicBrainz.
     ///
     /// Use `0` to disable this limit.
@@ -128,6 +130,7 @@ pub struct LookupConfig {
 impl MergeableConfig for LookupConfig {
     fn merge(&self, other: &Self) -> Self {
         LookupConfig {
+            connection_limit: self.connection_limit.or(other.connection_limit),
             release_candidate_limit: self
                 .release_candidate_limit
                 .or(other.release_candidate_limit)
