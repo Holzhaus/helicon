@@ -1,3 +1,6 @@
+[lookup]
+release_candidate_limit = 5
+
 [weights.track]
 track_title = 3.0
 track_artist = 3.0

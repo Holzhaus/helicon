@@ -115,9 +115,32 @@ impl MergeableConfig for DistanceWeights {
     }
 }
 
+/// Configuration for MusicBrainz lookups.
+#[expect(missing_copy_implementations)]
+#[derive(Debug, Default, Clone, Deserialize, Serialize)]
+pub struct LookupConfig {
+    /// Do not fetch more than this number of candidate releases from MusicBrainz.
+    ///
+    /// Use `0` to disable this limit.
+    pub release_candidate_limit: Option<u8>,
+}
+
+impl MergeableConfig for LookupConfig {
+    fn merge(&self, other: &Self) -> Self {
+        LookupConfig {
+            release_candidate_limit: self
+                .release_candidate_limit
+                .or(other.release_candidate_limit)
+                .filter(|&x| x != 0),
+        }
+    }
+}
+
 /// The main configuration struct.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
+    /// Configuration for track/release lookup.
+    pub lookup: LookupConfig,
     /// Weight configuration.
     pub weights: DistanceWeights,
 }
@@ -133,6 +156,7 @@ impl MergeableConfig for Config {
     /// the other one (if present).
     fn merge(&self, other: &Self) -> Self {
         Config {
+            lookup: self.lookup.merge(&other.lookup),
             weights: self.weights.merge(&other.weights),
         }
     }
