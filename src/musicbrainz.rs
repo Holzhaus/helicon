@@ -44,7 +44,7 @@ pub async fn find_releases(
     );
     let max_candidate_count = config.lookup.release_candidate_limit.unwrap_or(25);
     let similar_release_ids =
-        find_release_ids_by_similarity(base_release, max_candidate_count).await?;
+        find_release_ids_by_similarity(cache, base_release, max_candidate_count, 0).await?;
     let heap = BinaryHeap::with_capacity(similar_release_ids.len());
     let heap = stream::iter(similar_release_ids)
         .map(|mb_id| find_release_by_mb_id(mb_id, cache))
@@ -78,8 +78,10 @@ pub async fn find_releases(
 
 /// Search for similar releases based on the metadata of an existing [`ReleaseLike`].
 pub async fn find_release_ids_by_similarity(
+    cache: Option<&impl Cache>,
     base_release: &impl ReleaseLike,
     limit: u8,
+    offset: u16,
 ) -> crate::Result<Vec<String>> {
     let mut query = MusicBrainzReleaseSearchQuery::query_builder();
     let mut query = query.tracks(
@@ -102,16 +104,36 @@ pub async fn find_release_ids_by_similarity(
     }
 
     let search_query = query.build();
-    let response = MusicBrainzRelease::search(search_query.clone())
-        .limit(limit)
-        .execute()
-        .await?;
+    let response = if let Some(cached_response) = cache.and_then(|c| c.get_release_search_result(&search_query, limit, offset)
+            .inspect_err(|err| {
+                log::debug!("Failed to get release search result for query {search_query} (limit {limit}) from cache: {err}");
+            })
+            .ok()) {
+        cached_response
+    } else {
+        let response = MusicBrainzRelease::search(search_query.clone())
+            .limit(limit)
+            .offset(offset)
+            .execute()
+            .await?;
+        log::debug!(
+            "Found {} releases using query: {}",
+            response.entities.len(),
+            search_query
+        );
+        if let Some(c) = cache {
+            match c.insert_release_search_result(&search_query, limit, offset, &response) {
+                Ok(()) => {
+                    log::debug!("Inserted release search {search_query:?} (limit: {limit}, offset: {offset}) into cache");
+                }
+                Err(err) => {
+                    log::warn!("Failed to insert release search {search_query:?} (limit: {limit}, offset: {offset}) into cache: {err}");
+                }
+            };
+        };
+        response
+    };
 
-    log::debug!(
-        "Found {} releases using query: {}",
-        response.entities.len(),
-        search_query
-    );
     let mb_ids = response
         .entities
         .into_iter()
