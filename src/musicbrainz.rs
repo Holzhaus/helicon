@@ -10,6 +10,7 @@
 
 use crate::distance::{DistanceItem, ReleaseSimilarity};
 use crate::release::ReleaseLike;
+use crate::Cache;
 use crate::Config;
 use futures::{
     future::TryFutureExt,
@@ -27,10 +28,11 @@ use std::collections::BinaryHeap;
 /// Find MusicBrainz Release information for the given (generic) Release.
 pub async fn find_releases(
     config: &Config,
+    cache: Option<&impl Cache>,
     base_release: &impl ReleaseLike,
 ) -> crate::Result<Vec<(MusicBrainzRelease, ReleaseSimilarity)>> {
     if let Some(mb_id) = base_release.musicbrainz_release_id() {
-        let release = find_release_by_mb_id(mb_id.into_owned()).await?;
+        let release = find_release_by_mb_id(mb_id.into_owned(), cache).await?;
         let release_similarity = base_release.similarity_to(&release, config);
         let item = (release, release_similarity);
         return Ok(vec![item]);
@@ -45,7 +47,7 @@ pub async fn find_releases(
         find_release_ids_by_similarity(base_release, max_candidate_count).await?;
     let heap = BinaryHeap::with_capacity(similar_release_ids.len());
     let heap = stream::iter(similar_release_ids)
-        .map(find_release_by_mb_id)
+        .map(|mb_id| find_release_by_mb_id(mb_id, cache))
         .buffer_unordered(config.lookup.connection_limit.unwrap_or(1))
         .fold(heap, |mut heap, result| async {
             let Ok(release) = result else {
@@ -119,7 +121,20 @@ pub async fn find_release_ids_by_similarity(
 }
 
 /// Fetch a MusicBrainz release by its release ID.
-pub async fn find_release_by_mb_id(id: String) -> crate::Result<MusicBrainzRelease> {
+pub async fn find_release_by_mb_id(
+    id: String,
+    cache: Option<&impl Cache>,
+) -> crate::Result<MusicBrainzRelease> {
+    if let Some(release) = cache.and_then(|c| {
+        c.get_release(&id)
+            .inspect_err(|err| {
+                log::debug!("Failed to get release {id} from cache: {err}");
+            })
+            .ok()
+    }) {
+        return Ok(release);
+    }
+
     MusicBrainzRelease::fetch()
         .id(&id)
         .with_artists()
@@ -136,6 +151,18 @@ pub async fn find_release_by_mb_id(id: String) -> crate::Result<MusicBrainzRelea
         .execute()
         .map_err(crate::Error::from)
         .await
+        .inspect(|release| {
+            if let Some(c) = cache {
+                match c.insert_release(&id, release) {
+                    Ok(()) => {
+                        log::debug!("Inserted release {id} into cache");
+                    }
+                    Err(err) => {
+                        log::warn!("Failed to insert release {id} into cache: {err}");
+                    }
+                };
+            };
+        })
 }
 
 #[cfg(test)]

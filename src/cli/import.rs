@@ -11,6 +11,7 @@
 use crate::musicbrainz;
 use crate::release::ReleaseLike;
 use crate::util::walk_dir;
+use crate::Cache;
 use crate::{Config, TaggedFile, TaggedFileCollection};
 use clap::Parser;
 use std::collections::HashSet;
@@ -29,7 +30,7 @@ pub struct Args {
 ///
 /// If the underlying [`walk_dir`] function encounters any form of I/O or other error, an error
 /// variant will be returned.
-pub async fn run(config: &Config, args: Args) -> crate::Result<()> {
+pub async fn run(config: &Config, cache: Option<&impl Cache>, args: Args) -> crate::Result<()> {
     let input_path = args.path;
 
     let supported_extensions = HashSet::from(["mp3", "flac"]);
@@ -67,7 +68,7 @@ pub async fn run(config: &Config, args: Args) -> crate::Result<()> {
 
         let track_collection = TaggedFileCollection::new(tagged_files);
 
-        musicbrainz::find_releases(config, &track_collection)
+        musicbrainz::find_releases(config, cache, &track_collection)
             .await?
             .iter()
             .enumerate()

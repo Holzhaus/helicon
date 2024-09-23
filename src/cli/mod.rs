@@ -16,6 +16,7 @@ use clap::{Parser, Subcommand};
 use env_logger::{Builder, WriteStyle};
 use log::LevelFilter;
 use std::path::PathBuf;
+use xdg::BaseDirectories;
 
 /// Command line Arguments.
 #[derive(Parser, Debug)]
@@ -69,6 +70,7 @@ impl Args {
 pub async fn main() -> crate::Result<()> {
     let args = Args::parse();
     let config = args.config()?;
+    let cache = BaseDirectories::with_prefix(env!("CARGO_PKG_NAME"))?;
 
     Builder::new()
         .filter(None, args.log_level_filter())
@@ -76,7 +78,7 @@ pub async fn main() -> crate::Result<()> {
         .init();
 
     match args.command {
-        Commands::Import(cmd_args) => import::run(&config, cmd_args).await,
+        Commands::Import(cmd_args) => import::run(&config, Some(&cache), cmd_args).await,
         Commands::Config(cmd_args) => config::run(&config, cmd_args),
     }
 }

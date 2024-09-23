@@ -20,6 +20,9 @@ pub enum ErrorType {
     /// I/O Error.
     #[error("Input/Output error ({:?})", .0)]
     Io(#[from] io::Error),
+    /// XDG BaseDirectories error.
+    #[error("BaseDirectories error ({:?})", .0)]
+    BaseDirectoriesError(#[from] xdg::BaseDirectoriesError),
     /// File has an unknown file extension.
     #[error("File has unknown file type")]
     UnknownFileType,
