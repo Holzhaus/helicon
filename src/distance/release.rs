@@ -53,14 +53,27 @@ pub enum UnmatchedTracksSource {
     Right,
 }
 
+/// A pair of tracks that are part of a [`TrackAssignment`].
+#[derive(Debug)]
+#[expect(dead_code)]
+pub struct TrackMatchPair {
+    /// The index of the left track.
+    lhs: usize,
+    /// The index of the right track.
+    rhs: usize,
+    /// The similarity of the two tracks.
+    similarity: TrackSimilarity,
+}
+
 /// Represents a potential assignment between to collections of tracks.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct TrackAssignment {
     /// The assignment of tracks as `Vec` for index pairs.
-    matched_tracks: Vec<(usize, usize)>,
+    matched_tracks: Vec<TrackMatchPair>,
     /// The unmatched tracks as Vec<
     unmatched_tracks: Vec<usize>,
     /// The source of the unmatched tracks.
+    #[allow(dead_code)]
     unmatched_tracks_source: UnmatchedTracksSource,
     /// The distance between the matched tracks (excluding the unmatched ones).
     matched_tracks_distance: Distance,
@@ -97,12 +110,15 @@ impl TrackAssignment {
         let lhs_tracks: Vec<_> = lhs.collect();
         let rhs_tracks: Vec<_> = rhs.collect();
 
-        let track_distance_matrix_height = lhs_tracks.len(); // number of rows
-        let track_distance_matrix_width = rhs_tracks.len(); // number of columns
-        let track_distance_matrix: Option<Vec<u64>> = lhs_tracks
+        let track_similarity_matrix: Vec<TrackSimilarity> = lhs_tracks
             .iter()
             .flat_map(|lhs_track| iter::repeat(lhs_track).zip(rhs_tracks.iter()))
             .map(|(lhs_track, rhs_track)| TrackSimilarity::detect(config, *lhs_track, *rhs_track))
+            .collect();
+        let track_distance_matrix_height = lhs_tracks.len(); // number of rows
+        let track_distance_matrix_width = rhs_tracks.len(); // number of columns
+        let track_distance_matrix: Option<Vec<u64>> = track_similarity_matrix
+            .iter()
             .map(|distance| {
                 f64_to_u64(
                     (distance.total_distance().weighted_distance()
@@ -176,7 +192,15 @@ impl TrackAssignment {
             .into_iter()
             .enumerate()
             .for_each(|pair| match pair {
-                (i, Some(j)) => matched_tracks.push((i, j)),
+                (i, Some(j)) => {
+                    let matched_track = TrackMatchPair {
+                        lhs: i,
+                        rhs: j,
+                        similarity: track_similarity_matrix[i * track_distance_matrix_width + j]
+                            .clone(),
+                    };
+                    matched_tracks.push(matched_track);
+                }
                 (i, None) => {
                     debug_assert_eq!(unmatched_tracks_source, UnmatchedTracksSource::Left);
                     unmatched_tracks.push(i);
@@ -184,7 +208,7 @@ impl TrackAssignment {
             });
         if unmatched_tracks_source == UnmatchedTracksSource::Right {
             (0..rhs_tracks.len())
-                .filter(|j| matched_tracks.iter().all(|(_, other_j)| j != other_j))
+                .filter(|&j| matched_tracks.iter().all(|matched| j != matched.rhs))
                 .for_each(|j| unmatched_tracks.push(j));
         }
         debug_assert_eq!(unmatched_track_count, unmatched_tracks.len());
