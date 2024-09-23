@@ -8,7 +8,6 @@
 
 //! Distance calculations for various items.
 use crate::release::ReleaseLike;
-use crate::track::TrackLike;
 use crate::Config;
 use num::rational::Ratio;
 use num::ToPrimitive;
@@ -20,6 +19,8 @@ mod release;
 mod string;
 mod time;
 mod track;
+
+pub use track::TrackSimilarity;
 
 /// A distance in the range (0.0, 1.0) between two items.
 #[expect(missing_copy_implementations)]
@@ -61,12 +62,7 @@ impl Distance {
         release::between(config, lhs, rhs)
     }
 
-    /// Calculate distance between two [`TrackLike`] items.
-    pub fn between_tracks(config: &Config, lhs: &impl TrackLike, rhs: &impl TrackLike) -> Self {
-        track::between(config, lhs, rhs)
-    }
-
-    /// Calculate distance between two [`TrackLike`] items.
+    /// Calculate distance between two tuple items.
     pub fn between_tuple_items<T, S>((lhs, rhs): (T, S)) -> Self
     where
         Self: DistanceBetween<T, S>,
@@ -244,8 +240,8 @@ impl<T> Ord for DistanceItem<T> {
 
 #[cfg(test)]
 mod tests {
-    // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
+    use crate::track::TrackLike;
     use float_eq::assert_float_eq;
 
     pub struct TestTrack(pub &'static str);

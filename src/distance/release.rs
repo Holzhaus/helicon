@@ -8,6 +8,7 @@
 
 //! Functions for distance calculation between [`ReleaseLike`] objects.
 
+use super::TrackSimilarity;
 use super::{string, Distance};
 use crate::release::ReleaseLike;
 use crate::track::TrackLike;
@@ -101,9 +102,13 @@ impl TrackAssignment {
         let track_distance_matrix: Option<Vec<u64>> = lhs_tracks
             .iter()
             .flat_map(|lhs_track| iter::repeat(lhs_track).zip(rhs_tracks.iter()))
-            .map(|(lhs_track, rhs_track)| Distance::between_tracks(config, *lhs_track, *rhs_track))
+            .map(|(lhs_track, rhs_track)| TrackSimilarity::detect(config, *lhs_track, *rhs_track))
             .map(|distance| {
-                f64_to_u64((distance.weighted_distance() * TRACK_DISTANCE_PRECISION_FACTOR).trunc())
+                f64_to_u64(
+                    (distance.total_distance().weighted_distance()
+                        * TRACK_DISTANCE_PRECISION_FACTOR)
+                        .trunc(),
+                )
             })
             .collect();
         let track_distance_matrix = track_distance_matrix.unwrap();

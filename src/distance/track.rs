@@ -12,61 +12,88 @@ use super::{string, Distance};
 use crate::track::TrackLike;
 use crate::Config;
 
-/// Calculate the distance between two releases.
-pub fn between<T1, T2>(config: &Config, lhs: &T1, rhs: &T2) -> Distance
-where
-    T1: TrackLike + ?Sized,
-    T2: TrackLike + ?Sized,
-{
-    let weights = &config.weights.track;
+/// Result of a comparison between two tracks that represents how similar they are to each other.
+#[derive(Debug, Clone)]
+pub struct TrackSimilarity {
+    /// The distance between the two track titles.
+    track_title: Distance,
+    /// The distance between the two track artists.
+    track_artist: Option<Distance>,
+    /// The distance between the two track numbers.
+    track_number: Option<Distance>,
+    /// The distance between the two track lengths.
+    track_length: Option<Distance>,
+    /// The distance between the two MusicBrainz Recording Ids.
+    musicbrainz_recording_id: Option<Distance>,
+}
 
-    let track_title_distance =
-        Distance::between_options_or_minmax(lhs.track_title(), rhs.track_title())
+impl TrackSimilarity {
+    /// Returns the overall distance of the two tracks.
+    pub fn total_distance(&self) -> Distance {
+        [
+            Some(&self.track_title),
+            self.track_artist.as_ref(),
+            self.track_number.as_ref(),
+            self.track_length.as_ref(),
+            self.musicbrainz_recording_id.as_ref(),
+        ]
+        .into_iter()
+        .flatten()
+        .sum()
+    }
+
+    /// Calculate the distance between two releases.
+    pub fn detect<T1, T2>(config: &Config, lhs: &T1, rhs: &T2) -> Self
+    where
+        T1: TrackLike + ?Sized,
+        T2: TrackLike + ?Sized,
+    {
+        let weights = &config.weights.track;
+
+        let track_title = Distance::between_options_or_minmax(lhs.track_title(), rhs.track_title())
             .with_weight(weights.track_title.expect("undefined track_title weight"));
-    let track_artist_distance = lhs
-        .track_artist()
-        .zip(rhs.track_artist())
-        .map(Distance::between_tuple_items)
-        .map(|distance| {
-            distance.with_weight(weights.track_artist.expect("undefined track_artist weight"))
-        });
-    let track_number_distance = lhs
-        .track_number()
-        .zip(rhs.track_number())
-        .map(Distance::between_tuple_items)
-        .map(|distance| {
-            distance.with_weight(weights.track_number.expect("undefined track_number weight"))
-        });
-    let track_length_distance = lhs
-        .track_length()
-        .zip(rhs.track_length())
-        .map(Distance::between_tuple_items)
-        .map(|distance| {
-            distance.with_weight(weights.track_length.expect("undefined track_length weight"))
-        });
-    let musicbrainz_recording_id_distance = lhs
-        .musicbrainz_recording_id()
-        .zip(rhs.musicbrainz_recording_id())
-        .map(|(a, b)| string::is_nonempty_and_equal_trimmed(a, b))
-        .map(Distance::from)
-        .map(|distance| {
-            distance.with_weight(
-                weights
-                    .musicbrainz_recording_id
-                    .expect("undefined musicbrainz_recording_id weight"),
-            )
-        });
+        let track_artist = lhs
+            .track_artist()
+            .zip(rhs.track_artist())
+            .map(Distance::between_tuple_items)
+            .map(|distance| {
+                distance.with_weight(weights.track_artist.expect("undefined track_artist weight"))
+            });
+        let track_number = lhs
+            .track_number()
+            .zip(rhs.track_number())
+            .map(Distance::between_tuple_items)
+            .map(|distance| {
+                distance.with_weight(weights.track_number.expect("undefined track_number weight"))
+            });
+        let track_length = lhs
+            .track_length()
+            .zip(rhs.track_length())
+            .map(Distance::between_tuple_items)
+            .map(|distance| {
+                distance.with_weight(weights.track_length.expect("undefined track_length weight"))
+            });
+        let musicbrainz_recording_id = lhs
+            .musicbrainz_recording_id()
+            .zip(rhs.musicbrainz_recording_id())
+            .map(|(a, b)| string::is_nonempty_and_equal_trimmed(a, b))
+            .map(Distance::from)
+            .map(|distance| {
+                distance.with_weight(
+                    weights
+                        .musicbrainz_recording_id
+                        .expect("undefined musicbrainz_recording_id weight"),
+                )
+            });
 
-    [
-        Some(track_title_distance),
-        track_artist_distance,
-        track_number_distance,
-        track_length_distance,
-        musicbrainz_recording_id_distance,
-    ]
-    .into_iter()
-    .flatten()
-    .sum()
+        TrackSimilarity {
+            track_title,
+            track_artist,
+            track_number,
+            track_length,
+            musicbrainz_recording_id,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -80,7 +107,7 @@ mod tests {
     fn test_track_distance_title_exact() {
         let track = TestTrack("foo");
         let config = Config::default();
-        let distance = between(&config, &track, &track);
+        let distance = TrackSimilarity::detect(&config, &track, &track).total_distance();
         assert_float_eq!(distance.weighted_distance(), 0.0, abs <= 0.000_1);
     }
 
@@ -89,7 +116,7 @@ mod tests {
         let track1 = TestTrack("foo");
         let track2 = TestTrack("bar");
         let config = Config::default();
-        let distance = between(&config, &track1, &track2);
+        let distance = TrackSimilarity::detect(&config, &track1, &track2).total_distance();
         assert_float_eq!(distance.weighted_distance(), 1.0, abs <= 0.000_1);
     }
 
@@ -98,7 +125,7 @@ mod tests {
         let track1 = TestTrack("foo");
         let track2 = TestTrack("barfoo");
         let config = Config::default();
-        let distance = between(&config, &track1, &track2);
+        let distance = TrackSimilarity::detect(&config, &track1, &track2).total_distance();
         assert_float_eq!(distance.weighted_distance(), 0.5, abs <= 0.000_1);
     }
 }
