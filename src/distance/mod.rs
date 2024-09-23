@@ -7,8 +7,6 @@
 // SPDX-License-Identifier: MPL-2.0
 
 //! Distance calculations for various items.
-use crate::release::ReleaseLike;
-use crate::Config;
 use num::rational::Ratio;
 use num::ToPrimitive;
 use std::borrow::{Borrow, Cow};
@@ -20,6 +18,7 @@ mod string;
 mod time;
 mod track;
 
+pub use release::ReleaseSimilarity;
 pub use track::TrackSimilarity;
 
 /// A distance in the range (0.0, 1.0) between two items.
@@ -51,15 +50,6 @@ impl Distance {
     /// Returns the weight of the distance
     pub fn weight(&self) -> f64 {
         self.weight
-    }
-
-    /// Calculate distance between two [`ReleaseLike`] items.
-    pub fn between_releases(
-        config: &Config,
-        lhs: &impl ReleaseLike,
-        rhs: &impl ReleaseLike,
-    ) -> Self {
-        release::between(config, lhs, rhs)
     }
 
     /// Calculate distance between two tuple items.

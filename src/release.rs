@@ -7,7 +7,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 //! Generic release implementations.
-use crate::distance::Distance;
+use crate::distance::ReleaseSimilarity;
 use crate::track::TrackLike;
 use crate::Config;
 use musicbrainz_rs_nova::entity::release::Release as MusicBrainzRelease;
@@ -36,12 +36,12 @@ pub trait ReleaseLike {
     fn tracks(&self) -> impl Iterator<Item = &(impl TrackLike + '_)>;
 
     /// Calculate the distance between this release and another one.
-    fn distance_to<T>(&self, other: &T, config: &Config) -> Distance
+    fn similarity_to<T>(&self, other: &T, config: &Config) -> ReleaseSimilarity
     where
         Self: Sized,
         T: ReleaseLike,
     {
-        Distance::between_releases(config, self, other)
+        ReleaseSimilarity::detect(config, self, other)
     }
 }
 

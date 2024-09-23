@@ -81,13 +81,14 @@ pub async fn run(config: &Config, args: Args) -> crate::Result<()> {
                 }
             })
             .for_each(|release| {
-                let release_distance = track_collection.distance_to(&release, config);
+                let release_similarity = track_collection.similarity_to(&release, config);
+                let release_distance = release_similarity.total_distance();
                 log::debug!(
                     "Release '{}' has distance to track collection: {}",
                     release.title,
                     release_distance.weighted_distance()
                 );
-                let item = DistanceItem::new(release, release_distance);
+                let item = DistanceItem::new((release, release_similarity), release_distance);
                 heap.push(item);
                 future::ready(())
             })
@@ -101,10 +102,11 @@ pub async fn run(config: &Config, args: Args) -> crate::Result<()> {
                 log::info!(
                     "{:02}. {} - {} ({}distance: {:.3})",
                     index + 1,
-                    candidate.item.release_artist().unwrap_or_default(),
-                    candidate.item.release_title().unwrap_or_default(),
+                    candidate.item.0.release_artist().unwrap_or_default(),
+                    candidate.item.0.release_title().unwrap_or_default(),
                     candidate
                         .item
+                        .0
                         .track_count()
                         .map(|c| format!("{c} tracks, "))
                         .unwrap_or_default(),
