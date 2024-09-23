@@ -123,7 +123,7 @@ pub struct LookupConfig {
     pub connection_limit: Option<usize>,
     /// Do not fetch more than this number of candidate releases from MusicBrainz.
     ///
-    /// Use `0` to disable this limit.
+    /// Must be a number between 1 and 100.
     pub release_candidate_limit: Option<u8>,
 }
 

@@ -36,7 +36,13 @@ pub async fn find_releases(
         return Ok(vec![item]);
     }
 
-    let similar_release_ids = find_release_ids_by_similarity(base_release).await?;
+    debug_assert_ne!(
+        config.lookup.release_candidate_limit, None,
+        "release_candidate_limit not configured!"
+    );
+    let max_candidate_count = config.lookup.release_candidate_limit.unwrap_or(25);
+    let similar_release_ids =
+        find_release_ids_by_similarity(base_release, max_candidate_count).await?;
     let heap = BinaryHeap::with_capacity(similar_release_ids.len());
     let heap = stream::iter(similar_release_ids)
         .map(find_release_by_mb_id)
@@ -71,6 +77,7 @@ pub async fn find_releases(
 /// Search for similar releases based on the metadata of an existing [`ReleaseLike`].
 pub async fn find_release_ids_by_similarity(
     base_release: &impl ReleaseLike,
+    limit: u8,
 ) -> crate::Result<Vec<String>> {
     let mut query = MusicBrainzReleaseSearchQuery::query_builder();
     let mut query = query.tracks(
@@ -94,6 +101,7 @@ pub async fn find_release_ids_by_similarity(
 
     let search_query = query.build();
     let response = MusicBrainzRelease::search(search_query.clone())
+        .limit(limit)
         .execute()
         .await?;
 
