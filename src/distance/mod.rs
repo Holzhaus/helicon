@@ -102,6 +102,24 @@ where
     }
 }
 
+impl<'a> Sum<&'a Distance> for Distance {
+    // Required method
+    fn sum<I>(iter: I) -> Self
+    where
+        I: Iterator<Item = &'a Distance>,
+    {
+        let (total_weighted_dist, total_weight) =
+            iter.fold((0.0f64, 0.0f64), |(weighted_dist, weight), distance| {
+                (
+                    weighted_dist + distance.weighted_distance(),
+                    weight + distance.weight,
+                )
+            });
+
+        Distance::from(total_weighted_dist / total_weight)
+    }
+}
+
 impl Sum<Distance> for Distance {
     // Required method
     fn sum<I>(iter: I) -> Self
