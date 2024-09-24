@@ -9,7 +9,8 @@
 //! Caching for MusicBrainz API queries.
 
 use musicbrainz_rs_nova::entity::{
-    release::Release as MusicBrainzRelease, search::SearchResult as MusicBrainzSearchResult,
+    release::Release as MusicBrainzRelease, release_group::ReleaseGroup as MusicBrainzReleaseGroup,
+    search::SearchResult as MusicBrainzSearchResult,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use sha2::{Digest, Sha256};
@@ -71,6 +72,28 @@ pub trait Cache {
     ///
     /// Returns an error if the cache file could not be written or the serialization failed.
     fn insert_release(&self, mb_id: &str, release: &MusicBrainzRelease) -> Result<(), CacheError>;
+
+    /// Get a list of all release group cache files.
+    fn cached_release_groups(&self) -> Vec<PathBuf>;
+
+    /// Get a release group from the cache.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a cache miss occurred or the cache file could not be read or the
+    /// deserialization failed.
+    fn get_release_group(&self, mb_id: &str) -> Result<MusicBrainzReleaseGroup, CacheError>;
+
+    /// Insert a release group into the cache.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the cache file could not be written or the serialization failed.
+    fn insert_release_group(
+        &self,
+        mb_id: &str,
+        release: &MusicBrainzReleaseGroup,
+    ) -> Result<(), CacheError>;
 }
 
 /// Cache Error.
@@ -90,6 +113,9 @@ pub enum CacheError {
 /// Path under which the cached releases are stored.
 const MUSICBRAINZ_RELEASE_PATH_PREFIX: &str = "musicbrainz/release";
 
+/// Path under which the cached release groups are stored.
+const MUSICBRAINZ_RELEASE_GROUP_PATH_PREFIX: &str = "musicbrainz/release-group";
+
 /// Path under which the cached release search results are stored.
 const MUSICBRAINZ_RELEASE_SEARCH_RESULTS_PATH_PREFIX: &str = "musicbrainz/release-search";
 
@@ -99,6 +125,11 @@ const MAX_AGE: Duration = Duration::from_secs(60 * 60 * 24 * 7);
 /// Create the cache path for a MusicBrainz release with the given ID.
 fn musicbrainz_release_path(mb_id: &str) -> PathBuf {
     Path::new(MUSICBRAINZ_RELEASE_PATH_PREFIX).join(format!("{mb_id}.json"))
+}
+
+/// Create the cache path for a MusicBrainz release with the given ID.
+fn musicbrainz_release_group_path(mb_id: &str) -> PathBuf {
+    Path::new(MUSICBRAINZ_RELEASE_GROUP_PATH_PREFIX).join(format!("{mb_id}.json"))
 }
 
 /// Create the cache path for a MusicBrainz release with the given ID.
@@ -152,6 +183,26 @@ impl Cache for BaseDirectories {
 
     fn insert_release(&self, mb_id: &str, release: &MusicBrainzRelease) -> Result<(), CacheError> {
         let path = self.place_cache_file(musicbrainz_release_path(mb_id))?;
+        insert_into_cache(path, release)
+    }
+
+    fn cached_release_groups(&self) -> Vec<PathBuf> {
+        self.list_cache_files(MUSICBRAINZ_RELEASE_GROUP_PATH_PREFIX)
+    }
+
+    fn get_release_group(&self, mb_id: &str) -> Result<MusicBrainzReleaseGroup, CacheError> {
+        let path = self
+            .find_cache_file(musicbrainz_release_group_path(mb_id))
+            .ok_or(CacheError::CacheMiss)?;
+        get_from_cache(path)
+    }
+
+    fn insert_release_group(
+        &self,
+        mb_id: &str,
+        release: &MusicBrainzReleaseGroup,
+    ) -> Result<(), CacheError> {
+        let path = self.place_cache_file(musicbrainz_release_group_path(mb_id))?;
         insert_into_cache(path, release)
     }
 

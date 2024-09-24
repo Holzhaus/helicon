@@ -22,7 +22,9 @@ pub enum ReleaseCandidateSelectionResult<'a, T: ReleaseLike> {
     /// Select this release candidate.
     Candidate(&'a ReleaseCandidate<T>),
     /// Fetch a new MusicBrainz release ID and add this as a candidate.
-    FetchCandidate(String),
+    FetchCandidateRelease(String),
+    /// Fetch a new MusicBrainz release group ID and add its releases as a candidates.
+    FetchCandidateReleaseGroup(String),
 }
 
 /// An option presented when selecting a release.
@@ -119,7 +121,9 @@ pub fn select_candidate<'a, T: ReleaseLike>(
                             return Ok(Validation::Valid);
                         }
                         match MusicBrainzId::find(input) {
-                            Some(MusicBrainzId::Release(_)) => Ok(Validation::Valid),
+                            Some(MusicBrainzId::Release(_) | MusicBrainzId::ReleaseGroup(_)) => {
+                                Ok(Validation::Valid)
+                            }
                             Some(id) => Ok(Validation::Invalid(
                                 format!(
                                     "This is a MusicBrainz {} ID, not a release ID.",
@@ -132,10 +136,14 @@ pub fn select_candidate<'a, T: ReleaseLike>(
                     })
                     .prompt();
                 if let Ok(text) = result {
-                    #[expect(clippy::single_match)]
                     match MusicBrainzId::find(&text) {
                         Some(MusicBrainzId::Release(id)) => {
-                            break Ok(ReleaseCandidateSelectionResult::FetchCandidate(
+                            break Ok(ReleaseCandidateSelectionResult::FetchCandidateRelease(
+                                id.to_string(),
+                            ))
+                        }
+                        Some(MusicBrainzId::ReleaseGroup(id)) => {
+                            break Ok(ReleaseCandidateSelectionResult::FetchCandidateReleaseGroup(
                                 id.to_string(),
                             ))
                         }

@@ -17,8 +17,11 @@ use futures::{
     stream::{self, StreamExt},
 };
 use musicbrainz_rs_nova::{
-    entity::release::{
-        Release as MusicBrainzRelease, ReleaseSearchQuery as MusicBrainzReleaseSearchQuery,
+    entity::{
+        release::{
+            Release as MusicBrainzRelease, ReleaseSearchQuery as MusicBrainzReleaseSearchQuery,
+        },
+        release_group::ReleaseGroup as MusicBrainzReleaseGroup,
     },
     Fetch, Search,
 };
@@ -143,6 +146,40 @@ pub async fn find_release_ids_by_similarity(
     Ok(mb_ids)
 }
 
+/// Fetch a MusicBrainz release group by its ID.
+pub async fn find_release_group_by_mb_id(
+    id: String,
+    cache: Option<&impl Cache>,
+) -> crate::Result<MusicBrainzReleaseGroup> {
+    if let Some(release_group) = cache.and_then(|c| {
+        c.get_release_group(&id)
+            .inspect_err(|err| {
+                log::debug!("Failed to get release_group {id} from cache: {err}");
+            })
+            .ok()
+    }) {
+        return Ok(release_group);
+    }
+
+    MusicBrainzReleaseGroup::fetch()
+        .id(&id)
+        .with_releases()
+        .execute()
+        .map_err(crate::Error::from)
+        .await
+        .inspect(|release_group| {
+            if let Some(c) = cache {
+                match c.insert_release_group(&id, release_group) {
+                    Ok(()) => {
+                        log::debug!("Inserted release group {id} into cache");
+                    }
+                    Err(err) => {
+                        log::warn!("Failed to insert release group {id} into cache: {err}");
+                    }
+                };
+            };
+        })
+}
 /// Fetch a MusicBrainz release by its release ID.
 pub async fn find_release_by_mb_id(
     id: String,

@@ -15,6 +15,7 @@ use crate::util::walk_dir;
 use crate::Cache;
 use crate::{Config, TaggedFile, TaggedFileCollection};
 use clap::Parser;
+use futures::{stream, StreamExt};
 use std::collections::HashSet;
 use std::path::PathBuf;
 
@@ -73,7 +74,7 @@ pub async fn run(config: &Config, cache: Option<&impl Cache>, args: Args) -> cra
         let _selection: &ReleaseCandidate<_> = loop {
             match ui::select_candidate(candidates.iter()) {
                 Ok(ui::ReleaseCandidateSelectionResult::Candidate(candidate)) => break candidate,
-                Ok(ui::ReleaseCandidateSelectionResult::FetchCandidate(mb_id)) => {
+                Ok(ui::ReleaseCandidateSelectionResult::FetchCandidateRelease(mb_id)) => {
                     let release = musicbrainz::find_release_by_mb_id(mb_id, cache).await?;
                     let candidate =
                         ReleaseCandidate::new_with_base_release(release, &track_collection, config);
@@ -82,6 +83,40 @@ pub async fn run(config: &Config, cache: Option<&impl Cache>, args: Args) -> cra
                         Ok(_) => {} // candidate already at correct position in vector.
                         Err(pos) => candidates.insert(pos, candidate),
                     };
+                }
+                Ok(ui::ReleaseCandidateSelectionResult::FetchCandidateReleaseGroup(mb_id)) => {
+                    let release_group =
+                        musicbrainz::find_release_group_by_mb_id(mb_id, cache).await?;
+                    let Some(releases) = release_group.releases else {
+                        log::warn!("Release group has no releases!");
+                        continue;
+                    };
+
+                    candidates = stream::iter(releases)
+                        .map(|release| release.id)
+                        .map(|mb_id| musicbrainz::find_release_by_mb_id(mb_id, cache))
+                        .buffer_unordered(10)
+                        .fold(candidates, |mut acc, result| async {
+                            let release = match result {
+                                Ok(release) => release,
+                                Err(err) => {
+                                    log::warn!("Failed to retrieve release: {err}");
+                                    return acc;
+                                }
+                            };
+
+                            let candidate = ReleaseCandidate::new_with_base_release(
+                                release,
+                                &track_collection,
+                                config,
+                            );
+                            match acc.binary_search(&candidate) {
+                                Ok(_) => {} // candidate already at correct position in vector.
+                                Err(pos) => acc.insert(pos, candidate),
+                            };
+                            acc
+                        })
+                        .await;
                 }
                 Err(err) => {
                     log::warn!("Selection failed: {err}");
