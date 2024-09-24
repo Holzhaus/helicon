@@ -8,6 +8,7 @@
 
 //! Command line interface.
 
+mod cache;
 mod config;
 mod import;
 
@@ -36,6 +37,8 @@ struct Args {
 /// Supported CLI Commands.
 #[derive(Subcommand, Debug)]
 enum Commands {
+    /// Show the current cache usage.
+    Cache(cache::Args),
     /// Show your current configuration.
     Config(config::Args),
     /// Import files into your collection.
@@ -80,5 +83,6 @@ pub async fn main() -> crate::Result<()> {
     match args.command {
         Commands::Import(cmd_args) => import::run(&config, Some(&cache), cmd_args).await,
         Commands::Config(cmd_args) => config::run(&config, Some(&cache), cmd_args),
+        Commands::Cache(cmd_args) => cache::run(&config, Some(&cache), cmd_args),
     }
 }

@@ -24,6 +24,9 @@ type MusicBrainzReleaseSearchResult = MusicBrainzSearchResult<MusicBrainzRelease
 
 /// Cache for MusicBrainz queries (to not use their API too much unnecessarily).
 pub trait Cache {
+    /// Get a list of all release search result cache files.
+    fn cached_release_search_results(&self) -> Vec<PathBuf>;
+
     /// Get a release from the cache.
     ///
     /// # Errors
@@ -36,6 +39,7 @@ pub trait Cache {
         limit: u8,
         offset: u16,
     ) -> Result<MusicBrainzReleaseSearchResult, CacheError>;
+
     /// Insert a release into the cache.
     ///
     /// # Errors
@@ -49,6 +53,9 @@ pub trait Cache {
         result: &MusicBrainzReleaseSearchResult,
     ) -> Result<(), CacheError>;
 
+    /// Get a list of all release cache files.
+    fn cached_releases(&self) -> Vec<PathBuf>;
+
     /// Get a release from the cache.
     ///
     /// # Errors
@@ -56,6 +63,7 @@ pub trait Cache {
     /// Returns an error if a cache miss occurred or the cache file could not be read or the
     /// deserialization failed.
     fn get_release(&self, mb_id: &str) -> Result<MusicBrainzRelease, CacheError>;
+
     /// Insert a release into the cache.
     ///
     /// # Errors
@@ -78,9 +86,15 @@ pub enum CacheError {
     JsonError(#[from] serde_json::Error),
 }
 
+/// Path under which the cached releases are stored.
+const MUSICBRAINZ_RELEASE_PATH_PREFIX: &str = "musicbrainz/release";
+
+/// Path under which the cached release search results are stored.
+const MUSICBRAINZ_RELEASE_SEARCH_RESULTS_PATH_PREFIX: &str = "musicbrainz/release-search";
+
 /// Create the cache path for a MusicBrainz release with the given ID.
 fn musicbrainz_release_path(mb_id: &str) -> PathBuf {
-    Path::new("musicbrainz/release").join(format!("{mb_id}.json"))
+    Path::new(MUSICBRAINZ_RELEASE_PATH_PREFIX).join(format!("{mb_id}.json"))
 }
 
 /// Create the cache path for a MusicBrainz release with the given ID.
@@ -90,7 +104,7 @@ fn musicbrainz_search_query_path(query: &str, limit: u8, offset: u16) -> PathBuf
     hasher.update([b'|', limit, b'|']);
     hasher.update(offset.to_be_bytes());
     let hash = hasher.finalize();
-    Path::new("musicbrainz/release-search").join(format!("{hash:064x}.json"))
+    Path::new(MUSICBRAINZ_RELEASE_SEARCH_RESULTS_PATH_PREFIX).join(format!("{hash:064x}.json"))
 }
 
 /// Convenience function to get a JSON-deserializable item with the given path from the cache.
@@ -108,6 +122,10 @@ fn insert_into_cache<T: Serialize, P: AsRef<Path>>(path: P, item: &T) -> Result<
 }
 
 impl Cache for BaseDirectories {
+    fn cached_releases(&self) -> Vec<PathBuf> {
+        self.list_cache_files(MUSICBRAINZ_RELEASE_PATH_PREFIX)
+    }
+
     fn get_release(&self, mb_id: &str) -> Result<MusicBrainzRelease, CacheError> {
         let path = self
             .find_cache_file(musicbrainz_release_path(mb_id))
@@ -118,6 +136,10 @@ impl Cache for BaseDirectories {
     fn insert_release(&self, mb_id: &str, release: &MusicBrainzRelease) -> Result<(), CacheError> {
         let path = self.place_cache_file(musicbrainz_release_path(mb_id))?;
         insert_into_cache(path, release)
+    }
+
+    fn cached_release_search_results(&self) -> Vec<PathBuf> {
+        self.list_cache_files(MUSICBRAINZ_RELEASE_SEARCH_RESULTS_PATH_PREFIX)
     }
 
     fn get_release_search_result(

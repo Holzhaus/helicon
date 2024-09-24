@@ -17,6 +17,9 @@ pub enum ErrorType {
     /// Configuration error.
     #[error("Configuration Error ({0})")]
     Config(#[from] crate::config::ConfigError),
+    /// Cache is not available.
+    #[error("Cache is not available")]
+    CacheNotAvailable,
     /// I/O Error.
     #[error("Input/Output error ({:?})", .0)]
     Io(#[from] io::Error),
