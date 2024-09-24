@@ -23,7 +23,7 @@ use musicbrainz_rs_nova::{
     Fetch, Search,
 };
 use regex::Regex;
-use std::borrow::Borrow;
+use std::borrow::{Borrow, Cow};
 use std::collections::BinaryHeap;
 
 /// Find MusicBrainz Release information for the given (generic) Release.
@@ -188,35 +188,124 @@ pub async fn find_release_by_mb_id(
         })
 }
 
-/// Find a MusicBrainz Release ID in a string.
-pub fn find_release_id(input: &str) -> Option<&str> {
-    let re = Regex::new(
-        r"\b[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}\b",
-    )
-    .ok()?;
-    if let Some(m) = re.find(input) {
-        if m.start() == 0 {
-            return Some(m.as_str());
-        }
+/// A MusicBrainz Identifier.
+///
+/// See <https://musicbrainz.org/doc/MusicBrainz_Identifier> for details.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MusicBrainzId<'a> {
+    /// An area ID.
+    ///
+    /// See <https://musicbrainz.org/doc/Area> for details.
+    Area(Cow<'a, str>),
+    /// An artist ID.
+    ///
+    /// See <https://musicbrainz.org/doc/Artist> for details.
+    Artist(Cow<'a, str>),
+    /// An event ID.
+    ///
+    /// See <https://musicbrainz.org/doc/Event> for details.
+    Event(Cow<'a, str>),
+    /// A genre ID.
+    ///
+    /// See <https://musicbrainz.org/doc/Genre> for details.
+    Genre(Cow<'a, str>),
+    /// A instrument ID.
+    ///
+    /// See <https://musicbrainz.org/doc/Instrument> for details.
+    Instrument(Cow<'a, str>),
+    /// A record label ID.
+    ///
+    /// See <https://musicbrainz.org/doc/Label> for details.
+    Label(Cow<'a, str>),
+    /// A place ID.
+    ///
+    /// See <https://musicbrainz.org/doc/Place> for details.
+    Place(Cow<'a, str>),
+    /// A recording ID.
+    ///
+    /// See <https://musicbrainz.org/doc/Recording> for details.
+    Recording(Cow<'a, str>),
+    /// A release ID.
+    ///
+    /// See <https://musicbrainz.org/doc/Release> for details.
+    Release(Cow<'a, str>),
+    /// A release group ID.
+    ///
+    /// See <https://musicbrainz.org/doc/Release_Group> for details.
+    ReleaseGroup(Cow<'a, str>),
+    /// A series ID.
+    ///
+    /// See <https://musicbrainz.org/doc/Series> for details.
+    Series(Cow<'a, str>),
+    /// A work ID.
+    ///
+    /// See <https://musicbrainz.org/doc/Work> for details.
+    Work(Cow<'a, str>),
+}
 
-        if let Some(pos) = input[..m.start() - 1].rfind('/') {
-            let is_valid_url = [
-                "http://musicbrainz.org/",
-                "https://musicbrainz.org/",
-                "http://musicbrainz.org/ws/2/",
-                "https://musicbrainz.org/ws/2/",
-            ]
-            .into_iter()
-            .any(|x| x == &input[..=pos]);
-            if is_valid_url {
-                let entity_name = &input[pos + 1..m.start() - 1];
-                if entity_name == "release" {
-                    return Some(m.as_str());
+impl<'a> MusicBrainzId<'a> {
+    /// Get the entity name for the given ID as string.
+    pub fn entity_name(&self) -> &'static str {
+        match &self {
+            Self::Area(_) => "area",
+            Self::Artist(_) => "artist",
+            Self::Event(_) => "event",
+            Self::Genre(_) => "genre",
+            Self::Instrument(_) => "instrument",
+            Self::Label(_) => "label",
+            Self::Place(_) => "place",
+            Self::Recording(_) => "recording",
+            Self::Release(_) => "release",
+            Self::ReleaseGroup(_) => "release-group",
+            Self::Series(_) => "series",
+            Self::Work(_) => "work",
+        }
+    }
+
+    /// Find a MusicBrainz ID in a string.
+    ///
+    /// If the input contains an ID directly, a release ID is assumed.
+    pub fn find(input: &'a str) -> Option<Self> {
+        let re = Regex::new(
+            r"\b[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}\b",
+        )
+        .ok()?;
+        if let Some(m) = re.find(input) {
+            if m.start() == 0 {
+                return Some(Self::Release(m.as_str().into()));
+            }
+
+            if let Some(pos) = input[..m.start() - 1].rfind('/') {
+                let is_valid_url = [
+                    "http://musicbrainz.org/",
+                    "https://musicbrainz.org/",
+                    "http://musicbrainz.org/ws/2/",
+                    "https://musicbrainz.org/ws/2/",
+                ]
+                .into_iter()
+                .any(|x| x == &input[..=pos]);
+                if is_valid_url {
+                    let entity_name = &input[pos + 1..m.start() - 1];
+                    return match entity_name {
+                        "area" => Self::Area(m.as_str().into()).into(),
+                        "artist" => Self::Artist(m.as_str().into()).into(),
+                        "event" => Self::Event(m.as_str().into()).into(),
+                        "genre" => Self::Genre(m.as_str().into()).into(),
+                        "instrument" => Self::Instrument(m.as_str().into()).into(),
+                        "label" => Self::Label(m.as_str().into()).into(),
+                        "place" => Self::Place(m.as_str().into()).into(),
+                        "recording" => Self::Recording(m.as_str().into()).into(),
+                        "release" => Self::Release(m.as_str().into()).into(),
+                        "release-group" => Self::ReleaseGroup(m.as_str().into()).into(),
+                        "series" => Self::Series(m.as_str().into()).into(),
+                        "work" => Self::Work(m.as_str().into()).into(),
+                        _ => None,
+                    };
                 }
             }
-        }
-    };
-    None
+        };
+        None
+    }
 }
 
 #[cfg(test)]
@@ -232,33 +321,47 @@ mod tests {
     ));
 
     #[test]
-    fn test_find_release_id() {
+    fn test_find_musicbrainz_id() {
         assert_eq!(
-            find_release_id("0008f765-032b-46cd-ab69-2220edab1837"),
-            Some("0008f765-032b-46cd-ab69-2220edab1837")
+            MusicBrainzId::find("0008f765-032b-46cd-ab69-2220edab1837"),
+            Some(MusicBrainzId::Release(
+                "0008f765-032b-46cd-ab69-2220edab1837".into()
+            ))
         );
         assert_eq!(
-            find_release_id("https://musicbrainz.org/release/0008f765-032b-46cd-ab69-2220edab1837"),
-            Some("0008f765-032b-46cd-ab69-2220edab1837")
+            MusicBrainzId::find(
+                "https://musicbrainz.org/release/0008f765-032b-46cd-ab69-2220edab1837"
+            ),
+            Some(MusicBrainzId::Release(
+                "0008f765-032b-46cd-ab69-2220edab1837".into()
+            ))
         );
         assert_eq!(
-            find_release_id("http://musicbrainz.org/release/0008f765-032b-46cd-ab69-2220edab1837"),
-            Some("0008f765-032b-46cd-ab69-2220edab1837")
+            MusicBrainzId::find(
+                "http://musicbrainz.org/release/0008f765-032b-46cd-ab69-2220edab1837"
+            ),
+            Some(MusicBrainzId::Release(
+                "0008f765-032b-46cd-ab69-2220edab1837".into()
+            ))
         );
-        assert_eq!(find_release_id("http://musicbrainz.org/ws/2/release/0008f765-032b-46cd-ab69-2220edab1837?inc=artists%20recordings%20release-groups"), Some("0008f765-032b-46cd-ab69-2220edab1837"));
+        assert_eq!(MusicBrainzId::find("http://musicbrainz.org/ws/2/release/0008f765-032b-46cd-ab69-2220edab1837?inc=artists%20recordings%20release-groups"), Some(MusicBrainzId::Release("0008f765-032b-46cd-ab69-2220edab1837".into())));
         assert_eq!(
-            find_release_id(
+            MusicBrainzId::find(
                 "https://musicbrainz.org/recording/9d444787-3f25-4c16-9261-597b9ab021cc"
             ),
-            None
+            Some(MusicBrainzId::Recording(
+                "9d444787-3f25-4c16-9261-597b9ab021cc".into()
+            ))
         );
         assert_eq!(
-            find_release_id(
+            MusicBrainzId::find(
                 "https://musicbrainz.org/release-group/0a8e97fd-457c-30bc-938a-2fba79cb04e7"
             ),
-            None
+            Some(MusicBrainzId::ReleaseGroup(
+                "0a8e97fd-457c-30bc-938a-2fba79cb04e7".into()
+            ))
         );
-        assert_eq!(find_release_id("some random string"), None);
+        assert_eq!(MusicBrainzId::find("some random string"), None);
     }
 
     #[test]

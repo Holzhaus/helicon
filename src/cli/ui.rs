@@ -9,7 +9,7 @@
 //! User Interface (UI) utilities.
 
 use crate::distance::ReleaseCandidate;
-use crate::musicbrainz::find_release_id;
+use crate::musicbrainz::MusicBrainzId;
 use crate::release::ReleaseLike;
 use crossterm::style::{Color, Stylize};
 use inquire::{validator::Validation, InquireError, Select, Text};
@@ -118,23 +118,29 @@ pub fn select_candidate<'a, T: ReleaseLike>(
                         if input.is_empty() {
                             return Ok(Validation::Valid);
                         }
-                        match find_release_id(input) {
-                            Some(_) => Ok(Validation::Valid),
-                            None => Ok(Validation::Invalid(
-                                "Not a valid musicbrainz release ID.".into(),
+                        match MusicBrainzId::find(input) {
+                            Some(MusicBrainzId::Release(_)) => Ok(Validation::Valid),
+                            Some(id) => Ok(Validation::Invalid(
+                                format!(
+                                    "This is a MusicBrainz {} ID, not a release ID.",
+                                    id.entity_name()
+                                )
+                                .into(),
                             )),
+                            None => Ok(Validation::Invalid("Not a valid MusicBrainz ID.".into())),
                         }
                     })
                     .prompt();
-                let result = match result {
-                    Ok(text) if text.is_empty() => Err(InquireError::OperationCanceled),
-                    Ok(text) => find_release_id(&text)
-                        .ok_or(InquireError::OperationCanceled)
-                        .map(ToOwned::to_owned),
-                    Err(err) => Err(err),
-                };
-                if let Ok(mb_id) = result {
-                    break Ok(ReleaseCandidateSelectionResult::FetchCandidate(mb_id));
+                if let Ok(text) = result {
+                    #[expect(clippy::single_match)]
+                    match MusicBrainzId::find(&text) {
+                        Some(MusicBrainzId::Release(id)) => {
+                            break Ok(ReleaseCandidateSelectionResult::FetchCandidate(
+                                id.to_string(),
+                            ))
+                        }
+                        _ => (),
+                    }
                 }
             }
         }
