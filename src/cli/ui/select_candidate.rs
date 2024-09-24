@@ -8,12 +8,12 @@
 
 //! Candidate Selection.
 
+use super::util;
 use crate::musicbrainz::MusicBrainzId;
 use crate::release::ReleaseLike;
 use crate::release_candidate::{ReleaseCandidate, ReleaseCandidateCollection};
-use crossterm::style::{Color, Stylize};
+use crossterm::style::Stylize;
 use inquire::{validator::Validation, InquireError, Select, Text};
-use std::borrow::Cow;
 use std::fmt;
 
 /// An option presented when selecting a release.
@@ -52,31 +52,15 @@ impl<T: ReleaseLike> fmt::Display for ReleaseCandidateSelectionOption<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self {
             ReleaseCandidateSelectionOption::Candidate(candidate) => {
-                let artist = candidate
-                    .release()
-                    .release_artist()
-                    .unwrap_or_else(|| Cow::from("[unknown artist]".grey().to_string()));
-                let album = candidate
-                    .release()
-                    .release_title()
-                    .unwrap_or_else(|| Cow::from("[unknown album]".grey().to_string()));
-                let similarity_percent = (1.0 - candidate.distance().weighted_distance()) * 100.0;
-                let similarity_color = if similarity_percent >= 90.0 {
-                    Color::Green
-                } else if similarity_percent >= 50.0 {
-                    Color::Yellow
-                } else {
-                    Color::Red
-                };
-
-                let similarity = format!("{similarity_percent:.02}")
-                    .with(similarity_color)
-                    .bold();
+                let release_artist_and_title =
+                    util::format_release_artist_and_title(candidate.release());
+                let similarity = util::format_similarity(&candidate.distance());
                 write!(
                     f,
-                    "{artist} - {album} {brace_open}{similarity}{brace_close}",
+                    "{release_artist_and_title} {brace_open}{similarity}{brace_close}",
+                    similarity = similarity.bold(),
                     brace_open = '('.grey(),
-                    brace_close = ')'.grey()
+                    brace_close = ')'.grey(),
                 )
             }
             ReleaseCandidateSelectionOption::EnterMusicBrainzId

@@ -43,6 +43,9 @@ pub enum ErrorType {
     #[cfg(feature = "flac")]
     #[error("Failed to read FLAC tag")]
     Flac(#[from] metaflac::Error),
+    /// An error from the user interface.
+    #[error("Error encountered while showing UI: {0}")]
+    InquireError(#[from] inquire::InquireError),
 }
 
 /// Convenience type.

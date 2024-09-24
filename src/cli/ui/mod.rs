@@ -8,6 +8,9 @@
 
 //! User Interface (UI) utilities.
 
+mod handle_candidate;
 mod select_candidate;
+mod util;
 
+pub use handle_candidate::{handle_candidate, HandleCandidateResult};
 pub use select_candidate::{select_candidate, ReleaseCandidateSelectionResult};
