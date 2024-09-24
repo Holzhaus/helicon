@@ -14,7 +14,7 @@ use crate::Cache;
 use crate::Config;
 use futures::{
     future::TryFutureExt,
-    stream::{self, StreamExt},
+    stream::{self, Stream, StreamExt},
 };
 use musicbrainz_rs_nova::{
     entity::{
@@ -81,7 +81,7 @@ pub async fn find_releases(
 }
 
 /// Search for similar releases based on the metadata of an existing [`ReleaseLike`].
-pub async fn find_release_ids_by_similarity(
+async fn find_release_ids_by_similarity(
     cache: Option<&impl Cache>,
     base_release: &impl ReleaseLike,
     limit: u8,
@@ -147,7 +147,7 @@ pub async fn find_release_ids_by_similarity(
 }
 
 /// Fetch a MusicBrainz release group by its ID.
-pub async fn find_release_group_by_mb_id(
+async fn find_release_group_by_mb_id(
     id: String,
     cache: Option<&impl Cache>,
 ) -> crate::Result<MusicBrainzReleaseGroup> {
@@ -180,6 +180,37 @@ pub async fn find_release_group_by_mb_id(
             };
         })
 }
+
+/// Find release IDs by MusicBrainz Release Group ID.
+async fn find_release_ids_by_release_group_id(
+    release_group_id: String,
+    cache: Option<&impl Cache>,
+) -> crate::Result<Vec<String>> {
+    let release_group = find_release_group_by_mb_id(release_group_id, cache).await?;
+    let Some(releases) = release_group.releases else {
+        log::warn!("Release group has no releases!");
+        return Err(crate::Error::MusicBrainzLookupFailed(
+            "Release Group has no releases.",
+        ));
+    };
+
+    let release_ids = releases.into_iter().map(|release| release.id).collect();
+    Ok(release_ids)
+}
+
+/// Find releases by MusicBrainz Release Group ID.
+pub async fn find_releases_by_release_group_id<'a>(
+    config: &Config,
+    cache: Option<&'a impl Cache>,
+    release_group_id: String,
+) -> crate::Result<impl Stream<Item = crate::Result<MusicBrainzRelease>> + 'a> {
+    let release_ids = find_release_ids_by_release_group_id(release_group_id, cache).await?;
+    let release_stream = stream::iter(release_ids)
+        .map(move |id| find_release_by_mb_id(id, cache))
+        .buffer_unordered(config.lookup.connection_limit.unwrap_or(1));
+    Ok(release_stream)
+}
+
 /// Fetch a MusicBrainz release by its release ID.
 pub async fn find_release_by_mb_id(
     id: String,
