@@ -16,6 +16,7 @@ use sha2::{Digest, Sha256};
 use std::fs::File;
 use std::io::{self, BufReader, BufWriter};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use thiserror::Error;
 use xdg::BaseDirectories;
 
@@ -92,6 +93,9 @@ const MUSICBRAINZ_RELEASE_PATH_PREFIX: &str = "musicbrainz/release";
 /// Path under which the cached release search results are stored.
 const MUSICBRAINZ_RELEASE_SEARCH_RESULTS_PATH_PREFIX: &str = "musicbrainz/release-search";
 
+/// Maximum age of a a cache entry after which it expires.
+const MAX_AGE: Duration = Duration::from_secs(60 * 60 * 24 * 7);
+
 /// Create the cache path for a MusicBrainz release with the given ID.
 fn musicbrainz_release_path(mb_id: &str) -> PathBuf {
     Path::new(MUSICBRAINZ_RELEASE_PATH_PREFIX).join(format!("{mb_id}.json"))
@@ -109,6 +113,19 @@ fn musicbrainz_search_query_path(query: &str, limit: u8, offset: u16) -> PathBuf
 
 /// Convenience function to get a JSON-deserializable item with the given path from the cache.
 fn get_from_cache<T: DeserializeOwned, P: AsRef<Path>>(path: P) -> Result<T, CacheError> {
+    let cache_age = path
+        .as_ref()
+        .metadata()?
+        .modified()
+        .ok()
+        .and_then(|time| time.elapsed().ok())
+        .unwrap_or(Duration::MAX);
+    // TODO: Make this configurable.
+    if cache_age > MAX_AGE {
+        std::fs::remove_file(path)?;
+        return Err(CacheError::CacheMiss);
+    }
+
     let f = File::open(path)?;
     let reader = BufReader::new(f);
     Ok(serde_json::from_reader(reader)?)
