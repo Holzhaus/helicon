@@ -310,8 +310,8 @@ impl ReleaseSimilarity {
                 )
             });
         let media_format_distance = lhs
-            .media_format()
-            .zip(rhs.media_format())
+            .release_media_format()
+            .zip(rhs.release_media_format())
             .map(Distance::between_tuple_items)
             .map(|distance| {
                 distance.with_weight(weights.media_format.expect("undefined media_format weight"))
@@ -342,7 +342,8 @@ impl ReleaseSimilarity {
                 distance.with_weight(weights.barcode.expect("undefined barcode weight"))
             });
 
-        let track_assignment = TrackAssignment::compute_from(config, lhs.tracks(), rhs.tracks());
+        let track_assignment =
+            TrackAssignment::compute_from(config, lhs.release_tracks(), rhs.release_tracks());
         Self {
             release_title_distance,
             release_artist_distance,

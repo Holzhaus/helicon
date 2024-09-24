@@ -51,6 +51,7 @@ mod cli;
 mod config;
 mod distance;
 mod error;
+mod media;
 mod musicbrainz;
 mod release;
 mod release_candidate;

@@ -56,7 +56,7 @@ pub fn handle_candidate<T: ReleaseLike>(
     // Show release metadata
     let max_length = terminal::size().map_or(80, |(cols, _rows)| usize::from(cols));
     let release_meta = [
-        release.media_format(),
+        release.release_media_format(),
         release.release_date(),
         release.release_country(),
         release.record_label(),

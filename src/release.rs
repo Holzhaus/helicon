@@ -8,6 +8,7 @@
 
 //! Generic release implementations.
 use crate::distance::ReleaseSimilarity;
+use crate::media::MediaLike;
 use crate::track::TrackLike;
 use crate::Config;
 use musicbrainz_rs_nova::entity::release::Release as MusicBrainzRelease;
@@ -16,7 +17,13 @@ use std::borrow::Cow;
 /// Represent a generic release, independent of the underlying source.
 pub trait ReleaseLike {
     /// Number of tracks.
-    fn track_count(&self) -> Option<usize>;
+    fn release_track_count(&self) -> Option<usize> {
+        self.media()
+            .filter_map(MediaLike::media_track_count)
+            .sum::<usize>()
+            .into()
+    }
+
     /// Release title.
     fn release_title(&self) -> Option<Cow<'_, str>>;
     /// Release artist.
@@ -33,7 +40,7 @@ pub trait ReleaseLike {
     /// Release Country.
     fn release_country(&self) -> Option<Cow<'_, str>>;
     /// Media format
-    fn media_format(&self) -> Option<Cow<'_, str>>;
+    fn release_media_format(&self) -> Option<Cow<'_, str>>;
     /// Record Label
     fn record_label(&self) -> Option<Cow<'_, str>>;
     /// Catalog Number
@@ -41,8 +48,13 @@ pub trait ReleaseLike {
     /// Barcode
     fn barcode(&self) -> Option<Cow<'_, str>>;
 
+    /// Yields the media contained in the release.
+    fn media(&self) -> impl Iterator<Item = &(impl MediaLike + '_)>;
+
     /// Yields the tracks contained in the release.
-    fn tracks(&self) -> impl Iterator<Item = &(impl TrackLike + '_)>;
+    fn release_tracks(&self) -> impl Iterator<Item = &(impl TrackLike + '_)> {
+        self.media().flat_map(MediaLike::media_tracks)
+    }
 
     /// Calculate the distance between this release and another one.
     fn similarity_to<T>(&self, other: &T, config: &Config) -> ReleaseSimilarity
@@ -55,24 +67,8 @@ pub trait ReleaseLike {
 }
 
 impl ReleaseLike for MusicBrainzRelease {
-    fn track_count(&self) -> Option<usize> {
-        self.media
-            .as_ref()
-            .map(|media_list| {
-                media_list
-                    .iter()
-                    .map(|media| media.track_count)
-                    .sum::<u32>()
-            })
-            .and_then(|track_count| usize::try_from(track_count).ok())
-    }
-
-    fn tracks(&self) -> impl Iterator<Item = &(impl TrackLike + '_)> {
-        self.media
-            .iter()
-            .flat_map(|vec| vec.iter())
-            .flat_map(|media| media.tracks.iter())
-            .flat_map(|vec| vec.iter())
+    fn media(&self) -> impl Iterator<Item = &(impl MediaLike + '_)> {
+        self.media.iter().flat_map(|vec| vec.iter())
     }
 
     fn release_title(&self) -> Option<Cow<'_, str>> {
@@ -110,12 +106,8 @@ impl ReleaseLike for MusicBrainzRelease {
         self.country.as_ref().map(Cow::from)
     }
 
-    fn media_format(&self) -> Option<Cow<'_, str>> {
-        self.media
-            .iter()
-            .flat_map(|media| media.iter())
-            .find_map(|media| media.format.as_deref())
-            .map(Cow::from)
+    fn release_media_format(&self) -> Option<Cow<'_, str>> {
+        self.media().find_map(MediaLike::media_format)
     }
 
     fn record_label(&self) -> Option<Cow<'_, str>> {

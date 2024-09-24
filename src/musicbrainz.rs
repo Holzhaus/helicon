@@ -91,7 +91,7 @@ async fn find_release_ids_by_similarity(
     let mut query = MusicBrainzReleaseSearchQuery::query_builder();
     let mut query = query.tracks(
         &base_release
-            .track_count()
+            .release_track_count()
             .map(|track_count| track_count.to_string())
             .unwrap_or_default(),
     );
@@ -442,12 +442,12 @@ mod tests {
             "Ahmad Jamal at the Pershing: But Not for Me"
         );
         assert_eq!(release.release_artist().unwrap(), "The Ahmad Jamal Trio");
-        assert_eq!(release.track_count().unwrap(), 8);
+        assert_eq!(release.release_track_count().unwrap(), 8);
         assert_eq!(
             release.musicbrainz_release_id().unwrap(),
             "0008f765-032b-46cd-ab69-2220edab1837"
         );
-        assert_eq!(release.media_format().unwrap(), "12\" Vinyl");
+        assert_eq!(release.release_media_format().unwrap(), "12\" Vinyl");
         assert_eq!(release.record_label().unwrap(), "Argo");
         assert_eq!(release.catalog_number().unwrap(), "LP-628");
         assert_eq!(release.barcode(), None);
@@ -456,7 +456,7 @@ mod tests {
     #[test]
     fn test_tracklike_impl() {
         let release: MusicBrainzRelease = serde_json::from_str(MUSICBRAINZ_RELEASE_JSON).unwrap();
-        let track = release.tracks().skip(5).take(1).next().unwrap();
+        let track = release.release_tracks().skip(5).take(1).next().unwrap();
 
         assert_eq!(track.track_title().unwrap(), "Poinciana");
         assert_eq!(track.track_artist().unwrap(), "Ahmad Jamal");

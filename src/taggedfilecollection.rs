@@ -8,6 +8,7 @@
 
 //! Utilities for matching and lookup up albums and tracks.
 
+use crate::media::MediaLike;
 use crate::release::ReleaseLike;
 use crate::tag::TagKey;
 use crate::track::TrackLike;
@@ -138,11 +139,21 @@ impl TaggedFileCollection {
     }
 }
 
-impl ReleaseLike for TaggedFileCollection {
-    fn track_count(&self) -> Option<usize> {
+impl MediaLike for TaggedFileCollection {
+    fn media_format(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(TagKey::Media).map(Cow::from)
+    }
+
+    fn media_track_count(&self) -> Option<usize> {
         self.0.len().into()
     }
 
+    fn media_tracks(&self) -> impl Iterator<Item = &(impl TrackLike + '_)> {
+        self.0.iter()
+    }
+}
+
+impl ReleaseLike for TaggedFileCollection {
     fn release_title(&self) -> Option<Cow<'_, str>> {
         self.find_consensual_tag_value(TagKey::Album).map(Cow::from)
     }
@@ -183,7 +194,7 @@ impl ReleaseLike for TaggedFileCollection {
             .map(Cow::from)
     }
 
-    fn media_format(&self) -> Option<Cow<'_, str>> {
+    fn release_media_format(&self) -> Option<Cow<'_, str>> {
         self.find_consensual_tag_value(TagKey::Media).map(Cow::from)
     }
 
@@ -202,8 +213,8 @@ impl ReleaseLike for TaggedFileCollection {
             .map(Cow::from)
     }
 
-    fn tracks(&self) -> impl Iterator<Item = &(impl TrackLike + '_)> {
-        self.0.iter()
+    fn media(&self) -> impl Iterator<Item = &(impl MediaLike + '_)> {
+        std::iter::once(self)
     }
 }
 
