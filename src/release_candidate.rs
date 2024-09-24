@@ -77,3 +77,44 @@ impl<T: ReleaseLike> Ord for ReleaseCandidate<T> {
         self.similarity().cmp(other.similarity())
     }
 }
+
+/// A collection of release candidates.
+///
+/// Has convenience methods to add new candidates in sorted order.
+pub struct ReleaseCandidateCollection<T: ReleaseLike> {
+    /// Ordered list of candidates.
+    candidates: Vec<ReleaseCandidate<T>>,
+}
+
+impl<T: ReleaseLike> ReleaseCandidateCollection<T> {
+    /// Create a new release candidate collections.
+    ///
+    /// The supplied candidates needs to be in the correct order.
+    pub fn new(candidates: Vec<ReleaseCandidate<T>>) -> Self {
+        Self { candidates }
+    }
+
+    /// Add a new candidate to this collection.
+    pub fn add_candidate(&mut self, candidate: ReleaseCandidate<T>) {
+        match self.candidates.binary_search(&candidate) {
+            Ok(_) => {} // candidate already at correct position in vector.
+            Err(pos) => self.candidates.insert(pos, candidate),
+        };
+    }
+
+    /// Add a new release to this collection. Create a new candidate internally.
+    pub fn add_release<R: ReleaseLike>(&mut self, release: T, base_release: &R, config: &Config) {
+        let candidate = ReleaseCandidate::new_with_base_release(release, base_release, config);
+        self.add_candidate(candidate);
+    }
+
+    /// Iterate over the candidates in this collection.
+    pub fn iter(&self) -> std::slice::Iter<'_, ReleaseCandidate<T>> {
+        self.candidates.iter()
+    }
+
+    /// Return the number of the candidates in this collection.
+    pub fn len(&self) -> usize {
+        self.candidates.len()
+    }
+}

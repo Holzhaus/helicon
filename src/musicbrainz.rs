@@ -8,8 +8,9 @@
 
 //! MusicBrainz helper functions.
 
-use crate::distance::{DistanceItem, ReleaseCandidate};
+use crate::distance::DistanceItem;
 use crate::release::ReleaseLike;
+use crate::release_candidate::ReleaseCandidate;
 use crate::Cache;
 use crate::Config;
 use futures::{

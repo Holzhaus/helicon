@@ -9,8 +9,8 @@
 //! Functions related to importing files.
 
 use super::ui;
-use crate::distance::ReleaseCandidate;
 use crate::musicbrainz;
+use crate::release_candidate::{ReleaseCandidate, ReleaseCandidateCollection};
 use crate::util::walk_dir;
 use crate::Cache;
 use crate::{Config, TaggedFile, TaggedFileCollection};
@@ -70,19 +70,15 @@ pub async fn run(config: &Config, cache: Option<&impl Cache>, args: Args) -> cra
 
         let track_collection = TaggedFileCollection::new(tagged_files);
 
-        let mut candidates = musicbrainz::find_releases(config, cache, &track_collection).await?;
+        let mut candidates = ReleaseCandidateCollection::new(
+            musicbrainz::find_releases(config, cache, &track_collection).await?,
+        );
         let _selection: &ReleaseCandidate<_> = loop {
-            match ui::select_candidate(candidates.iter()) {
+            match ui::select_candidate(&candidates) {
                 Ok(ui::ReleaseCandidateSelectionResult::Candidate(candidate)) => break candidate,
                 Ok(ui::ReleaseCandidateSelectionResult::FetchCandidateRelease(mb_id)) => {
                     let release = musicbrainz::find_release_by_mb_id(mb_id, cache).await?;
-                    let candidate =
-                        ReleaseCandidate::new_with_base_release(release, &track_collection, config);
-
-                    match candidates.binary_search(&candidate) {
-                        Ok(_) => {} // candidate already at correct position in vector.
-                        Err(pos) => candidates.insert(pos, candidate),
-                    };
+                    candidates.add_release(release, &track_collection, config);
                 }
                 Ok(ui::ReleaseCandidateSelectionResult::FetchCandidateReleaseGroup(mb_id)) => {
                     candidates =
@@ -97,15 +93,7 @@ pub async fn run(config: &Config, cache: Option<&impl Cache>, args: Args) -> cra
                                     }
                                 };
 
-                                let candidate = ReleaseCandidate::new_with_base_release(
-                                    release,
-                                    &track_collection,
-                                    config,
-                                );
-                                match acc.binary_search(&candidate) {
-                                    Ok(_) => {} // candidate already at correct position in vector.
-                                    Err(pos) => acc.insert(pos, candidate),
-                                };
+                                acc.add_release(release, &track_collection, config);
                                 acc
                             })
                             .await;

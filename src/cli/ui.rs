@@ -8,9 +8,9 @@
 
 //! User Interface (UI) utilities.
 
-use crate::distance::ReleaseCandidate;
 use crate::musicbrainz::MusicBrainzId;
 use crate::release::ReleaseLike;
+use crate::release_candidate::{ReleaseCandidate, ReleaseCandidateCollection};
 use crossterm::style::{Color, Stylize};
 use inquire::{validator::Validation, InquireError, Select, Text};
 use std::borrow::Cow;
@@ -95,18 +95,20 @@ impl<T: ReleaseLike> fmt::Display for ReleaseCandidateSelectionOption<'_, T> {
 /// Present a selection of releases to the user, and loop until either a release was selected or
 /// the item is skipped. In the latter case, `None` is returned.
 pub fn select_candidate<'a, T: ReleaseLike>(
-    candidates: impl Iterator<Item = &'a ReleaseCandidate<T>>,
+    candidates: &'a ReleaseCandidateCollection<T>,
 ) -> Result<ReleaseCandidateSelectionResult<'a, T>, InquireError> {
     let additional_options = [
         ReleaseCandidateSelectionOption::EnterMusicBrainzId,
         ReleaseCandidateSelectionOption::SkipItem,
     ];
     let options: Vec<ReleaseCandidateSelectionOption<'a, T>> = candidates
+        .iter()
         .map(ReleaseCandidateSelectionOption::Candidate)
         .chain(additional_options)
         .collect();
     loop {
-        let selection = Select::new("Select a release candidate:", options.clone()).prompt()?;
+        let prompt = format!("Select one of {} release candidate:", candidates.len());
+        let selection = Select::new(&prompt, options.clone()).prompt()?;
         match selection {
             ReleaseCandidateSelectionOption::Candidate(candidate) => {
                 break Ok(ReleaseCandidateSelectionResult::Candidate(candidate))

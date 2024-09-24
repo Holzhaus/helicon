@@ -53,6 +53,7 @@ mod distance;
 mod error;
 mod musicbrainz;
 mod release;
+mod release_candidate;
 mod tag;
 mod taggedfile;
 mod taggedfilecollection;
