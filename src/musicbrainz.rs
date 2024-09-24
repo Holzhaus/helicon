@@ -8,7 +8,7 @@
 
 //! MusicBrainz helper functions.
 
-use crate::distance::{DistanceItem, ReleaseSimilarity};
+use crate::distance::{Distance, DistanceItem, ReleaseSimilarity};
 use crate::release::ReleaseLike;
 use crate::Cache;
 use crate::Config;
@@ -25,17 +25,45 @@ use musicbrainz_rs_nova::{
 use std::borrow::Borrow;
 use std::collections::BinaryHeap;
 
+/// A candidate release that potentially matches the base release.
+pub struct ReleaseCandidate {
+    /// The release from MusicBrainz.
+    release: MusicBrainzRelease,
+    /// The similarity to the base release.
+    similarity: ReleaseSimilarity,
+}
+
+impl ReleaseCandidate {
+    /// Create a new candidate from a musicbrainz release and it's similarity to the base release.
+    pub fn new(release: MusicBrainzRelease, similarity: ReleaseSimilarity) -> Self {
+        Self {
+            release,
+            similarity,
+        }
+    }
+
+    /// Get a reference to the inner release;
+    pub fn release(&self) -> &MusicBrainzRelease {
+        &self.release
+    }
+
+    /// Get the distance to the base release.
+    pub fn distance(&self) -> Distance {
+        self.similarity.total_distance()
+    }
+}
+
 /// Find MusicBrainz Release information for the given (generic) Release.
 pub async fn find_releases(
     config: &Config,
     cache: Option<&impl Cache>,
     base_release: &impl ReleaseLike,
-) -> crate::Result<Vec<(MusicBrainzRelease, ReleaseSimilarity)>> {
+) -> crate::Result<Vec<ReleaseCandidate>> {
     if let Some(mb_id) = base_release.musicbrainz_release_id() {
         let release = find_release_by_mb_id(mb_id.into_owned(), cache).await?;
-        let release_similarity = base_release.similarity_to(&release, config);
-        let item = (release, release_similarity);
-        return Ok(vec![item]);
+        let similarity = base_release.similarity_to(&release, config);
+        let candidate = ReleaseCandidate::new(release, similarity);
+        return Ok(vec![candidate]);
     }
 
     debug_assert_ne!(
@@ -54,23 +82,25 @@ pub async fn find_releases(
                 return heap;
             };
 
-            let release_similarity = base_release.similarity_to(&release, config);
-            let release_distance = release_similarity.total_distance();
+            let similarity = base_release.similarity_to(&release, config);
+            let candidate = ReleaseCandidate::new(release, similarity);
+            let candidate_distance = candidate.distance();
+
             log::debug!(
                 "Release '{}' has distance to track collection: {}",
-                release.title,
-                release_distance.weighted_distance()
+                candidate.release().title,
+                candidate_distance.weighted_distance()
             );
-            let item = DistanceItem::new((release, release_similarity), release_distance);
+            let item = DistanceItem::new(candidate, candidate_distance);
             heap.push(item);
             heap
         })
         .await;
 
-    let releases: Vec<(MusicBrainzRelease, ReleaseSimilarity)> = heap
+    let releases: Vec<ReleaseCandidate> = heap
         .into_sorted_vec()
         .into_iter()
-        .map(|dist_item: DistanceItem<(MusicBrainzRelease, ReleaseSimilarity)>| dist_item.item)
+        .map(|dist_item: DistanceItem<ReleaseCandidate>| dist_item.item)
         .collect();
     log::info!("Found {} release candidates.", releases.len());
     Ok(releases)

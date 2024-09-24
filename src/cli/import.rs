@@ -72,17 +72,18 @@ pub async fn run(config: &Config, cache: Option<&impl Cache>, args: Args) -> cra
             .await?
             .iter()
             .enumerate()
-            .for_each(|(index, (candidate, similarity))| {
+            .for_each(|(index, candidate)| {
                 log::info!(
                     "{:02}. {} - {} ({}distance: {:.3})",
                     index + 1,
-                    candidate.release_artist().unwrap_or_default(),
-                    candidate.release_title().unwrap_or_default(),
+                    candidate.release().release_artist().unwrap_or_default(),
+                    candidate.release().release_title().unwrap_or_default(),
                     candidate
+                        .release()
                         .track_count()
                         .map(|c| format!("{c} tracks, "))
                         .unwrap_or_default(),
-                    similarity.total_distance().weighted_distance()
+                    candidate.distance().weighted_distance()
                 );
             });
     }
