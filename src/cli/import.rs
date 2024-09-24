@@ -9,7 +9,6 @@
 //! Functions related to importing files.
 
 use crate::musicbrainz;
-use crate::release::ReleaseLike;
 use crate::util::walk_dir;
 use crate::Cache;
 use crate::{Config, TaggedFile, TaggedFileCollection};
@@ -68,24 +67,14 @@ pub async fn run(config: &Config, cache: Option<&impl Cache>, args: Args) -> cra
 
         let track_collection = TaggedFileCollection::new(tagged_files);
 
-        musicbrainz::find_releases(config, cache, &track_collection)
-            .await?
-            .iter()
-            .enumerate()
-            .for_each(|(index, candidate)| {
-                log::info!(
-                    "{:02}. {} - {} ({}distance: {:.3})",
-                    index + 1,
-                    candidate.release().release_artist().unwrap_or_default(),
-                    candidate.release().release_title().unwrap_or_default(),
-                    candidate
-                        .release()
-                        .track_count()
-                        .map(|c| format!("{c} tracks, "))
-                        .unwrap_or_default(),
-                    candidate.distance().weighted_distance()
-                );
-            });
+        let candidates = musicbrainz::find_releases(config, cache, &track_collection).await?;
+        let _candidate = match super::ui::select_candidate(candidates.iter()) {
+            Ok(candidate) => candidate,
+            Err(err) => {
+                log::warn!("Selection failed: {err}");
+                continue;
+            }
+        };
     }
 
     Ok(())

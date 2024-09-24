@@ -11,6 +11,7 @@
 mod cache;
 mod config;
 mod import;
+mod ui;
 
 use crate::Config;
 use clap::{Parser, Subcommand};
