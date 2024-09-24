@@ -6,7 +6,7 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
-//! User Interface (UI) utilities.
+//! Candidate Selection.
 
 use crate::musicbrainz::MusicBrainzId;
 use crate::release::ReleaseLike;
