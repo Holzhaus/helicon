@@ -11,7 +11,7 @@
 use super::util;
 use crate::release::ReleaseLike;
 use crate::release_candidate::ReleaseCandidate;
-use crossterm::style::Stylize;
+use crossterm::{style::Stylize, terminal};
 use inquire::{InquireError, Select};
 use std::fmt;
 
@@ -42,7 +42,8 @@ pub fn handle_candidate<T: ReleaseLike>(
 ) -> Result<HandleCandidateResult, InquireError> {
     let distance_color = util::distance_color(&candidate.distance());
 
-    let release_artist_and_title = util::format_release_artist_and_title(candidate.release());
+    let release = candidate.release();
+    let release_artist_and_title = util::format_release_artist_and_title(release);
     println!(
         "{release_artist_and_title}",
         release_artist_and_title = release_artist_and_title.with(distance_color).bold()
@@ -51,6 +52,39 @@ pub fn handle_candidate<T: ReleaseLike>(
         "Similarity: {similarity}",
         similarity = util::format_similarity(&candidate.distance())
     );
+
+    // Show release metadata
+    let max_length = terminal::size().map_or(80, |(cols, _rows)| usize::from(cols));
+    let release_meta = [
+        release.media_format(),
+        release.release_date(),
+        release.release_country(),
+        release.record_label(),
+        release.catalog_number(),
+        release.barcode(),
+    ]
+    .into_iter()
+    .flatten()
+    .fold(String::new(), |text, item| {
+        if text.is_empty() {
+            if (text.len() + item.len()) > max_length {
+                return text;
+            }
+
+            text + item.as_ref()
+        } else {
+            if (text.len() + item.len() + 3) > max_length {
+                return text;
+            }
+
+            text + " | " + item.as_ref()
+        }
+    });
+    println!("{}", release_meta.grey());
+
+    if let Some(mb_url) = release.musicbrainz_release_url() {
+        println!("{}", mb_url.grey());
+    }
 
     let options = vec![
         HandleCandidateResult::Apply,

@@ -23,6 +23,15 @@ pub trait ReleaseLike {
     fn release_artist(&self) -> Option<Cow<'_, str>>;
     /// MusicBrainz Release ID
     fn musicbrainz_release_id(&self) -> Option<Cow<'_, str>>;
+    /// MusicBrainz Release URL
+    fn musicbrainz_release_url(&self) -> Option<Cow<'_, str>> {
+        self.musicbrainz_release_id()
+            .map(|id| format!("https://musicbrainz.org/release/{id}").into())
+    }
+    /// Release Date.
+    fn release_date(&self) -> Option<Cow<'_, str>>;
+    /// Release Country.
+    fn release_country(&self) -> Option<Cow<'_, str>>;
     /// Media format
     fn media_format(&self) -> Option<Cow<'_, str>>;
     /// Record Label
@@ -89,6 +98,16 @@ impl ReleaseLike for MusicBrainzRelease {
 
     fn musicbrainz_release_id(&self) -> Option<Cow<'_, str>> {
         Cow::from(self.id.as_str()).into()
+    }
+
+    fn release_date(&self) -> Option<Cow<'_, str>> {
+        self.date
+            .map(|date| date.format("%Y-%m-%d").to_string())
+            .map(Cow::from)
+    }
+
+    fn release_country(&self) -> Option<Cow<'_, str>> {
+        self.country.as_ref().map(Cow::from)
     }
 
     fn media_format(&self) -> Option<Cow<'_, str>> {

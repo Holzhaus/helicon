@@ -173,6 +173,16 @@ impl ReleaseLike for TaggedFileCollection {
             .map(Cow::from)
     }
 
+    fn release_date(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(TagKey::ReleaseDate)
+            .map(Cow::from)
+    }
+
+    fn release_country(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(TagKey::ReleaseCountry)
+            .map(Cow::from)
+    }
+
     fn media_format(&self) -> Option<Cow<'_, str>> {
         self.find_consensual_tag_value(TagKey::Media).map(Cow::from)
     }
