@@ -79,6 +79,6 @@ pub async fn main() -> crate::Result<()> {
 
     match args.command {
         Commands::Import(cmd_args) => import::run(&config, Some(&cache), cmd_args).await,
-        Commands::Config(cmd_args) => config::run(&config, cmd_args),
+        Commands::Config(cmd_args) => config::run(&config, Some(&cache), cmd_args),
     }
 }
