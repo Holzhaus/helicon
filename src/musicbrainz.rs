@@ -8,7 +8,7 @@
 
 //! MusicBrainz helper functions.
 
-use crate::distance::{Distance, DistanceItem, ReleaseSimilarity};
+use crate::distance::{DistanceItem, ReleaseCandidate};
 use crate::release::ReleaseLike;
 use crate::Cache;
 use crate::Config;
@@ -22,47 +22,19 @@ use musicbrainz_rs_nova::{
     },
     Fetch, Search,
 };
+use regex::Regex;
 use std::borrow::Borrow;
 use std::collections::BinaryHeap;
-
-/// A candidate release that potentially matches the base release.
-pub struct ReleaseCandidate {
-    /// The release from MusicBrainz.
-    release: MusicBrainzRelease,
-    /// The similarity to the base release.
-    similarity: ReleaseSimilarity,
-}
-
-impl ReleaseCandidate {
-    /// Create a new candidate from a musicbrainz release and it's similarity to the base release.
-    pub fn new(release: MusicBrainzRelease, similarity: ReleaseSimilarity) -> Self {
-        Self {
-            release,
-            similarity,
-        }
-    }
-
-    /// Get a reference to the inner release;
-    pub fn release(&self) -> &MusicBrainzRelease {
-        &self.release
-    }
-
-    /// Get the distance to the base release.
-    pub fn distance(&self) -> Distance {
-        self.similarity.total_distance()
-    }
-}
 
 /// Find MusicBrainz Release information for the given (generic) Release.
 pub async fn find_releases(
     config: &Config,
     cache: Option<&impl Cache>,
     base_release: &impl ReleaseLike,
-) -> crate::Result<Vec<ReleaseCandidate>> {
+) -> crate::Result<Vec<ReleaseCandidate<MusicBrainzRelease>>> {
     if let Some(mb_id) = base_release.musicbrainz_release_id() {
         let release = find_release_by_mb_id(mb_id.into_owned(), cache).await?;
-        let similarity = base_release.similarity_to(&release, config);
-        let candidate = ReleaseCandidate::new(release, similarity);
+        let candidate = ReleaseCandidate::new_with_base_release(release, base_release, config);
         return Ok(vec![candidate]);
     }
 
@@ -82,8 +54,7 @@ pub async fn find_releases(
                 return heap;
             };
 
-            let similarity = base_release.similarity_to(&release, config);
-            let candidate = ReleaseCandidate::new(release, similarity);
+            let candidate = ReleaseCandidate::new_with_base_release(release, base_release, config);
             let candidate_distance = candidate.distance();
 
             log::debug!(
@@ -97,10 +68,10 @@ pub async fn find_releases(
         })
         .await;
 
-    let releases: Vec<ReleaseCandidate> = heap
+    let releases: Vec<ReleaseCandidate<MusicBrainzRelease>> = heap
         .into_sorted_vec()
         .into_iter()
-        .map(|dist_item: DistanceItem<ReleaseCandidate>| dist_item.item)
+        .map(|dist_item: DistanceItem<ReleaseCandidate<MusicBrainzRelease>>| dist_item.item)
         .collect();
     log::info!("Found {} release candidates.", releases.len());
     Ok(releases)
@@ -217,8 +188,40 @@ pub async fn find_release_by_mb_id(
         })
 }
 
+/// Find a MusicBrainz Release ID in a string.
+pub fn find_release_id(input: &str) -> Option<&str> {
+    let re = Regex::new(
+        r"\b[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}\b",
+    )
+    .ok()?;
+    if let Some(m) = re.find(input) {
+        if m.start() == 0 {
+            return Some(m.as_str());
+        }
+
+        if let Some(pos) = input[..m.start() - 1].rfind('/') {
+            let is_valid_url = [
+                "http://musicbrainz.org/",
+                "https://musicbrainz.org/",
+                "http://musicbrainz.org/ws/2/",
+                "https://musicbrainz.org/ws/2/",
+            ]
+            .into_iter()
+            .any(|x| x == &input[..=pos]);
+            if is_valid_url {
+                let entity_name = &input[pos + 1..m.start() - 1];
+                if entity_name == "release" {
+                    return Some(m.as_str());
+                }
+            }
+        }
+    };
+    None
+}
+
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::release::ReleaseLike;
     use crate::track::TrackLike;
     use musicbrainz_rs_nova::entity::release::Release as MusicBrainzRelease;
@@ -227,6 +230,36 @@ mod tests {
         env!("CARGO_MANIFEST_DIR"),
         "/tests/data/musicbrainz/release.json"
     ));
+
+    #[test]
+    fn test_find_release_id() {
+        assert_eq!(
+            find_release_id("0008f765-032b-46cd-ab69-2220edab1837"),
+            Some("0008f765-032b-46cd-ab69-2220edab1837")
+        );
+        assert_eq!(
+            find_release_id("https://musicbrainz.org/release/0008f765-032b-46cd-ab69-2220edab1837"),
+            Some("0008f765-032b-46cd-ab69-2220edab1837")
+        );
+        assert_eq!(
+            find_release_id("http://musicbrainz.org/release/0008f765-032b-46cd-ab69-2220edab1837"),
+            Some("0008f765-032b-46cd-ab69-2220edab1837")
+        );
+        assert_eq!(find_release_id("http://musicbrainz.org/ws/2/release/0008f765-032b-46cd-ab69-2220edab1837?inc=artists%20recordings%20release-groups"), Some("0008f765-032b-46cd-ab69-2220edab1837"));
+        assert_eq!(
+            find_release_id(
+                "https://musicbrainz.org/recording/9d444787-3f25-4c16-9261-597b9ab021cc"
+            ),
+            None
+        );
+        assert_eq!(
+            find_release_id(
+                "https://musicbrainz.org/release-group/0a8e97fd-457c-30bc-938a-2fba79cb04e7"
+            ),
+            None
+        );
+        assert_eq!(find_release_id("some random string"), None);
+    }
 
     #[test]
     fn test_releaselike_impl() {

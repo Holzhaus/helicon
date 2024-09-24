@@ -13,6 +13,7 @@ use super::{string, Distance};
 use crate::release::ReleaseLike;
 use crate::track::TrackLike;
 use crate::Config;
+use std::cmp;
 use std::iter;
 
 /// Convert an `f64` into an `u64`.
@@ -247,6 +248,26 @@ pub struct ReleaseSimilarity {
     barcode_distance: Option<Distance>,
     /// The minimum distance mapping of tracks from the two releases.
     track_assignment: TrackAssignment,
+}
+
+impl PartialEq for ReleaseSimilarity {
+    fn eq(&self, other: &Self) -> bool {
+        self.total_distance().eq(&other.total_distance())
+    }
+}
+
+impl Eq for ReleaseSimilarity {}
+
+impl PartialOrd for ReleaseSimilarity {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for ReleaseSimilarity {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        self.total_distance().cmp(&other.total_distance())
+    }
 }
 
 impl ReleaseSimilarity {

@@ -14,11 +14,13 @@ use std::cmp;
 use std::iter::Sum;
 
 mod release;
+mod release_candidate;
 mod string;
 mod time;
 mod track;
 
 pub use release::ReleaseSimilarity;
+pub use release_candidate::ReleaseCandidate;
 pub use track::TrackSimilarity;
 
 /// A distance in the range (0.0, 1.0) between two items.

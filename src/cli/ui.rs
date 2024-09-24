@@ -8,23 +8,45 @@
 
 //! User Interface (UI) utilities.
 
-use crate::musicbrainz::ReleaseCandidate;
+use crate::distance::ReleaseCandidate;
+use crate::musicbrainz::find_release_id;
 use crate::release::ReleaseLike;
 use crossterm::style::{Color, Stylize};
-use inquire::{InquireError, Select};
+use inquire::{validator::Validation, InquireError, Select, Text};
 use std::borrow::Cow;
 use std::fmt;
 
 /// An option presented when selecting a release.
 #[derive(Clone)]
-enum ReleaseCandidateSelectionOption<'a> {
+pub enum ReleaseCandidateSelectionResult<'a, T: ReleaseLike> {
     /// Select this release candidate.
-    Candidate(&'a ReleaseCandidate),
+    Candidate(&'a ReleaseCandidate<T>),
+    /// Fetch a new MusicBrainz release ID and add this as a candidate.
+    FetchCandidate(String),
+}
+
+/// An option presented when selecting a release.
+enum ReleaseCandidateSelectionOption<'a, T: ReleaseLike> {
+    /// Select this release candidate.
+    Candidate(&'a ReleaseCandidate<T>),
+    /// Enter a customer MusicBrainz release ID.
+    EnterMusicBrainzId,
     /// Skip this item.
     SkipItem,
 }
 
-impl fmt::Display for ReleaseCandidateSelectionOption<'_> {
+// Manual implementation of `Clone` to work around unnecessary trait bound `T: Clone`.
+impl<T: ReleaseLike> Clone for ReleaseCandidateSelectionOption<'_, T> {
+    fn clone(&self) -> Self {
+        match &self {
+            Self::Candidate(candidate) => Self::Candidate(candidate),
+            Self::EnterMusicBrainzId => Self::EnterMusicBrainzId,
+            Self::SkipItem => Self::SkipItem,
+        }
+    }
+}
+
+impl<T: ReleaseLike> fmt::Display for ReleaseCandidateSelectionOption<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self {
             ReleaseCandidateSelectionOption::Candidate(candidate) => {
@@ -55,8 +77,13 @@ impl fmt::Display for ReleaseCandidateSelectionOption<'_> {
                     brace_close = ')'.grey()
                 )
             }
-            ReleaseCandidateSelectionOption::SkipItem => {
-                let text = "Skip Item";
+            ReleaseCandidateSelectionOption::EnterMusicBrainzId
+            | ReleaseCandidateSelectionOption::SkipItem => {
+                let text = match &self {
+                    ReleaseCandidateSelectionOption::EnterMusicBrainzId => "Enter MusicBrainz ID",
+                    ReleaseCandidateSelectionOption::SkipItem => "Skip Item",
+                    ReleaseCandidateSelectionOption::Candidate(_) => unreachable!(),
+                };
                 write!(f, "{}", text.blue())
             }
         }
@@ -65,17 +92,51 @@ impl fmt::Display for ReleaseCandidateSelectionOption<'_> {
 
 /// Present a selection of releases to the user, and loop until either a release was selected or
 /// the item is skipped. In the latter case, `None` is returned.
-pub fn select_candidate<'a>(
-    candidates: impl Iterator<Item = &'a ReleaseCandidate>,
-) -> Result<&'a ReleaseCandidate, InquireError> {
-    let additional_options = [ReleaseCandidateSelectionOption::SkipItem];
-    let options: Vec<ReleaseCandidateSelectionOption<'a>> = candidates
+pub fn select_candidate<'a, T: ReleaseLike>(
+    candidates: impl Iterator<Item = &'a ReleaseCandidate<T>>,
+) -> Result<ReleaseCandidateSelectionResult<'a, T>, InquireError> {
+    let additional_options = [
+        ReleaseCandidateSelectionOption::EnterMusicBrainzId,
+        ReleaseCandidateSelectionOption::SkipItem,
+    ];
+    let options: Vec<ReleaseCandidateSelectionOption<'a, T>> = candidates
         .map(ReleaseCandidateSelectionOption::Candidate)
         .chain(additional_options)
         .collect();
-    let selection = Select::new("Select a release candidate:", options.clone()).prompt()?;
-    match selection {
-        ReleaseCandidateSelectionOption::Candidate(candidate) => Ok(candidate),
-        ReleaseCandidateSelectionOption::SkipItem => Err(InquireError::OperationCanceled),
+    loop {
+        let selection = Select::new("Select a release candidate:", options.clone()).prompt()?;
+        match selection {
+            ReleaseCandidateSelectionOption::Candidate(candidate) => {
+                break Ok(ReleaseCandidateSelectionResult::Candidate(candidate))
+            }
+            ReleaseCandidateSelectionOption::SkipItem => {
+                break Err(InquireError::OperationCanceled)
+            }
+            ReleaseCandidateSelectionOption::EnterMusicBrainzId => {
+                let result = Text::new("Enter MusicBrainz ID or URL: ")
+                    .with_validator(|input: &str| {
+                        if input.is_empty() {
+                            return Ok(Validation::Valid);
+                        }
+                        match find_release_id(input) {
+                            Some(_) => Ok(Validation::Valid),
+                            None => Ok(Validation::Invalid(
+                                "Not a valid musicbrainz release ID.".into(),
+                            )),
+                        }
+                    })
+                    .prompt();
+                let result = match result {
+                    Ok(text) if text.is_empty() => Err(InquireError::OperationCanceled),
+                    Ok(text) => find_release_id(&text)
+                        .ok_or(InquireError::OperationCanceled)
+                        .map(ToOwned::to_owned),
+                    Err(err) => Err(err),
+                };
+                if let Ok(mb_id) = result {
+                    break Ok(ReleaseCandidateSelectionResult::FetchCandidate(mb_id));
+                }
+            }
+        }
     }
 }

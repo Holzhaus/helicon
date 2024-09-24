@@ -8,6 +8,8 @@
 
 //! Functions related to importing files.
 
+use super::ui;
+use crate::distance::ReleaseCandidate;
 use crate::musicbrainz;
 use crate::util::walk_dir;
 use crate::Cache;
@@ -33,7 +35,7 @@ pub async fn run(config: &Config, cache: Option<&impl Cache>, args: Args) -> cra
     let input_path = args.path;
 
     let supported_extensions = HashSet::from(["mp3", "flac"]);
-    for item in walk_dir(input_path) {
+    'collections: for item in walk_dir(input_path) {
         let (path, _dirs, files) = item?;
         let tagged_files: Vec<TaggedFile> = files
             .iter()
@@ -67,13 +69,25 @@ pub async fn run(config: &Config, cache: Option<&impl Cache>, args: Args) -> cra
 
         let track_collection = TaggedFileCollection::new(tagged_files);
 
-        let candidates = musicbrainz::find_releases(config, cache, &track_collection).await?;
-        let _candidate = match super::ui::select_candidate(candidates.iter()) {
-            Ok(candidate) => candidate,
-            Err(err) => {
-                log::warn!("Selection failed: {err}");
-                continue;
-            }
+        let mut candidates = musicbrainz::find_releases(config, cache, &track_collection).await?;
+        let _selection: &ReleaseCandidate<_> = loop {
+            match ui::select_candidate(candidates.iter()) {
+                Ok(ui::ReleaseCandidateSelectionResult::Candidate(candidate)) => break candidate,
+                Ok(ui::ReleaseCandidateSelectionResult::FetchCandidate(mb_id)) => {
+                    let release = musicbrainz::find_release_by_mb_id(mb_id, cache).await?;
+                    let candidate =
+                        ReleaseCandidate::new_with_base_release(release, &track_collection, config);
+
+                    match candidates.binary_search(&candidate) {
+                        Ok(_) => {} // candidate already at correct position in vector.
+                        Err(pos) => candidates.insert(pos, candidate),
+                    };
+                }
+                Err(err) => {
+                    log::warn!("Selection failed: {err}");
+                    continue 'collections;
+                }
+            };
         };
     }
 

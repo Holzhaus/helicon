@@ -831,6 +831,7 @@ dependencies = [
  "musicbrainz_rs_nova",
  "num",
  "paste",
+ "regex",
  "serde",
  "serde_json",
  "sha2",

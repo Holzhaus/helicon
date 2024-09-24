@@ -27,6 +27,7 @@ xdg = "2.5.2"
 sha2 = "0.10.8"
 inquire = "0.7.5"
 crossterm = "0.28.1"
+regex = "1.10.6"
 
 [dev-dependencies]
 float_eq = "1"
