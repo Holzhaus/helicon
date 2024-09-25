@@ -17,7 +17,7 @@ mod layout;
 mod styled_content;
 
 pub use layout::{print_column_layout, LayoutItem};
-pub use styled_content::{convert_styled_content, StyledContentList};
+pub use styled_content::{convert_styled_content, string_diff, StyledContentList};
 
 /// Format a distance as a similarity in percent, were 0% the the maximum distance and 100% the
 /// minimum distance.

@@ -9,9 +9,105 @@
 //! Utilities for working with crossterm's `StyledContent`.
 
 use super::LayoutItem;
-use crossterm::style::{ContentStyle, StyledContent};
+use crossterm::style::{ContentStyle, StyledContent, Stylize};
 use std::borrow::Cow;
 use std::fmt;
+
+/// Calculate a diff between the two strings, and return accordingly styled versions of the
+/// strings.
+pub fn string_diff(
+    lhs: &str,
+    rhs: &str,
+) -> (Vec<StyledContent<String>>, Vec<StyledContent<String>>) {
+    let style_equal = ContentStyle::new();
+    let style_delete = ContentStyle::new().red().bold();
+    let style_insert = ContentStyle::new().green().bold();
+    let style_replace = ContentStyle::new().yellow().bold();
+
+    let lhs_chars = lhs.chars().collect::<Vec<char>>();
+    let rhs_chars = rhs.chars().collect::<Vec<char>>();
+
+    let (lhs_diff, rhs_diff): (Vec<_>, Vec<_>) = similar::capture_diff(
+        similar::Algorithm::Myers,
+        &lhs_chars,
+        0..lhs_chars.len(),
+        &rhs_chars,
+        0..rhs_chars.len(),
+    )
+    .into_iter()
+    .map(|diffop| match diffop {
+        similar::DiffOp::Equal {
+            old_index,
+            new_index,
+            len,
+        } => (
+            Some(
+                style_equal.apply(
+                    lhs_chars[old_index..old_index + len]
+                        .iter()
+                        .collect::<String>(),
+                ),
+            ),
+            Some(
+                style_equal.apply(
+                    rhs_chars[new_index..new_index + len]
+                        .iter()
+                        .collect::<String>(),
+                ),
+            ),
+        ),
+        similar::DiffOp::Delete {
+            old_index, old_len, ..
+        } => (
+            Some(
+                style_delete.apply(
+                    lhs_chars[old_index..old_index + old_len]
+                        .iter()
+                        .collect::<String>(),
+                ),
+            ),
+            None,
+        ),
+        similar::DiffOp::Insert {
+            new_index, new_len, ..
+        } => (
+            None,
+            Some(
+                style_insert.apply(
+                    rhs_chars[new_index..new_index + new_len]
+                        .iter()
+                        .collect::<String>(),
+                ),
+            ),
+        ),
+        similar::DiffOp::Replace {
+            old_index,
+            old_len,
+            new_index,
+            new_len,
+        } => (
+            Some(
+                style_replace.apply(
+                    lhs_chars[old_index..old_index + old_len]
+                        .iter()
+                        .collect::<String>(),
+                ),
+            ),
+            Some(
+                style_replace.apply(
+                    rhs_chars[new_index..new_index + new_len]
+                        .iter()
+                        .collect::<String>(),
+                ),
+            ),
+        ),
+    })
+    .unzip();
+    (
+        lhs_diff.into_iter().flatten().collect::<Vec<_>>(),
+        rhs_diff.into_iter().flatten().collect::<Vec<_>>(),
+    )
+}
 
 /// Convert a [`StyledContent`] item into `StyledContent<Cow<'_, str>>`.
 #[expect(clippy::needless_pass_by_value)]
@@ -56,6 +152,15 @@ impl<'a> FromIterator<StyledContent<Cow<'a, str>>> for StyledContentList<'a> {
 impl<'a> From<StyledContent<Cow<'a, str>>> for StyledContentList<'a> {
     fn from(value: StyledContent<Cow<'a, str>>) -> Self {
         Self::new(vec![value])
+    }
+}
+
+impl From<Vec<StyledContent<String>>> for StyledContentList<'_> {
+    fn from(value: Vec<StyledContent<String>>) -> Self {
+        value
+            .into_iter()
+            .map(convert_styled_content)
+            .collect::<Self>()
     }
 }
 
