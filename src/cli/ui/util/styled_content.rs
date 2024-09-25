@@ -91,11 +91,27 @@ impl<'a> StyledContentList<'a> {
             .iter()
             .map(|styled_content| styled_content.content().len())
             .take_while(|len| {
-                first_width += len;
-                first_width < width
+                let next_first_width = first_width + len;
+                if next_first_width <= width {
+                    first_width = next_first_width;
+                    true
+                } else {
+                    false
+                }
             })
             .count();
-        let second_vec = self.0.split_off(first_element_count);
+        let mut second_vec = self.0.split_off(first_element_count);
+
+        debug_assert!(first_width <= width);
+        debug_assert!(!second_vec.is_empty());
+        let chars_left = width - first_width;
+        if chars_left >= 5 && second_vec[0].content().len() > (chars_left + 5) {
+            let item = second_vec.remove(0);
+            let (lhs, rhs) = item.content().split_at(chars_left);
+            self.0.push(item.style().apply(Cow::from(lhs.to_owned())));
+            second_vec.insert(0, item.style().apply(Cow::from(rhs.to_owned())));
+        }
+
         Some(Self::new(second_vec))
     }
 
@@ -115,6 +131,7 @@ impl<'a> StyledContentList<'a> {
                     .collect::<String>(),
             ),
         ));
+        debug_assert_eq!(self.len_unstyled(), desired_width);
         self
     }
 }
