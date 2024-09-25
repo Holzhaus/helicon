@@ -73,9 +73,10 @@ pub async fn run(config: &Config, cache: Option<&impl Cache>, args: Args) -> cra
         let mut candidates = ReleaseCandidateCollection::new(
             musicbrainz::find_releases(config, cache, &track_collection).await?,
         );
+        let mut allow_autoselection = candidates.len() == 1;
         'select_candidate: loop {
             let selected_candidate: &ReleaseCandidate<_> = loop {
-                match ui::select_candidate(&candidates) {
+                match ui::select_candidate(&candidates, allow_autoselection) {
                     Ok(ui::ReleaseCandidateSelectionResult::Candidate(candidate)) => {
                         break candidate
                     }
@@ -107,6 +108,7 @@ pub async fn run(config: &Config, cache: Option<&impl Cache>, args: Args) -> cra
                     }
                 };
             };
+            allow_autoselection = false;
 
             match ui::handle_candidate(&track_collection, selected_candidate)? {
                 ui::HandleCandidateResult::Apply => todo!(),

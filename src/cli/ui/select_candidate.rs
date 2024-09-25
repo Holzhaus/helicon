@@ -80,7 +80,16 @@ impl<T: ReleaseLike> fmt::Display for ReleaseCandidateSelectionOption<'_, T> {
 /// the item is skipped. In the latter case, `None` is returned.
 pub fn select_candidate<'a, T: ReleaseLike>(
     candidates: &'a ReleaseCandidateCollection<T>,
+    allow_autoselection: bool,
 ) -> Result<ReleaseCandidateSelectionResult<'a, T>, InquireError> {
+    if allow_autoselection {
+        if let Some(best_candidate) = candidates.iter().next() {
+            if best_candidate.distance().weighted_distance() <= 0.05 {
+                return Ok(ReleaseCandidateSelectionResult::Candidate(best_candidate));
+            }
+        }
+    }
+
     let additional_options = [
         ReleaseCandidateSelectionOption::EnterMusicBrainzId,
         ReleaseCandidateSelectionOption::SkipItem,
@@ -91,7 +100,10 @@ pub fn select_candidate<'a, T: ReleaseLike>(
         .chain(additional_options)
         .collect();
     loop {
-        let prompt = format!("Select one of {} release candidate:", candidates.len());
+        let prompt = match candidates.len() {
+            0 | 1 => "Select release candidate:".to_string(),
+            candidate_count => format!("Select one of {candidate_count} release candidates:"),
+        };
         let selection = Select::new(&prompt, options.clone()).prompt()?;
         match selection {
             ReleaseCandidateSelectionOption::Candidate(candidate) => {
