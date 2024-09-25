@@ -60,11 +60,12 @@ impl<'a> LayoutItem<'a> {
     /// Prefix and suffix will be placed on the first line.
     fn into_split_lines(mut self, max_width: usize) -> impl Iterator<Item = StyledContentList<'a>> {
         let first_line_content_width =
-            max_width - self.prefix.len_unstyled() + self.suffix.len_unstyled();
+            max_width - self.prefix.len_unstyled() - self.suffix.len_unstyled();
         let second = self.content.split_off(first_line_content_width);
-        debug_assert!(self.content.len_unstyled() <= first_line_content_width);
         debug_assert!(self.len_unstyled() <= max_width);
+        debug_assert!(self.content.len_unstyled() <= first_line_content_width);
         self.content = self.content.fill_right(' ', first_line_content_width);
+        debug_assert!(self.content.len_unstyled() <= first_line_content_width);
         debug_assert_eq!(self.len_unstyled(), max_width);
         let first: StyledContentList<'a> = self.into();
         [first].into_iter().chain([second].into_iter().flatten())
