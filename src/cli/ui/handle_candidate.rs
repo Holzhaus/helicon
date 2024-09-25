@@ -8,14 +8,18 @@
 
 //! Show candidate details and select next action.
 
-use super::util;
+use super::util::{self, LayoutItem, StyledContentList};
 use crate::distance::{TrackSimilarity, UnmatchedTracksSource};
 use crate::media::MediaLike;
 use crate::release::ReleaseLike;
 use crate::release_candidate::ReleaseCandidate;
 use crate::track::TrackLike;
-use crossterm::{style::Stylize, terminal};
+use crossterm::{
+    style::{ContentStyle, StyledContent, Stylize},
+    terminal,
+};
 use inquire::{InquireError, Select};
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
@@ -110,25 +114,61 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
         println!("{}", disc_title.underlined());
 
         for rhs_track in media.media_tracks() {
-            let Some((_lhs_track_index, _track_similarity)) =
+            let Some((lhs_track_index, _track_similarity)) =
                 matched_track_map.get(&rhs_track_index)
             else {
                 rhs_track_index += 1;
                 continue;
             };
 
-            let track_number = rhs_track.track_number().unwrap_or_else(|| "".into());
-            let track_title = rhs_track.track_title().unwrap_or_else(|| "".into());
+            let Some(lhs_track) = &base_release.release_tracks().nth(*lhs_track_index) else {
+                rhs_track_index += 1;
+                continue;
+            };
 
-            println!(
-                "  * {track_number}{track_number_suffix}{track_title}",
-                track_number = track_number.grey(),
-                track_number_suffix = if track_number.is_empty() {
-                    "".grey()
-                } else {
-                    ". ".grey()
-                },
-            );
+            let lhs_track_title = lhs_track
+                .track_title()
+                .map(|text| StyledContent::new(ContentStyle::new(), text))
+                .map(Stylize::bold);
+            let lhs_track_number = util::convert_styled_content(StyledContent::new(
+                ContentStyle::new(),
+                lhs_track
+                    .track_number()
+                    .unwrap_or_else(|| Cow::from(format!("#{lhs_track_index}"))),
+            ));
+            let lhs = LayoutItem::new(
+                [lhs_track_title]
+                    .into_iter()
+                    .flatten()
+                    .collect::<StyledContentList<'_>>(),
+            )
+            .with_prefix(StyledContentList::new(vec![
+                lhs_track_number,
+                util::convert_styled_content(". ".grey()),
+            ]));
+
+            let rhs_track_title = rhs_track
+                .track_title()
+                .map(|text| StyledContent::new(ContentStyle::new(), text))
+                .map(Stylize::bold);
+            let rhs_track_number = util::convert_styled_content(StyledContent::new(
+                ContentStyle::new(),
+                rhs_track
+                    .track_number()
+                    .unwrap_or_else(|| Cow::from(format!("#{rhs_track_index}"))),
+            ));
+            let rhs = LayoutItem::new(
+                [rhs_track_title]
+                    .into_iter()
+                    .flatten()
+                    .collect::<StyledContentList<'_>>(),
+            )
+            .with_prefix(StyledContentList::new(vec![
+                rhs_track_number,
+                util::convert_styled_content(". ".grey()),
+            ]));
+
+            util::print_column_layout(lhs, rhs, " * ", " -> ", max_length);
 
             rhs_track_index += 1;
         }

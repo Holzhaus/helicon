@@ -13,6 +13,12 @@ use crate::release::ReleaseLike;
 use crossterm::style::{Color, Stylize};
 use std::borrow::Cow;
 
+mod layout;
+mod styled_content;
+
+pub use layout::{print_column_layout, LayoutItem};
+pub use styled_content::{convert_styled_content, StyledContentList};
+
 /// Format a distance as a similarity in percent, were 0% the the maximum distance and 100% the
 /// minimum distance.
 pub fn as_similarity_percentage(distance: &Distance) -> f64 {
