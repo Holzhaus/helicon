@@ -109,6 +109,38 @@ pub fn string_diff(
     )
 }
 
+/// Similar to [`string_diff`], but also supports `None` values.
+pub fn string_diff_opt<'a, 'b>(
+    lhs: Option<Cow<'a, str>>,
+    rhs: Option<Cow<'b, str>>,
+    missing_value: &'static str,
+) -> (StyledContentList<'a>, StyledContentList<'b>) {
+    let style_normal_value = ContentStyle::new();
+    let style_missing_value = ContentStyle::new().grey();
+
+    match (lhs, rhs) {
+        (Some(lhs_value), Some(rhs_value)) => {
+            let (lhs_diff, rhs_diff) = string_diff(&lhs_value, &rhs_value);
+            (
+                StyledContentList::from(lhs_diff),
+                StyledContentList::from(rhs_diff),
+            )
+        }
+        (Some(lhs_track_title), None) => (
+            style_normal_value.apply(lhs_track_title).into(),
+            style_missing_value.apply(Cow::from(missing_value)).into(),
+        ),
+        (None, Some(rhs_track_title)) => (
+            style_missing_value.apply(Cow::from(missing_value)).into(),
+            style_normal_value.apply(rhs_track_title).into(),
+        ),
+        (None, None) => (
+            style_missing_value.apply(Cow::from(missing_value)).into(),
+            style_missing_value.apply(Cow::from(missing_value)).into(),
+        ),
+    }
+}
+
 /// Convert a [`StyledContent`] item into `StyledContent<Cow<'_, str>>`.
 #[expect(clippy::needless_pass_by_value)]
 pub fn convert_styled_content<'b, D: fmt::Display + Into<Cow<'b, str>> + Clone>(

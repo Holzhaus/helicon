@@ -127,9 +127,7 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
 
             let changes = [
                 (!track_similarity.is_track_title_equal()).then_some("title"),
-                (!track_similarity.is_track_artist_equal()).then_some("artist"),
                 (!track_similarity.is_track_number_equal()).then_some("number"),
-                (!track_similarity.is_musicbrainz_recording_id_equal()).then_some("id"),
             ]
             .into_iter()
             .flatten()
@@ -146,40 +144,11 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
                 )
             };
 
-            let style_normal_value = ContentStyle::new();
-            let style_missing_value = ContentStyle::new().grey();
-
-            let (lhs_track_title, rhs_track_title) =
-                match (lhs_track.track_title(), rhs_track.track_title()) {
-                    (Some(lhs_track_title), Some(rhs_track_title)) => {
-                        let (lhs_diff, rhs_diff) =
-                            util::string_diff(&lhs_track_title, &rhs_track_title);
-                        (
-                            StyledContentList::from(lhs_diff),
-                            StyledContentList::from(rhs_diff),
-                        )
-                    }
-                    (Some(lhs_track_title), None) => (
-                        style_normal_value.apply(lhs_track_title).into(),
-                        style_missing_value
-                            .apply(Cow::from("<unknown title>"))
-                            .into(),
-                    ),
-                    (None, Some(rhs_track_title)) => (
-                        style_missing_value
-                            .apply(Cow::from("<unknown title>"))
-                            .into(),
-                        style_normal_value.apply(rhs_track_title).into(),
-                    ),
-                    (None, None) => (
-                        style_missing_value
-                            .apply(Cow::from("<unknown title>"))
-                            .into(),
-                        style_missing_value
-                            .apply(Cow::from("<unknown title>"))
-                            .into(),
-                    ),
-                };
+            let (lhs_track_title, rhs_track_title) = util::string_diff_opt(
+                lhs_track.track_title(),
+                rhs_track.track_title(),
+                "<unknown title>",
+            );
 
             let lhs_track_number = util::convert_styled_content(StyledContent::new(
                 ContentStyle::new(),
@@ -207,6 +176,32 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
                 .with_suffix(rhs_suffix);
 
             util::print_column_layout(lhs, rhs, " * ", " -> ", max_length);
+
+            if !track_similarity.is_track_artist_equal() {
+                let (lhs_track_artist, rhs_track_artist) = util::string_diff_opt(
+                    lhs_track.track_artist(),
+                    rhs_track.track_artist(),
+                    "<unknown artist>",
+                );
+                let lhs = LayoutItem::new(lhs_track_artist);
+                let rhs = LayoutItem::new(rhs_track_artist).with_suffix(StyledContentList::from(
+                    util::convert_styled_content("(artist)".yellow().bold()),
+                ));
+                util::print_column_layout(lhs, rhs, "   ", " -> ", max_length);
+            }
+
+            if !track_similarity.is_musicbrainz_recording_id_equal() {
+                let (lhs_mb_rec_id, rhs_mb_rec_id) = util::string_diff_opt(
+                    lhs_track.musicbrainz_recording_id(),
+                    rhs_track.musicbrainz_recording_id(),
+                    "<unknown id>",
+                );
+                let lhs = LayoutItem::new(lhs_mb_rec_id);
+                let rhs = LayoutItem::new(rhs_mb_rec_id).with_suffix(StyledContentList::from(
+                    util::convert_styled_content("(id)".yellow().bold()),
+                ));
+                util::print_column_layout(lhs, rhs, "   ", " -> ", max_length);
+            }
 
             rhs_track_index += 1;
         }
