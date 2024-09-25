@@ -9,6 +9,6 @@
 //! Main module
 
 #[tokio::main]
-async fn main() -> mbtagger::Result<()> {
-    mbtagger::main().await
+async fn main() -> helicon::Result<()> {
+    helicon::main().await
 }
