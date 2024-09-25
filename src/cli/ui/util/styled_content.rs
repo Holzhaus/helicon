@@ -53,12 +53,19 @@ impl<'a> FromIterator<StyledContent<Cow<'a, str>>> for StyledContentList<'a> {
     }
 }
 
+impl<'a> From<StyledContent<Cow<'a, str>>> for StyledContentList<'a> {
+    fn from(value: StyledContent<Cow<'a, str>>) -> Self {
+        Self::new(vec![value])
+    }
+}
+
 impl<'a> From<LayoutItem<'a>> for StyledContentList<'a> {
-    fn from(val: LayoutItem<'a>) -> Self {
-        val.prefix
+    fn from(value: LayoutItem<'a>) -> Self {
+        value
+            .prefix
             .into_iter()
-            .chain(val.content)
-            .chain(val.suffix)
+            .chain(value.content)
+            .chain(value.suffix)
             .collect::<StyledContentList<'a>>()
     }
 }
