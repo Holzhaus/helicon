@@ -28,6 +28,39 @@ pub struct TrackSimilarity {
 }
 
 impl TrackSimilarity {
+    /// Returns `true` if the track title is equal on both tracks.
+    pub fn is_track_title_equal(&self) -> bool {
+        self.track_title.is_equality()
+    }
+
+    /// Returns `true` if the track artist is equal on both tracks.
+    pub fn is_track_artist_equal(&self) -> bool {
+        self.track_artist
+            .as_ref()
+            .is_some_and(Distance::is_equality)
+    }
+
+    /// Returns `true` if the track number is equal on both tracks.
+    pub fn is_track_number_equal(&self) -> bool {
+        self.track_number
+            .as_ref()
+            .is_some_and(Distance::is_equality)
+    }
+
+    /// Returns `true` if the track length is equal on both tracks.
+    pub fn is_track_length_equal(&self) -> bool {
+        self.track_length
+            .as_ref()
+            .is_some_and(Distance::is_equality)
+    }
+
+    /// Returns `true` if the MusicBrainz Recording ID is equal on both tracks.
+    pub fn is_musicbrainz_recording_id_equal(&self) -> bool {
+        self.musicbrainz_recording_id
+            .as_ref()
+            .is_some_and(Distance::is_equality)
+    }
+
     /// Returns the overall distance of the two tracks.
     pub fn total_distance(&self) -> Distance {
         [

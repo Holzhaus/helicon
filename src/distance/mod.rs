@@ -32,6 +32,11 @@ pub struct Distance {
 }
 
 impl Distance {
+    /// Return `true` if the distance is zero.
+    pub fn is_equality(&self) -> bool {
+        self.base_distance == 0.0
+    }
+
     /// Assigns a weight to the distance.
     pub fn with_weight(mut self, weight: f64) -> Self {
         debug_assert!(weight.is_finite());

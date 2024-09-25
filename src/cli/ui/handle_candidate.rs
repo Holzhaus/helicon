@@ -114,8 +114,7 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
         println!("{}", disc_title.underlined());
 
         for rhs_track in media.media_tracks() {
-            let Some((lhs_track_index, _track_similarity)) =
-                matched_track_map.get(&rhs_track_index)
+            let Some((lhs_track_index, track_similarity)) = matched_track_map.get(&rhs_track_index)
             else {
                 rhs_track_index += 1;
                 continue;
@@ -124,6 +123,27 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
             let Some(lhs_track) = &base_release.release_tracks().nth(*lhs_track_index) else {
                 rhs_track_index += 1;
                 continue;
+            };
+
+            let changes = [
+                (!track_similarity.is_track_title_equal()).then_some("title"),
+                (!track_similarity.is_track_artist_equal()).then_some("artist"),
+                (!track_similarity.is_track_number_equal()).then_some("number"),
+                (!track_similarity.is_musicbrainz_recording_id_equal()).then_some("id"),
+            ]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+            .join(", ");
+            let rhs_suffix = if changes.is_empty() {
+                StyledContentList::default()
+            } else {
+                StyledContentList::from(
+                    ContentStyle::new()
+                        .yellow()
+                        .bold()
+                        .apply(Cow::from(format!(" ({changes})"))),
+                )
             };
 
             let lhs_track_title = lhs_track
@@ -166,7 +186,8 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
             .with_prefix(StyledContentList::new(vec![
                 rhs_track_number,
                 util::convert_styled_content(". ".grey()),
-            ]));
+            ]))
+            .with_suffix(rhs_suffix);
 
             util::print_column_layout(lhs, rhs, " * ", " -> ", max_length);
 

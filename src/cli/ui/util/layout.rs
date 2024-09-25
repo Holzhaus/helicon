@@ -39,7 +39,6 @@ impl<'a> LayoutItem<'a> {
     }
 
     /// Set this item's suffix.
-    #[expect(dead_code)]
     pub fn with_suffix(mut self, value: StyledContentList<'a>) -> Self {
         self.suffix = value;
         self
