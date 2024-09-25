@@ -46,7 +46,7 @@ fn usize_to_f64(value: usize) -> Option<f64> {
 }
 
 /// The source of the unmatched tracks.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum UnmatchedTracksSource {
     /// The unmatched tracks belong to the left iterator of track items.
     Left,
@@ -56,14 +56,13 @@ pub enum UnmatchedTracksSource {
 
 /// A pair of tracks that are part of a [`TrackAssignment`].
 #[derive(Debug, Clone)]
-#[expect(dead_code)]
 pub struct TrackMatchPair {
     /// The index of the left track.
-    lhs: usize,
+    pub lhs: usize,
     /// The index of the right track.
-    rhs: usize,
+    pub rhs: usize,
     /// The similarity of the two tracks.
-    similarity: TrackSimilarity,
+    pub similarity: TrackSimilarity,
 }
 
 /// Represents a potential assignment between to collections of tracks.
@@ -227,6 +226,22 @@ impl TrackAssignment {
             matched_tracks_distance,
         }
     }
+
+    /// Returns an iterator over [`TrackMatchPair`] items.
+    pub fn matched_tracks(&self) -> impl Iterator<Item = &TrackMatchPair> {
+        self.matched_tracks.iter()
+    }
+
+    /// Returns a slice of unmatched track indices. The indices either belong to the left or right
+    /// hand side release, depending on the output of UnmatchedTracksSource.
+    pub fn unmatched_tracks(&self) -> &[usize] {
+        &self.unmatched_tracks
+    }
+
+    /// Indicates if the unmatched tracks belong to the left or right hand side release.
+    pub fn unmatched_tracks_source(&self) -> UnmatchedTracksSource {
+        self.unmatched_tracks_source
+    }
 }
 
 /// Result of a comparison between two releases that represents how similar they are to each other.
@@ -372,6 +387,11 @@ impl ReleaseSimilarity {
         .into_iter()
         .flatten()
         .sum()
+    }
+
+    /// Get a reference to the [`TrackAssignment`] struct.
+    pub fn track_assignment(&self) -> &TrackAssignment {
+        &self.track_assignment
     }
 }
 

@@ -140,6 +140,11 @@ impl TaggedFileCollection {
 }
 
 impl MediaLike for TaggedFileCollection {
+    fn media_title(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(TagKey::DiscSubtitle)
+            .map(Cow::from)
+    }
+
     fn media_format(&self) -> Option<Cow<'_, str>> {
         self.find_consensual_tag_value(TagKey::Media).map(Cow::from)
     }

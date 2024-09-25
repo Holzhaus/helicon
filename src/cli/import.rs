@@ -108,7 +108,7 @@ pub async fn run(config: &Config, cache: Option<&impl Cache>, args: Args) -> cra
                 };
             };
 
-            match ui::handle_candidate(selected_candidate)? {
+            match ui::handle_candidate(&track_collection, selected_candidate)? {
                 ui::HandleCandidateResult::Apply => todo!(),
                 ui::HandleCandidateResult::Skip => {
                     log::warn!("Skipping collection");

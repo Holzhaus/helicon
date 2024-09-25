@@ -14,6 +14,9 @@ use std::borrow::Cow;
 
 /// Represent a generic release, independent of the underlying source.
 pub trait MediaLike {
+    /// Media title.
+    fn media_title(&self) -> Option<Cow<'_, str>>;
+
     /// Media format.
     fn media_format(&self) -> Option<Cow<'_, str>>;
 
@@ -25,6 +28,10 @@ pub trait MediaLike {
 }
 
 impl MediaLike for MusicBrainzReleaseMedia {
+    fn media_title(&self) -> Option<Cow<'_, str>> {
+        self.title.as_ref().map(Cow::from)
+    }
+
     fn media_format(&self) -> Option<Cow<'_, str>> {
         self.format.as_ref().map(Cow::from)
     }

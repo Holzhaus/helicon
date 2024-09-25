@@ -18,7 +18,7 @@ mod string;
 mod time;
 mod track;
 
-pub use release::ReleaseSimilarity;
+pub use release::{ReleaseSimilarity, UnmatchedTracksSource};
 pub use track::TrackSimilarity;
 
 /// A distance in the range (0.0, 1.0) between two items.

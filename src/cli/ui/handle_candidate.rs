@@ -9,10 +9,14 @@
 //! Show candidate details and select next action.
 
 use super::util;
+use crate::distance::{TrackSimilarity, UnmatchedTracksSource};
+use crate::media::MediaLike;
 use crate::release::ReleaseLike;
 use crate::release_candidate::ReleaseCandidate;
+use crate::track::TrackLike;
 use crossterm::{style::Stylize, terminal};
 use inquire::{InquireError, Select};
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 /// The result of a `handle_candidate` all.
@@ -37,8 +41,9 @@ impl fmt::Display for HandleCandidateResult {
 }
 
 /// Display details about the candidate.
-pub fn handle_candidate<T: ReleaseLike>(
-    candidate: &ReleaseCandidate<T>,
+pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
+    base_release: &B,
+    candidate: &ReleaseCandidate<C>,
 ) -> Result<HandleCandidateResult, InquireError> {
     let distance_color = util::distance_color(&candidate.distance());
 
@@ -86,6 +91,78 @@ pub fn handle_candidate<T: ReleaseLike>(
         println!("{}", mb_url.grey());
     }
 
+    // Show the tracklist of matched and unmatched tracks.
+    //
+    // First, show the matched tracks.
+    let track_assignment = candidate.similarity().track_assignment();
+    let matched_track_map = track_assignment
+        .matched_tracks()
+        .map(|pair| (pair.rhs, (pair.lhs, &pair.similarity)))
+        .collect::<HashMap<usize, (usize, &TrackSimilarity)>>();
+    let mut rhs_track_index: usize = 0;
+    for (media_index, media) in release.media().enumerate() {
+        let format = media.media_format().unwrap_or_else(|| "Medium".into());
+        let disc_title = if let Some(title) = media.media_title() {
+            format!("{format} {index}: {title}", index = media_index + 1)
+        } else {
+            format!("{format} {index}", index = media_index + 1)
+        };
+        println!("{}", disc_title.underlined());
+
+        for rhs_track in media.media_tracks() {
+            let Some((_lhs_track_index, _track_similarity)) =
+                matched_track_map.get(&rhs_track_index)
+            else {
+                rhs_track_index += 1;
+                continue;
+            };
+
+            let track_number = rhs_track.track_number().unwrap_or_else(|| "".into());
+            let track_title = rhs_track.track_title().unwrap_or_else(|| "".into());
+
+            println!(
+                "  * {track_number}{track_number_suffix}{track_title}",
+                track_number = track_number.grey(),
+                track_number_suffix = if track_number.is_empty() {
+                    "".grey()
+                } else {
+                    ". ".grey()
+                },
+            );
+
+            rhs_track_index += 1;
+        }
+    }
+
+    // Second, show the unmatched ones.
+    let unmatched_track_indices = track_assignment
+        .unmatched_tracks()
+        .iter()
+        .copied()
+        .collect::<HashSet<usize>>();
+    if !unmatched_track_indices.is_empty() {
+        match track_assignment.unmatched_tracks_source() {
+            UnmatchedTracksSource::Left => {
+                let title = format!(
+                    "Residual Tracks ({unmatched_count}/{total_count}):",
+                    unmatched_count = unmatched_track_indices.len(),
+                    total_count = "??"
+                );
+                println!("{}", title.yellow().underlined());
+                print_unmatched_tracks(base_release, &unmatched_track_indices);
+            }
+            UnmatchedTracksSource::Right => {
+                let title = format!(
+                    "Missing Tracks ({unmatched_count}/{total_count}):",
+                    unmatched_count = unmatched_track_indices.len(),
+                    total_count = rhs_track_index
+                );
+                println!("{}", title.yellow().underlined());
+                print_unmatched_tracks(release, &unmatched_track_indices);
+            }
+        }
+    }
+
     let options = vec![
         HandleCandidateResult::Apply,
         HandleCandidateResult::Skip,
@@ -96,5 +173,26 @@ pub fn handle_candidate<T: ReleaseLike>(
         Ok(option) => Ok(option),
         Err(InquireError::OperationCanceled) => Ok(HandleCandidateResult::BackToSelection),
         result => result,
+    }
+}
+
+/// Print a list of unmatched tracks.
+fn print_unmatched_tracks(release: &impl ReleaseLike, unmatched_track_indices: &HashSet<usize>) {
+    for (i, track) in release
+        .release_tracks()
+        .enumerate()
+        .filter(|(i, _)| unmatched_track_indices.contains(i))
+    {
+        let track_number = track
+            .track_number()
+            .unwrap_or_else(|| format!("#{index}", index = i + 1).into());
+        let track_title = track.track_title().unwrap_or_else(|| "".into());
+
+        println!(
+            "  ! {track_number}{track_number_suffix}{track_title}",
+            track_number = track_number.grey(),
+            track_number_suffix = if track_number.is_empty() { "" } else { ". " }.grey(),
+            track_title = track_title.yellow(),
+        );
     }
 }
