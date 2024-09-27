@@ -8,10 +8,13 @@
 
 //! Module for the `config` CLI subcommand.
 
-use crate::Cache;
+use crate::cache::Cache;
 use crate::Config;
 use clap::Parser;
-use std::io;
+use musicbrainz_rs_nova::entity::{
+    release::Release as MusicBrainzRelease, release_group::ReleaseGroup as MusicBrainzReleaseGroup,
+    search::SearchResult as MusicBrainzSearchResult,
+};
 
 /// Command line arguments for the `config` CLI command.
 #[derive(Parser, Debug)]
@@ -19,26 +22,19 @@ pub struct Args;
 
 /// Run the `cache` command.
 #[expect(clippy::needless_pass_by_value)]
-pub fn run(_config: &Config, cache: Option<&impl Cache>, _args: Args) -> crate::Result<()> {
+pub fn run(_config: &Config, cache: Option<&Cache>, _args: Args) -> crate::Result<()> {
     let Some(cache) = cache else {
         return Err(crate::Error::CacheNotAvailable);
     };
 
-    let files = cache.cached_releases();
-    let file_count = files.len();
-    let file_size = files
-        .iter()
-        .map(|file| file.metadata().map(|metadata| metadata.len()))
-        .sum::<io::Result<u64>>()?;
-    println!("Releases: {file_count} ({file_size:?} bytes)");
+    let (count, size) = cache.get_stats::<_, MusicBrainzRelease>()?;
+    println!("Releases: {count} ({size:?} bytes)");
 
-    let files = cache.cached_release_search_results();
-    let file_count = files.len();
-    let file_size = files
-        .iter()
-        .map(|file| file.metadata().map(|metadata| metadata.len()))
-        .sum::<io::Result<u64>>()?;
-    println!("Release Search Results: {file_count} ({file_size:?} bytes)");
+    let (count, size) = cache.get_stats::<_, MusicBrainzReleaseGroup>()?;
+    println!("Release Groups: {count} ({size:?} bytes)");
+
+    let (count, size) = cache.get_stats::<_, MusicBrainzSearchResult<MusicBrainzRelease>>()?;
+    println!("Release Search Results: {count} ({size:?} bytes)");
 
     Ok(())
 }

@@ -20,6 +20,9 @@ pub enum ErrorType {
     /// Cache is not available.
     #[error("Cache is not available")]
     CacheNotAvailable,
+    /// Cache access failed.
+    #[error("Cache access failed")]
+    CacheAccessFailure(#[from] crate::cache::CacheError),
     /// I/O Error.
     #[error("Input/Output error ({:?})", .0)]
     Io(#[from] io::Error),

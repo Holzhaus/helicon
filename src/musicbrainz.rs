@@ -33,7 +33,7 @@ use std::collections::BinaryHeap;
 /// Find MusicBrainz Release information for the given (generic) Release.
 pub async fn find_releases(
     config: &Config,
-    cache: Option<&impl Cache>,
+    cache: Option<&Cache>,
     base_release: &impl ReleaseLike,
 ) -> crate::Result<Vec<ReleaseCandidate<MusicBrainzRelease>>> {
     if let Some(mb_id) = base_release.musicbrainz_release_id() {
@@ -83,7 +83,7 @@ pub async fn find_releases(
 
 /// Search for similar releases based on the metadata of an existing [`ReleaseLike`].
 async fn find_release_ids_by_similarity(
-    cache: Option<&impl Cache>,
+    cache: Option<&Cache>,
     base_release: &impl ReleaseLike,
     limit: u8,
     offset: u16,
@@ -109,7 +109,7 @@ async fn find_release_ids_by_similarity(
     }
 
     let search_query = query.build();
-    let response = if let Some(cached_response) = cache.and_then(|c| c.get_release_search_result(&search_query, limit, offset)
+    let response = if let Some(cached_response) = cache.and_then(|c| c.get_item((search_query.as_ref(), limit, offset))
             .inspect_err(|err| {
                 log::debug!("Failed to get release search result for query {search_query} (limit {limit}) from cache: {err}");
             })
@@ -127,7 +127,7 @@ async fn find_release_ids_by_similarity(
             search_query
         );
         if let Some(c) = cache {
-            match c.insert_release_search_result(&search_query, limit, offset, &response) {
+            match c.insert_item((search_query.as_ref(), limit, offset), &response) {
                 Ok(()) => {
                     log::debug!("Inserted release search {search_query:?} (limit: {limit}, offset: {offset}) into cache");
                 }
@@ -150,10 +150,10 @@ async fn find_release_ids_by_similarity(
 /// Fetch a MusicBrainz release group by its ID.
 async fn find_release_group_by_mb_id(
     id: String,
-    cache: Option<&impl Cache>,
+    cache: Option<&Cache>,
 ) -> crate::Result<MusicBrainzReleaseGroup> {
     if let Some(release_group) = cache.and_then(|c| {
-        c.get_release_group(&id)
+        c.get_item(id.as_ref())
             .inspect_err(|err| {
                 log::debug!("Failed to get release_group {id} from cache: {err}");
             })
@@ -170,7 +170,7 @@ async fn find_release_group_by_mb_id(
         .await
         .inspect(|release_group| {
             if let Some(c) = cache {
-                match c.insert_release_group(&id, release_group) {
+                match c.insert_item(id.as_ref(), release_group) {
                     Ok(()) => {
                         log::debug!("Inserted release group {id} into cache");
                     }
@@ -185,7 +185,7 @@ async fn find_release_group_by_mb_id(
 /// Find release IDs by MusicBrainz Release Group ID.
 async fn find_release_ids_by_release_group_id(
     release_group_id: String,
-    cache: Option<&impl Cache>,
+    cache: Option<&Cache>,
 ) -> crate::Result<Vec<String>> {
     let release_group = find_release_group_by_mb_id(release_group_id, cache).await?;
     let Some(releases) = release_group.releases else {
@@ -202,7 +202,7 @@ async fn find_release_ids_by_release_group_id(
 /// Find releases by MusicBrainz Release Group ID.
 pub async fn find_releases_by_release_group_id<'a>(
     config: &Config,
-    cache: Option<&'a impl Cache>,
+    cache: Option<&'a Cache>,
     release_group_id: String,
 ) -> crate::Result<impl Stream<Item = crate::Result<MusicBrainzRelease>> + 'a> {
     let release_ids = find_release_ids_by_release_group_id(release_group_id, cache).await?;
@@ -215,10 +215,10 @@ pub async fn find_releases_by_release_group_id<'a>(
 /// Fetch a MusicBrainz release by its release ID.
 pub async fn find_release_by_mb_id(
     id: String,
-    cache: Option<&impl Cache>,
+    cache: Option<&Cache>,
 ) -> crate::Result<MusicBrainzRelease> {
     if let Some(release) = cache.and_then(|c| {
-        c.get_release(&id)
+        c.get_item(id.as_ref())
             .inspect_err(|err| {
                 log::debug!("Failed to get release {id} from cache: {err}");
             })
@@ -245,7 +245,7 @@ pub async fn find_release_by_mb_id(
         .await
         .inspect(|release| {
             if let Some(c) = cache {
-                match c.insert_release(&id, release) {
+                match c.insert_item(id.as_ref(), release) {
                     Ok(()) => {
                         log::debug!("Inserted release {id} into cache");
                     }

@@ -13,7 +13,7 @@ mod config;
 mod import;
 mod ui;
 
-use crate::Config;
+use crate::{Cache, Config};
 use clap::{Parser, Subcommand};
 use env_logger::{Builder, WriteStyle};
 use log::LevelFilter;
@@ -74,7 +74,7 @@ impl Args {
 pub async fn main() -> crate::Result<()> {
     let args = Args::parse();
     let config = args.config()?;
-    let cache = BaseDirectories::with_prefix(env!("CARGO_PKG_NAME"))?;
+    let cache = Cache::new(BaseDirectories::with_prefix(env!("CARGO_PKG_NAME"))?);
 
     Builder::new()
         .filter(None, args.log_level_filter())

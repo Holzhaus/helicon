@@ -18,7 +18,7 @@ pub struct Args;
 /// Run the `config` command.
 #[expect(clippy::needless_pass_by_value)]
 #[expect(clippy::unnecessary_wraps)]
-pub fn run(config: &Config, _cache: Option<&impl Cache>, _args: Args) -> crate::Result<()> {
+pub fn run(config: &Config, _cache: Option<&Cache>, _args: Args) -> crate::Result<()> {
     let toml_string = toml::to_string_pretty(&config).expect("Failed to serialize configuration");
     println!("{toml_string}");
 
