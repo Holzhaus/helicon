@@ -58,7 +58,10 @@ impl Cache {
     ///
     /// Returns an error if a cache miss occurred or the cache file could not be read or the
     /// deserialization failed.
-    pub fn get_item<K, T: Cacheable<K> + DeserializeOwned>(&self, key: K) -> Result<T, CacheError> {
+    pub fn get_item<'a, T: Cacheable<'a> + DeserializeOwned>(
+        &self,
+        key: T::Key,
+    ) -> Result<T, CacheError> {
         let item_path = T::cache_path(key);
         let path = self
             .0
@@ -86,9 +89,9 @@ impl Cache {
     /// # Errors
     ///
     /// Returns an error if the cache file could not be written or the serialization failed.
-    pub fn insert_item<K, T: Cacheable<K> + Serialize>(
+    pub fn insert_item<'a, T: Cacheable<'a> + Serialize>(
         &self,
-        key: K,
+        key: T::Key,
         item: &T,
     ) -> Result<(), CacheError> {
         let item_path = T::cache_path(key);
@@ -103,7 +106,7 @@ impl Cache {
     /// # Errors
     ///
     /// Returns an error if the cache file metadata could not be read.
-    pub fn get_stats<K, T: Cacheable<K>>(&self) -> Result<(usize, u64), CacheError> {
+    pub fn get_stats<'a, T: Cacheable<'a>>(&self) -> Result<(usize, u64), CacheError> {
         let items = self.0.list_cache_files(T::CACHE_DIRECTORY);
         let item_count = items.len();
         let item_size = items
@@ -115,32 +118,41 @@ impl Cache {
 }
 
 /// Marks an item as cacheable.
-pub trait Cacheable<K> {
+pub trait Cacheable<'a> {
+    /// Type of the cache key.
+    type Key;
+
     /// Directory inside the cache where items of this type are stored.
     const CACHE_DIRECTORY: &'static str;
 
     /// The cache path for the given key.
-    fn cache_path(key: K) -> PathBuf;
+    fn cache_path(key: Self::Key) -> PathBuf;
 }
 
-impl Cacheable<&str> for MusicBrainzRelease {
+impl<'a> Cacheable<'a> for MusicBrainzRelease {
+    type Key = &'a str;
+
     const CACHE_DIRECTORY: &'static str = "musicbrainz/release";
 
-    fn cache_path(mb_id: &str) -> PathBuf {
+    fn cache_path(mb_id: Self::Key) -> PathBuf {
         Path::new(Self::CACHE_DIRECTORY).join(format!("{mb_id}.json"))
     }
 }
 
-impl Cacheable<&str> for MusicBrainzReleaseGroup {
+impl<'a> Cacheable<'a> for MusicBrainzReleaseGroup {
+    type Key = &'a str;
+
     const CACHE_DIRECTORY: &'static str = "musicbrainz/release-group";
 
-    fn cache_path(mb_id: &str) -> PathBuf {
+    fn cache_path(mb_id: Self::Key) -> PathBuf {
         Path::new(Self::CACHE_DIRECTORY).join(format!("{mb_id}.json"))
     }
 }
 
 // FIXME: This doesn't work due to <https://github.com/RustyNova016/musicbrainz_rs_nova/issues/33>.
-impl Cacheable<(&str, u8, u16)> for MusicBrainzReleaseSearchResult {
+impl<'a> Cacheable<'a> for MusicBrainzReleaseSearchResult {
+    type Key = (&'a str, u8, u16);
+
     const CACHE_DIRECTORY: &'static str = "musicbrainz/release-search";
 
     fn cache_path((query, limit, offset): (&str, u8, u16)) -> PathBuf {

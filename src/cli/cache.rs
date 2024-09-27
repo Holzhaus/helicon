@@ -27,13 +27,13 @@ pub fn run(_config: &Config, cache: Option<&Cache>, _args: Args) -> crate::Resul
         return Err(crate::Error::CacheNotAvailable);
     };
 
-    let (count, size) = cache.get_stats::<_, MusicBrainzRelease>()?;
+    let (count, size) = cache.get_stats::<MusicBrainzRelease>()?;
     println!("Releases: {count} ({size:?} bytes)");
 
-    let (count, size) = cache.get_stats::<_, MusicBrainzReleaseGroup>()?;
+    let (count, size) = cache.get_stats::<MusicBrainzReleaseGroup>()?;
     println!("Release Groups: {count} ({size:?} bytes)");
 
-    let (count, size) = cache.get_stats::<_, MusicBrainzSearchResult<MusicBrainzRelease>>()?;
+    let (count, size) = cache.get_stats::<MusicBrainzSearchResult<MusicBrainzRelease>>()?;
     println!("Release Search Results: {count} ({size:?} bytes)");
 
     Ok(())
