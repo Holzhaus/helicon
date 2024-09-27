@@ -57,21 +57,17 @@ impl<'a> MusicBrainzClient<'a> {
             return Ok(vec![candidate]);
         }
 
-        debug_assert_ne!(
-            self.config.lookup.release_candidate_limit, None,
-            "release_candidate_limit not configured!"
-        );
         let similar_release_ids = self
             .find_release_ids_by_similarity(
                 base_release,
-                self.config.lookup.release_candidate_limit.unwrap_or(25),
+                self.config.lookup.release_candidate_limit,
                 0,
             )
             .await?;
         let heap = BinaryHeap::with_capacity(similar_release_ids.len());
         let heap = stream::iter(similar_release_ids)
             .map(|release_id| self.find_release_by_id(release_id))
-            .buffer_unordered(self.config.lookup.connection_limit.unwrap_or(1))
+            .buffer_unordered(self.config.lookup.connection_limit)
             .fold(heap, |mut heap, result| async {
                 let Ok(release) = result else {
                     return heap;
@@ -229,7 +225,7 @@ impl<'a> MusicBrainzClient<'a> {
             .await?;
         let release_stream = stream::iter(release_ids)
             .map(move |release_id| self.find_release_by_id(release_id))
-            .buffer_unordered(self.config.lookup.connection_limit.unwrap_or(1));
+            .buffer_unordered(self.config.lookup.connection_limit);
         Ok(release_stream)
     }
 

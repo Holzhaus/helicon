@@ -29,6 +29,7 @@ inquire = "0.7.5"
 crossterm = "0.28.1"
 regex = "1.10.6"
 similar = { version = "2.6.0", features = ["unicode"] }
+config = { version = "0.14.0", default-features = false, features = ["toml"] }
 
 [dev-dependencies]
 float_eq = "1"

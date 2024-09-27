@@ -296,66 +296,38 @@ impl ReleaseSimilarity {
 
         let release_title_distance =
             Distance::between_options_or_minmax(lhs.release_title(), rhs.release_title())
-                .with_weight(
-                    weights
-                        .release_title
-                        .expect("undefined release_title weight"),
-                );
+                .with_weight(weights.release_title);
         let release_artist_distance = lhs
             .release_artist()
             .zip(rhs.release_artist())
             .map(Distance::between_tuple_items)
-            .map(|distance| {
-                distance.with_weight(
-                    weights
-                        .release_artist
-                        .expect("undefined release_artist weight"),
-                )
-            });
+            .map(|distance| distance.with_weight(weights.release_artist));
         let musicbrainz_release_id_distance = lhs
             .musicbrainz_release_id()
             .zip(rhs.musicbrainz_release_id())
             .map(|(a, b)| string::is_nonempty_and_equal_trimmed(a, b))
             .map(Distance::from)
-            .map(|distance| {
-                distance.with_weight(
-                    weights
-                        .musicbrainz_release_id
-                        .expect("undefined musicbrainz_release_id weight"),
-                )
-            });
+            .map(|distance| distance.with_weight(weights.musicbrainz_release_id));
         let media_format_distance = lhs
             .release_media_format()
             .zip(rhs.release_media_format())
             .map(Distance::between_tuple_items)
-            .map(|distance| {
-                distance.with_weight(weights.media_format.expect("undefined media_format weight"))
-            });
+            .map(|distance| distance.with_weight(weights.media_format));
         let record_label_distance = lhs
             .record_label()
             .zip(rhs.record_label())
             .map(Distance::between_tuple_items)
-            .map(|distance| {
-                distance.with_weight(weights.record_label.expect("undefined record_label weight"))
-            });
+            .map(|distance| distance.with_weight(weights.record_label));
         let catalog_number_distance = lhs
             .catalog_number()
             .zip(rhs.catalog_number())
             .map(Distance::between_tuple_items)
-            .map(|distance| {
-                distance.with_weight(
-                    weights
-                        .catalog_number
-                        .expect("undefined catalog_number weight"),
-                )
-            });
+            .map(|distance| distance.with_weight(weights.catalog_number));
         let barcode_distance = lhs
             .barcode()
             .zip(rhs.barcode())
             .map(Distance::between_tuple_items)
-            .map(|distance| {
-                distance.with_weight(weights.barcode.expect("undefined barcode weight"))
-            });
+            .map(|distance| distance.with_weight(weights.barcode));
 
         let track_assignment =
             TrackAssignment::compute_from(config, lhs.release_tracks(), rhs.release_tracks());

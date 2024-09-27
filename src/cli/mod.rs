@@ -17,6 +17,7 @@ use crate::{Cache, Config};
 use clap::{Parser, Subcommand};
 use env_logger::{Builder, WriteStyle};
 use log::LevelFilter;
+use std::borrow::Cow;
 use std::path::PathBuf;
 use xdg::BaseDirectories;
 
@@ -55,14 +56,6 @@ impl Args {
             LevelFilter::Info
         }
     }
-
-    /// Get the current configuration.
-    fn config(&self) -> crate::Result<Config> {
-        match &self.config_path {
-            Some(path) => Config::load_from_path(path).map(|config| config.with_defaults()),
-            None => Ok(Config::default()),
-        }
-    }
 }
 
 /// Main entry point.
@@ -73,9 +66,27 @@ impl Args {
 /// an error.
 pub async fn main() -> crate::Result<()> {
     let args = Args::parse();
-    let config = args.config()?;
-    let cache = Cache::new(BaseDirectories::with_prefix(env!("CARGO_PKG_NAME"))?);
 
+    let base_dirs = BaseDirectories::with_prefix(env!("CARGO_PKG_NAME"))?;
+
+    // Load configuration
+    //
+    // FIXME: Remove this `allow` directive when
+    // https://github.com/rust-lang/rust-clippy/issues/10095 has been fixed.
+    #[allow(clippy::redundant_closure_for_method_calls)]
+    let config = base_dirs
+        .find_config_files("config.toml")
+        .map(Cow::from)
+        .chain(args.config_path.iter().map(Cow::from))
+        .fold(Config::builder().with_defaults(), |builder, path| {
+            builder.with_file(path)
+        })
+        .build()?;
+
+    // Initialize cache
+    let cache = Cache::new(base_dirs);
+
+    // Initialize logging
     Builder::new()
         .filter(None, args.log_level_filter())
         .write_style(WriteStyle::Auto)

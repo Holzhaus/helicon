@@ -84,40 +84,28 @@ impl TrackSimilarity {
         let weights = &config.weights.track;
 
         let track_title = Distance::between_options_or_minmax(lhs.track_title(), rhs.track_title())
-            .with_weight(weights.track_title.expect("undefined track_title weight"));
+            .with_weight(weights.track_title);
         let track_artist = lhs
             .track_artist()
             .zip(rhs.track_artist())
             .map(Distance::between_tuple_items)
-            .map(|distance| {
-                distance.with_weight(weights.track_artist.expect("undefined track_artist weight"))
-            });
+            .map(|distance| distance.with_weight(weights.track_artist));
         let track_number = lhs
             .track_number()
             .zip(rhs.track_number())
             .map(Distance::between_tuple_items)
-            .map(|distance| {
-                distance.with_weight(weights.track_number.expect("undefined track_number weight"))
-            });
+            .map(|distance| distance.with_weight(weights.track_number));
         let track_length = lhs
             .track_length()
             .zip(rhs.track_length())
             .map(Distance::between_tuple_items)
-            .map(|distance| {
-                distance.with_weight(weights.track_length.expect("undefined track_length weight"))
-            });
+            .map(|distance| distance.with_weight(weights.track_length));
         let musicbrainz_recording_id = lhs
             .musicbrainz_recording_id()
             .zip(rhs.musicbrainz_recording_id())
             .map(|(a, b)| string::is_nonempty_and_equal_trimmed(a, b))
             .map(Distance::from)
-            .map(|distance| {
-                distance.with_weight(
-                    weights
-                        .musicbrainz_recording_id
-                        .expect("undefined musicbrainz_recording_id weight"),
-                )
-            });
+            .map(|distance| distance.with_weight(weights.musicbrainz_recording_id));
 
         TrackSimilarity {
             track_title,
