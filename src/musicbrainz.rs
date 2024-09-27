@@ -30,231 +30,254 @@ use regex::Regex;
 use std::borrow::{Borrow, Cow};
 use std::collections::BinaryHeap;
 
-/// Find MusicBrainz Release information for the given (generic) Release.
-pub async fn find_releases(
-    config: &Config,
-    cache: Option<&Cache>,
-    base_release: &impl ReleaseLike,
-) -> crate::Result<Vec<ReleaseCandidate<MusicBrainzRelease>>> {
-    if let Some(mb_id) = base_release.musicbrainz_release_id() {
-        let release = find_release_by_mb_id(mb_id.into_owned(), cache).await?;
-        let candidate = ReleaseCandidate::new_with_base_release(release, base_release, config);
-        return Ok(vec![candidate]);
-    }
-
-    debug_assert_ne!(
-        config.lookup.release_candidate_limit, None,
-        "release_candidate_limit not configured!"
-    );
-    let max_candidate_count = config.lookup.release_candidate_limit.unwrap_or(25);
-    let similar_release_ids =
-        find_release_ids_by_similarity(cache, base_release, max_candidate_count, 0).await?;
-    let heap = BinaryHeap::with_capacity(similar_release_ids.len());
-    let heap = stream::iter(similar_release_ids)
-        .map(|mb_id| find_release_by_mb_id(mb_id, cache))
-        .buffer_unordered(config.lookup.connection_limit.unwrap_or(1))
-        .fold(heap, |mut heap, result| async {
-            let Ok(release) = result else {
-                return heap;
-            };
-
-            let candidate = ReleaseCandidate::new_with_base_release(release, base_release, config);
-            let candidate_distance = candidate.distance();
-
-            log::debug!(
-                "Release '{}' has distance to track collection: {}",
-                candidate.release().title,
-                candidate_distance.weighted_distance()
-            );
-            let item = DistanceItem::new(candidate, candidate_distance);
-            heap.push(item);
-            heap
-        })
-        .await;
-
-    let releases: Vec<ReleaseCandidate<MusicBrainzRelease>> = heap
-        .into_sorted_vec()
-        .into_iter()
-        .map(|dist_item: DistanceItem<ReleaseCandidate<MusicBrainzRelease>>| dist_item.item)
-        .collect();
-    log::info!("Found {} release candidates.", releases.len());
-    Ok(releases)
+/// Configurable MusicBrainz API client with caching support.
+#[derive(Debug)]
+pub struct MusicBrainzClient<'a> {
+    /// Configuration
+    config: &'a Config,
+    /// Cache
+    cache: Option<&'a Cache>,
 }
 
-/// Search for similar releases based on the metadata of an existing [`ReleaseLike`].
-async fn find_release_ids_by_similarity(
-    cache: Option<&Cache>,
-    base_release: &impl ReleaseLike,
-    limit: u8,
-    offset: u16,
-) -> crate::Result<Vec<String>> {
-    let mut query = MusicBrainzReleaseSearchQuery::query_builder();
-    let mut query = query.tracks(
-        &base_release
-            .release_track_count()
-            .map(|track_count| track_count.to_string())
-            .unwrap_or_default(),
-    );
-    if let Some(v) = base_release.release_artist() {
-        query = query.and().artist(v.borrow());
-    };
-    if let Some(v) = base_release.release_title() {
-        query = query.and().release(v.borrow());
-    };
-    if let Some(v) = base_release.catalog_number() {
-        query = query.and().catalog_number(v.borrow());
-    };
-    if let Some(v) = base_release.barcode() {
-        query = query.and().barcode(v.borrow());
+impl<'a> MusicBrainzClient<'a> {
+    /// Create a new MusicBrainz client.
+    pub fn new(config: &'a Config, cache: Option<&'a Cache>) -> Self {
+        Self { config, cache }
     }
 
-    let search_query = query.build();
-    let response = if let Some(cached_response) = cache.and_then(|c| c.get_item((search_query.as_ref(), limit, offset))
-            .inspect_err(|err| {
-                log::debug!("Failed to get release search result for query {search_query} (limit {limit}) from cache: {err}");
-            })
-            .ok()) {
-        cached_response
-    } else {
-        let response = MusicBrainzRelease::search(search_query.clone())
-            .limit(limit)
-            .offset(offset)
-            .execute()
-            .await?;
-        log::debug!(
-            "Found {} releases using query: {}",
-            response.entities.len(),
-            search_query
+    /// Find MusicBrainz Release information for the given (generic) Release.
+    pub async fn find_releases_by_similarity(
+        &self,
+        base_release: &impl ReleaseLike,
+    ) -> crate::Result<Vec<ReleaseCandidate<MusicBrainzRelease>>> {
+        if let Some(release_id) = base_release.musicbrainz_release_id() {
+            let release = self.find_release_by_id(release_id.into_owned()).await?;
+            let candidate =
+                ReleaseCandidate::new_with_base_release(release, base_release, self.config);
+            return Ok(vec![candidate]);
+        }
+
+        debug_assert_ne!(
+            self.config.lookup.release_candidate_limit, None,
+            "release_candidate_limit not configured!"
         );
-        if let Some(c) = cache {
-            match c.insert_item((search_query.as_ref(), limit, offset), &response) {
+        let similar_release_ids = self
+            .find_release_ids_by_similarity(
+                base_release,
+                self.config.lookup.release_candidate_limit.unwrap_or(25),
+                0,
+            )
+            .await?;
+        let heap = BinaryHeap::with_capacity(similar_release_ids.len());
+        let heap = stream::iter(similar_release_ids)
+            .map(|release_id| self.find_release_by_id(release_id))
+            .buffer_unordered(self.config.lookup.connection_limit.unwrap_or(1))
+            .fold(heap, |mut heap, result| async {
+                let Ok(release) = result else {
+                    return heap;
+                };
+
+                let candidate =
+                    ReleaseCandidate::new_with_base_release(release, base_release, self.config);
+                let candidate_distance = candidate.distance();
+
+                log::debug!(
+                    "Release '{}' has distance to track collection: {}",
+                    candidate.release().title,
+                    candidate_distance.weighted_distance()
+                );
+                let item = DistanceItem::new(candidate, candidate_distance);
+                heap.push(item);
+                heap
+            })
+            .await;
+
+        let releases: Vec<ReleaseCandidate<MusicBrainzRelease>> = heap
+            .into_sorted_vec()
+            .into_iter()
+            .map(|dist_item: DistanceItem<ReleaseCandidate<MusicBrainzRelease>>| dist_item.item)
+            .collect();
+        log::info!("Found {} release candidates.", releases.len());
+        Ok(releases)
+    }
+
+    /// Search for similar releases based on the metadata of an existing [`ReleaseLike`].
+    async fn find_release_ids_by_similarity(
+        &self,
+        base_release: &impl ReleaseLike,
+        limit: u8,
+        offset: u16,
+    ) -> crate::Result<Vec<String>> {
+        let mut query = MusicBrainzReleaseSearchQuery::query_builder();
+        let mut query = query.tracks(
+            &base_release
+                .release_track_count()
+                .map(|track_count| track_count.to_string())
+                .unwrap_or_default(),
+        );
+        if let Some(v) = base_release.release_artist() {
+            query = query.and().artist(v.borrow());
+        };
+        if let Some(v) = base_release.release_title() {
+            query = query.and().release(v.borrow());
+        };
+        if let Some(v) = base_release.catalog_number() {
+            query = query.and().catalog_number(v.borrow());
+        };
+        if let Some(v) = base_release.barcode() {
+            query = query.and().barcode(v.borrow());
+        }
+
+        let search_query = query.build();
+        let response = if let Some(cached_response) = self.cache.and_then(|cache| cache.get_item((search_query.as_ref(), limit, offset))
+                .inspect_err(|err| {
+                    log::debug!("Failed to get release search result for query {search_query} (limit {limit}) from cache: {err}");
+                })
+                .ok()) {
+            cached_response
+        } else {
+            let response = MusicBrainzRelease::search(search_query.clone())
+                .limit(limit)
+                .offset(offset)
+                .execute()
+                .await?;
+            log::debug!(
+                "Found {} releases using query: {}",
+                response.entities.len(),
+                search_query
+            );
+            if let Some(cache) = self.cache {
+                match cache.insert_item((search_query.as_ref(), limit, offset), &response) {
                 Ok(()) => {
                     log::debug!("Inserted release search {search_query:?} (limit: {limit}, offset: {offset}) into cache");
                 }
                 Err(err) => {
                     log::warn!("Failed to insert release search {search_query:?} (limit: {limit}, offset: {offset}) into cache: {err}");
                 }
+            }
             };
+            response
         };
-        response
-    };
 
-    let mb_ids = response
-        .entities
-        .into_iter()
-        .map(|release| release.id)
-        .collect();
-    Ok(mb_ids)
-}
-
-/// Fetch a MusicBrainz release group by its ID.
-async fn find_release_group_by_mb_id(
-    id: String,
-    cache: Option<&Cache>,
-) -> crate::Result<MusicBrainzReleaseGroup> {
-    if let Some(release_group) = cache.and_then(|c| {
-        c.get_item(id.as_ref())
-            .inspect_err(|err| {
-                log::debug!("Failed to get release_group {id} from cache: {err}");
-            })
-            .ok()
-    }) {
-        return Ok(release_group);
+        let ids = response
+            .entities
+            .into_iter()
+            .map(|release| release.id)
+            .collect();
+        Ok(ids)
     }
 
-    MusicBrainzReleaseGroup::fetch()
-        .id(&id)
-        .with_releases()
-        .execute()
-        .map_err(crate::Error::from)
-        .await
-        .inspect(|release_group| {
-            if let Some(c) = cache {
-                match c.insert_item(id.as_ref(), release_group) {
-                    Ok(()) => {
-                        log::debug!("Inserted release group {id} into cache");
-                    }
-                    Err(err) => {
-                        log::warn!("Failed to insert release group {id} into cache: {err}");
-                    }
-                };
-            };
-        })
-}
+    /// Fetch a MusicBrainz release group by its ID.
+    async fn find_release_group_by_id(
+        &self,
+        release_group_id: String,
+    ) -> crate::Result<MusicBrainzReleaseGroup> {
+        if let Some(release_group) = self.cache.and_then(|cache| {
+            cache
+                .get_item(release_group_id.as_ref())
+                .inspect_err(|err| {
+                    log::debug!("Failed to get release_group {release_group_id} from cache: {err}");
+                })
+                .ok()
+        }) {
+            return Ok(release_group);
+        }
 
-/// Find release IDs by MusicBrainz Release Group ID.
-async fn find_release_ids_by_release_group_id(
-    release_group_id: String,
-    cache: Option<&Cache>,
-) -> crate::Result<Vec<String>> {
-    let release_group = find_release_group_by_mb_id(release_group_id, cache).await?;
-    let Some(releases) = release_group.releases else {
-        log::warn!("Release group has no releases!");
-        return Err(crate::Error::MusicBrainzLookupFailed(
-            "Release Group has no releases.",
-        ));
-    };
-
-    let release_ids = releases.into_iter().map(|release| release.id).collect();
-    Ok(release_ids)
-}
-
-/// Find releases by MusicBrainz Release Group ID.
-pub async fn find_releases_by_release_group_id<'a>(
-    config: &Config,
-    cache: Option<&'a Cache>,
-    release_group_id: String,
-) -> crate::Result<impl Stream<Item = crate::Result<MusicBrainzRelease>> + 'a> {
-    let release_ids = find_release_ids_by_release_group_id(release_group_id, cache).await?;
-    let release_stream = stream::iter(release_ids)
-        .map(move |id| find_release_by_mb_id(id, cache))
-        .buffer_unordered(config.lookup.connection_limit.unwrap_or(1));
-    Ok(release_stream)
-}
-
-/// Fetch a MusicBrainz release by its release ID.
-pub async fn find_release_by_mb_id(
-    id: String,
-    cache: Option<&Cache>,
-) -> crate::Result<MusicBrainzRelease> {
-    if let Some(release) = cache.and_then(|c| {
-        c.get_item(id.as_ref())
-            .inspect_err(|err| {
-                log::debug!("Failed to get release {id} from cache: {err}");
+        MusicBrainzReleaseGroup::fetch()
+            .id(&release_group_id)
+            .with_releases()
+            .execute()
+            .map_err(crate::Error::from)
+            .await
+            .inspect(|release_group| {
+                if let Some(cache) = self.cache {
+                    match cache.insert_item(release_group_id.as_ref(), release_group) {
+                        Ok(()) => {
+                            log::debug!("Inserted release group {release_group_id} into cache");
+                        }
+                        Err(err) => {
+                            log::warn!("Failed to insert release group {release_group_id} into cache: {err}");
+                        }
+                    }};
             })
-            .ok()
-    }) {
-        return Ok(release);
     }
 
-    MusicBrainzRelease::fetch()
-        .id(&id)
-        .with_artists()
-        .with_recordings()
-        .with_release_groups()
-        .with_labels()
-        .with_artist_credits()
-        .with_aliases()
-        .with_recording_level_relations()
-        .with_work_relations()
-        .with_work_level_relations()
-        .with_artist_relations()
-        .with_url_relations()
-        .execute()
-        .map_err(crate::Error::from)
-        .await
-        .inspect(|release| {
-            if let Some(c) = cache {
-                match c.insert_item(id.as_ref(), release) {
-                    Ok(()) => {
-                        log::debug!("Inserted release {id} into cache");
-                    }
-                    Err(err) => {
-                        log::warn!("Failed to insert release {id} into cache: {err}");
+    /// Find release IDs by MusicBrainz Release Group ID.
+    async fn find_release_ids_by_release_group_id(
+        &self,
+        release_group_id: String,
+    ) -> crate::Result<Vec<String>> {
+        let release_group = self.find_release_group_by_id(release_group_id).await?;
+        let Some(releases) = release_group.releases else {
+            log::warn!("Release group has no releases!");
+            return Err(crate::Error::MusicBrainzLookupFailed(
+                "Release Group has no releases.",
+            ));
+        };
+
+        let release_ids = releases.into_iter().map(|release| release.id).collect();
+        Ok(release_ids)
+    }
+
+    /// Find releases by MusicBrainz Release Group ID.
+    pub async fn find_releases_by_release_group_id(
+        &self,
+        release_group_id: String,
+    ) -> crate::Result<impl Stream<Item = crate::Result<MusicBrainzRelease>> + '_> {
+        let release_ids = self
+            .find_release_ids_by_release_group_id(release_group_id)
+            .await?;
+        let release_stream = stream::iter(release_ids)
+            .map(move |release_id| self.find_release_by_id(release_id))
+            .buffer_unordered(self.config.lookup.connection_limit.unwrap_or(1));
+        Ok(release_stream)
+    }
+
+    /// Fetch a MusicBrainz release by its release ID.
+    pub async fn find_release_by_id(
+        &self,
+        release_id: String,
+    ) -> crate::Result<MusicBrainzRelease> {
+        if let Some(release) = self.cache.and_then(|cache| {
+            cache
+                .get_item(release_id.as_ref())
+                .inspect_err(|err| {
+                    log::debug!("Failed to get release {release_id} from cache: {err}");
+                })
+                .ok()
+        }) {
+            return Ok(release);
+        }
+
+        MusicBrainzRelease::fetch()
+            .id(&release_id)
+            .with_artists()
+            .with_recordings()
+            .with_release_groups()
+            .with_labels()
+            .with_artist_credits()
+            .with_aliases()
+            .with_recording_level_relations()
+            .with_work_relations()
+            .with_work_level_relations()
+            .with_artist_relations()
+            .with_url_relations()
+            .execute()
+            .map_err(crate::Error::from)
+            .await
+            .inspect(|release| {
+                if let Some(cache) = self.cache {
+                    match cache.insert_item(release_id.as_ref(), release) {
+                        Ok(()) => {
+                            log::debug!("Inserted release {release_id} into cache");
+                        }
+                        Err(err) => {
+                            log::warn!("Failed to insert release {release_id} into cache: {err}");
+                        }
                     }
                 };
-            };
-        })
+            })
+    }
 }
 
 /// A MusicBrainz Identifier.

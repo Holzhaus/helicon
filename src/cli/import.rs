@@ -9,7 +9,7 @@
 //! Functions related to importing files.
 
 use super::ui;
-use crate::musicbrainz;
+use crate::musicbrainz::MusicBrainzClient;
 use crate::release_candidate::{ReleaseCandidate, ReleaseCandidateCollection};
 use crate::util::walk_dir;
 use crate::Cache;
@@ -33,6 +33,8 @@ pub struct Args {
 /// If the underlying [`walk_dir`] function encounters any form of I/O or other error, an error
 /// variant will be returned.
 pub async fn run(config: &Config, cache: Option<&Cache>, args: Args) -> crate::Result<()> {
+    let musicbrainz = MusicBrainzClient::new(config, cache);
+
     let input_path = args.path;
 
     let supported_extensions = HashSet::from(["mp3", "flac"]);
@@ -71,7 +73,9 @@ pub async fn run(config: &Config, cache: Option<&Cache>, args: Args) -> crate::R
         let track_collection = TaggedFileCollection::new(tagged_files);
 
         let mut candidates = ReleaseCandidateCollection::new(
-            musicbrainz::find_releases(config, cache, &track_collection).await?,
+            musicbrainz
+                .find_releases_by_similarity(&track_collection)
+                .await?,
         );
         let mut allow_autoselection = candidates.len() == 1;
         'select_candidate: loop {
@@ -80,27 +84,29 @@ pub async fn run(config: &Config, cache: Option<&Cache>, args: Args) -> crate::R
                     Ok(ui::ReleaseCandidateSelectionResult::Candidate(candidate)) => {
                         break candidate
                     }
-                    Ok(ui::ReleaseCandidateSelectionResult::FetchCandidateRelease(mb_id)) => {
-                        let release = musicbrainz::find_release_by_mb_id(mb_id, cache).await?;
+                    Ok(ui::ReleaseCandidateSelectionResult::FetchCandidateRelease(release_id)) => {
+                        let release = musicbrainz.find_release_by_id(release_id).await?;
                         candidates.add_release(release, &track_collection, config);
                     }
-                    Ok(ui::ReleaseCandidateSelectionResult::FetchCandidateReleaseGroup(mb_id)) => {
-                        candidates =
-                            musicbrainz::find_releases_by_release_group_id(config, cache, mb_id)
-                                .await?
-                                .fold(candidates, |mut acc, result| async {
-                                    let release = match result {
-                                        Ok(release) => release,
-                                        Err(err) => {
-                                            log::warn!("Failed to retrieve release: {err}");
-                                            return acc;
-                                        }
-                                    };
+                    Ok(ui::ReleaseCandidateSelectionResult::FetchCandidateReleaseGroup(
+                        release_group_id,
+                    )) => {
+                        candidates = musicbrainz
+                            .find_releases_by_release_group_id(release_group_id)
+                            .await?
+                            .fold(candidates, |mut acc, result| async {
+                                let release = match result {
+                                    Ok(release) => release,
+                                    Err(err) => {
+                                        log::warn!("Failed to retrieve release: {err}");
+                                        return acc;
+                                    }
+                                };
 
-                                    acc.add_release(release, &track_collection, config);
-                                    acc
-                                })
-                                .await;
+                                acc.add_release(release, &track_collection, config);
+                                acc
+                            })
+                            .await;
                     }
                     Err(err) => {
                         log::warn!("Selection failed: {err}");
