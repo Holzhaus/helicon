@@ -232,12 +232,16 @@ pub enum TagKey {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TagType {
     /// ID3v2.2 tag
+    #[cfg(feature = "id3")]
     ID3v22,
     /// ID3v2.3 tag
+    #[cfg(feature = "id3")]
     ID3v23,
     /// ID3v2.3 tag
+    #[cfg(feature = "id3")]
     ID3v24,
     /// Vorbis tag from a FLAC file
+    #[cfg(feature = "flac")]
     Flac,
 }
 
