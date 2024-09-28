@@ -202,9 +202,30 @@ impl TextStyleConfig {
 
 /// Configuration for the user interface.
 #[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct StringDiffStyleConfig {
+    /// Style for values that are present when the other one is missing.
+    pub present: TextStyleConfig,
+    /// Style for values that are missing when the other one is present.
+    pub missing: TextStyleConfig,
+    /// Style for text that is equal in both values.
+    pub equal: TextStyleConfig,
+    /// Style for text that is deleted from the old value.
+    pub delete: TextStyleConfig,
+    /// Style for text that is inserted into the new value.
+    pub insert: TextStyleConfig,
+    /// Style for text that is replaced in the old value.
+    pub replace_old: TextStyleConfig,
+    /// Style for text that is replaced in the new value.
+    pub replace_new: TextStyleConfig,
+}
+
+/// Configuration for the user interface.
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CandidateDetails {
     /// Style for the selection
     pub action_style: TextStyleConfig,
+    /// Styles for string diffs.
+    pub string_diff_style: StringDiffStyleConfig,
 }
 
 /// Configuration for the user interface.

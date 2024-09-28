@@ -24,3 +24,12 @@ default_terminal_width = 80
 
 [user_interface.candidate_details]
 action_style = { foreground_color = "blue" }
+
+[user_interface.candidate_details.string_diff_style]
+present_style = {}
+missing_style = { foreground_color = "grey", attributes = ["italic"] }
+equal_style = {}
+delete_style = { foreground_color = "red", attributes = ["bold"] }
+insert_style = { foreground_color = "green", attributes = ["bold"] }
+replace_old_style = { foreground_color = "yellow", attributes = ["bold"] }
+replace_new_style = { foreground_color = "yellow", attributes = ["bold"] }

@@ -183,6 +183,7 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
                 lhs_track.track_title(),
                 rhs_track.track_title(),
                 "<unknown title>",
+                &config.user_interface.candidate_details.string_diff_style,
             );
 
             let lhs_track_number = util::convert_styled_content(StyledContent::new(
@@ -217,6 +218,7 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
                     lhs_track.track_artist(),
                     rhs_track.track_artist(),
                     "<unknown artist>",
+                    &config.user_interface.candidate_details.string_diff_style,
                 );
                 let lhs = LayoutItem::new(lhs_track_artist);
                 let rhs = LayoutItem::new(rhs_track_artist).with_suffix(StyledContentList::from(
@@ -230,6 +232,7 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
                     lhs_track.musicbrainz_recording_id(),
                     rhs_track.musicbrainz_recording_id(),
                     "<unknown id>",
+                    &config.user_interface.candidate_details.string_diff_style,
                 );
                 let lhs = LayoutItem::new(lhs_mb_rec_id);
                 let rhs = LayoutItem::new(rhs_mb_rec_id).with_suffix(StyledContentList::from(
