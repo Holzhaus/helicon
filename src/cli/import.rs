@@ -26,6 +26,41 @@ pub struct Args {
     path: PathBuf,
 }
 
+/// Find track collections in the given path.
+fn find_track_collections(input_path: PathBuf) -> impl Iterator<Item = TaggedFileCollection> {
+    let supported_extensions = HashSet::from(["mp3", "flac"]);
+    walk_dir(input_path)
+        .filter_map(Result::ok)
+        .filter_map(move |(path, _dirs, files)| {
+            let tagged_files: Vec<TaggedFile> = files
+                .iter()
+                .filter(|path| {
+                    path.extension()
+                        .map(std::ffi::OsStr::to_ascii_lowercase)
+                        .and_then(|extension| {
+                            extension
+                                .to_str()
+                                .map(|extension| supported_extensions.contains(extension))
+                        })
+                        .unwrap_or(false)
+                })
+                .filter_map(|path| match TaggedFile::read_from_path(path) {
+                    Ok(file) => Some(file),
+                    Err(err) => {
+                        log::warn!("Failed to read {}: {}", path.display(), err);
+                        None
+                    }
+                })
+                .collect();
+            if tagged_files.is_empty() {
+                return None;
+            }
+
+            log::info!("Found {} tracks in {}", tagged_files.len(), path.display(),);
+            Some(TaggedFileCollection::new(tagged_files))
+        })
+}
+
 /// Run an import.
 ///
 /// # Errors
@@ -37,41 +72,7 @@ pub async fn run(config: &Config, cache: Option<&Cache>, args: Args) -> crate::R
 
     let input_path = args.path;
 
-    let supported_extensions = HashSet::from(["mp3", "flac"]);
-    'handle_next_collection: for item in walk_dir(input_path) {
-        let (path, _dirs, files) = item?;
-        let tagged_files: Vec<TaggedFile> = files
-            .iter()
-            .filter(|path| {
-                path.extension()
-                    .map(std::ffi::OsStr::to_ascii_lowercase)
-                    .and_then(|extension| {
-                        extension
-                            .to_str()
-                            .map(|extension| supported_extensions.contains(extension))
-                    })
-                    .unwrap_or(false)
-            })
-            .filter_map(|path| match TaggedFile::read_from_path(path) {
-                Ok(file) => Some(file),
-                Err(err) => {
-                    log::warn!("Failed to read {}: {}", path.display(), err);
-                    None
-                }
-            })
-            .collect();
-        if tagged_files.is_empty() {
-            continue;
-        }
-
-        log::info!(
-            "Tagging: {} ({} tracks)",
-            path.display(),
-            tagged_files.len()
-        );
-
-        let track_collection = TaggedFileCollection::new(tagged_files);
-
+    'handle_next_collection: for track_collection in find_track_collections(input_path) {
         let mut candidates = ReleaseCandidateCollection::new(
             musicbrainz
                 .find_releases_by_similarity(&track_collection)
