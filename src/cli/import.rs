@@ -9,7 +9,7 @@
 //! Functions related to importing files.
 
 use super::ui;
-use crate::musicbrainz::MusicBrainzClient;
+use crate::musicbrainz::{MusicBrainzClient, MusicBrainzRelease};
 use crate::release::ReleaseLike;
 use crate::release_candidate::{ReleaseCandidate, ReleaseCandidateCollection};
 use crate::util::walk_dir;
@@ -62,6 +62,89 @@ fn find_track_collections(input_path: PathBuf) -> impl Iterator<Item = TaggedFil
         })
 }
 
+/// Result returned from the [`select_release()`] function.
+enum SelectionResult {
+    /// A candidate was selected and should be assigned to the track collection.
+    Selected(TaggedFileCollection, ReleaseCandidate<MusicBrainzRelease>),
+    /// Skip importing the track collection.
+    Skipped,
+    /// Quit import.
+    Quit,
+}
+
+/// Select the release for the given track collection from the list of candidates.
+async fn select_release<'a>(
+    config: &Config,
+    musicbrainz: &'a MusicBrainzClient<'a>,
+    track_collection: TaggedFileCollection,
+    mut candidates: ReleaseCandidateCollection<MusicBrainzRelease>,
+) -> crate::Result<SelectionResult> {
+    println!(
+        "Tagging: {artist} - {title} ({track_count} tracks)",
+        artist = track_collection
+            .release_artist()
+            .unwrap_or("[unknown artist]".into()),
+        title = track_collection
+            .release_title()
+            .unwrap_or("[unknown title]".into()),
+        track_count = track_collection.release_track_count().unwrap_or(0),
+    );
+    let mut allow_autoselection = candidates.len() == 1;
+    'select_candidate: loop {
+        let selected_candidate: &ReleaseCandidate<_> = loop {
+            match ui::select_candidate(config, &candidates, allow_autoselection)? {
+                ui::ReleaseCandidateSelectionResult::Candidate(candidate) => break candidate,
+                ui::ReleaseCandidateSelectionResult::FetchCandidateRelease(release_id) => {
+                    let release = musicbrainz.find_release_by_id(release_id).await?;
+                    candidates.add_release(release, &track_collection, config);
+                }
+                ui::ReleaseCandidateSelectionResult::FetchCandidateReleaseGroup(
+                    release_group_id,
+                ) => {
+                    candidates = musicbrainz
+                        .find_releases_by_release_group_id(release_group_id)
+                        .await?
+                        .fold(candidates, |mut acc, result| async {
+                            let release = match result {
+                                Ok(release) => release,
+                                Err(err) => {
+                                    log::warn!("Failed to retrieve release: {err}");
+                                    return acc;
+                                }
+                            };
+
+                            acc.add_release(release, &track_collection, config);
+                            acc
+                        })
+                        .await;
+                }
+            };
+        };
+        allow_autoselection = false;
+
+        match ui::handle_candidate(config, &track_collection, selected_candidate)? {
+            ui::HandleCandidateResult::Apply => {
+                let candidate_index = candidates.find_index(selected_candidate);
+                let selected_candidate = candidates.select_index(candidate_index);
+                return Ok(SelectionResult::Selected(
+                    track_collection,
+                    selected_candidate,
+                ));
+            }
+            ui::HandleCandidateResult::Skip => {
+                log::warn!("Skipping collection");
+                return Ok(SelectionResult::Skipped);
+            }
+            ui::HandleCandidateResult::BackToSelection => {
+                continue 'select_candidate;
+            }
+            ui::HandleCandidateResult::Quit => {
+                return Ok(SelectionResult::Quit);
+            }
+        }
+    }
+}
+
 /// Run an import.
 ///
 /// # Errors
@@ -71,7 +154,7 @@ fn find_track_collections(input_path: PathBuf) -> impl Iterator<Item = TaggedFil
 pub async fn run(config: &Config, cache: Option<&Cache>, args: Args) -> crate::Result<()> {
     let input_path = args.path;
 
-    let (tx, mut rx) = tokio::sync::mpsc::channel(20);
+    let (scanner_tx, mut scanner_rx) = tokio::sync::mpsc::channel(20);
     let cloned_config = config.clone();
     let cloned_cache = cache.cloned();
     let _scanner_handle = tokio::task::spawn(async move {
@@ -89,79 +172,42 @@ pub async fn run(config: &Config, cache: Option<&Cache>, args: Args) -> crate::R
             };
 
             let item = (track_collection, candidates);
-            if let Err(err) = tx.send(item).await {
+            if let Err(err) = scanner_tx.send(item).await {
                 log::error!("Receiver dropped: {err}");
                 continue;
             }
         }
     });
 
-    let musicbrainz = MusicBrainzClient::new(config, cache);
-    'handle_next_collection: while let Some((track_collection, mut candidates)) = rx.recv().await {
-        println!(
-            "Tagging: {artist} - {title} ({track_count} tracks)",
-            artist = track_collection
-                .release_artist()
-                .unwrap_or("[unknown artist]".into()),
-            title = track_collection
-                .release_title()
-                .unwrap_or("[unknown title]".into()),
-            track_count = track_collection.release_track_count().unwrap_or(0),
-        );
-        let mut allow_autoselection = candidates.len() == 1;
-        'select_candidate: loop {
-            let selected_candidate: &ReleaseCandidate<_> = loop {
-                match ui::select_candidate(config, &candidates, allow_autoselection) {
-                    Ok(ui::ReleaseCandidateSelectionResult::Candidate(candidate)) => {
-                        break candidate
-                    }
-                    Ok(ui::ReleaseCandidateSelectionResult::FetchCandidateRelease(release_id)) => {
-                        let release = musicbrainz.find_release_by_id(release_id).await?;
-                        candidates.add_release(release, &track_collection, config);
-                    }
-                    Ok(ui::ReleaseCandidateSelectionResult::FetchCandidateReleaseGroup(
-                        release_group_id,
-                    )) => {
-                        candidates = musicbrainz
-                            .find_releases_by_release_group_id(release_group_id)
-                            .await?
-                            .fold(candidates, |mut acc, result| async {
-                                let release = match result {
-                                    Ok(release) => release,
-                                    Err(err) => {
-                                        log::warn!("Failed to retrieve release: {err}");
-                                        return acc;
-                                    }
-                                };
-
-                                acc.add_release(release, &track_collection, config);
-                                acc
-                            })
-                            .await;
-                    }
-                    Err(inquire::InquireError::OperationInterrupted) => {
-                        Err(inquire::InquireError::OperationInterrupted)?;
-                    }
-                    Err(err) => {
-                        log::warn!("Selection failed: {err}");
-                        continue 'handle_next_collection;
-                    }
-                };
-            };
-            allow_autoselection = false;
-
-            match ui::handle_candidate(config, &track_collection, selected_candidate)? {
-                ui::HandleCandidateResult::Apply => todo!(),
-                ui::HandleCandidateResult::Skip => {
-                    log::warn!("Skipping collection");
-                    continue 'handle_next_collection;
-                }
-                ui::HandleCandidateResult::BackToSelection => {
-                    continue 'select_candidate;
-                }
-            }
+    let (importer_tx, mut importer_rx) = tokio::sync::mpsc::channel(20);
+    let importer_handle = tokio::task::spawn(async move {
+        while let Some(_import_item) = importer_rx.recv().await {
+            // TODO: implement this.
         }
+    });
+
+    let musicbrainz = MusicBrainzClient::new(config, cache);
+    while let Some((track_collection, candidates)) = scanner_rx.recv().await {
+        match select_release(config, &musicbrainz, track_collection, candidates).await? {
+            SelectionResult::Selected(track_collection, selected_candidate) => {
+                if let Err(err) = importer_tx
+                    .send((track_collection, selected_candidate))
+                    .await
+                {
+                    log::error!("Failed to send job to importer: {err}");
+                };
+            }
+            SelectionResult::Skipped => {
+                continue;
+            }
+            SelectionResult::Quit => {
+                break;
+            }
+        };
     }
+
+    drop(importer_tx);
+    importer_handle.await.unwrap();
 
     Ok(())
 }

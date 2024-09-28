@@ -94,6 +94,20 @@ impl<T: ReleaseLike> ReleaseCandidateCollection<T> {
         Self { candidates }
     }
 
+    /// Find the index of the candidate.
+    pub fn find_index(&self, selected_candidate: &ReleaseCandidate<T>) -> usize {
+        self.candidates
+            .iter()
+            .enumerate()
+            .find_map(|(i, candidate)| (candidate == selected_candidate).then_some(i))
+            .expect("Failed to find selected candidate in candidate collection.")
+    }
+
+    /// Select the candidate by index and discard the other candidates.
+    pub fn select_index(mut self, index: usize) -> ReleaseCandidate<T> {
+        self.candidates.remove(index)
+    }
+
     /// Add a new candidate to this collection.
     pub fn add_candidate(&mut self, candidate: ReleaseCandidate<T>) {
         match self.candidates.binary_search(&candidate) {

@@ -32,6 +32,8 @@ pub enum HandleCandidateResult {
     Skip,
     /// Back to candidate selection.
     BackToSelection,
+    /// Stop candidate selection and quit.
+    Quit,
 }
 
 /// A styled version of `HandleCandidateResult` that is displayed to the user.
@@ -43,6 +45,7 @@ impl fmt::Display for StyledHandleCandidateResult<'_> {
             HandleCandidateResult::Apply => "Apply candidate",
             HandleCandidateResult::Skip => "Skip album",
             HandleCandidateResult::BackToSelection => "Back to candidate selection",
+            HandleCandidateResult::Quit => "Quit",
         };
         write!(
             f,
@@ -342,11 +345,13 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
         HandleCandidateResult::Apply.into_styled(config),
         HandleCandidateResult::Skip.into_styled(config),
         HandleCandidateResult::BackToSelection.into_styled(config),
+        HandleCandidateResult::Quit.into_styled(config),
     ];
 
     match Select::new("Select an option:", options).prompt() {
         Ok(option) => Ok(option.into()),
         Err(InquireError::OperationCanceled) => Ok(HandleCandidateResult::BackToSelection),
+        Err(InquireError::OperationInterrupted) => Ok(HandleCandidateResult::Quit),
         Err(err) => Err(err),
     }
 }
