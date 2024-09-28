@@ -262,6 +262,16 @@ pub struct CandidateDetails {
     pub unmatched_tracks_missing: UnmatchedTrackStyleConfig,
     /// Style for the selection
     pub action_style: TextStyleConfig,
+    /// Additional attributes for the candidate similarity in the selection list.
+    pub candidate_similarity_style: TextStyleConfig,
+    /// Prefix for the candidate similarity in the selection list.
+    pub candidate_similarity_prefix: String,
+    /// Style of the prefix for the candidate similarity in the selection list.
+    pub candidate_similarity_prefix_style: TextStyleConfig,
+    /// Suffix for the candidate similarity in the selection list.
+    pub candidate_similarity_suffix: String,
+    /// Style of the suffix for the candidate similarity in the selection list.
+    pub candidate_similarity_suffix_style: TextStyleConfig,
     /// Styles for string diffs.
     pub string_diff_style: StringDiffStyleConfig,
 }

@@ -80,7 +80,7 @@ pub async fn run(config: &Config, cache: Option<&Cache>, args: Args) -> crate::R
         let mut allow_autoselection = candidates.len() == 1;
         'select_candidate: loop {
             let selected_candidate: &ReleaseCandidate<_> = loop {
-                match ui::select_candidate(&candidates, allow_autoselection) {
+                match ui::select_candidate(config, &candidates, allow_autoselection) {
                     Ok(ui::ReleaseCandidateSelectionResult::Candidate(candidate)) => {
                         break candidate
                     }

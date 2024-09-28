@@ -9,10 +9,10 @@
 //! Candidate Selection.
 
 use super::util;
+use crate::config::Config;
 use crate::musicbrainz::MusicBrainzId;
 use crate::release::ReleaseLike;
 use crate::release_candidate::{ReleaseCandidate, ReleaseCandidateCollection};
-use crossterm::style::Stylize;
 use inquire::{validator::Validation, InquireError, Select, Text};
 use std::fmt;
 
@@ -48,37 +48,101 @@ impl<T: ReleaseLike> Clone for ReleaseCandidateSelectionOption<'_, T> {
     }
 }
 
-impl<T: ReleaseLike> fmt::Display for ReleaseCandidateSelectionOption<'_, T> {
+/// A styled version of `ReleaseCandidateSelectionOption` that is displayed to the user.
+struct StyledReleaseCandidateSelectionOption<'a, T: ReleaseLike>(
+    &'a Config,
+    ReleaseCandidateSelectionOption<'a, T>,
+);
+
+// Manual implementation of `Clone` to work around unnecessary trait bound `T: Clone`.
+impl<T: ReleaseLike> Clone for StyledReleaseCandidateSelectionOption<'_, T> {
+    fn clone(&self) -> Self {
+        StyledReleaseCandidateSelectionOption(self.0, self.1.clone())
+    }
+}
+
+impl<T: ReleaseLike> fmt::Display for StyledReleaseCandidateSelectionOption<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self {
+        match &self.1 {
             ReleaseCandidateSelectionOption::Candidate(candidate) => {
                 let release_artist_and_title =
                     util::format_release_artist_and_title(candidate.release());
                 let similarity = util::format_similarity(&candidate.distance());
                 write!(
                     f,
-                    "{release_artist_and_title} {brace_open}{similarity}{brace_close}",
-                    similarity = similarity.bold(),
-                    brace_open = '('.grey(),
-                    brace_close = ')'.grey(),
+                    "{release_artist_and_title}{similarity_prefix}{similarity}{similarity_suffix}",
+                    similarity = self
+                        .0
+                        .user_interface
+                        .candidate_details
+                        .candidate_similarity_style
+                        .apply(similarity),
+                    similarity_prefix = self
+                        .0
+                        .user_interface
+                        .candidate_details
+                        .candidate_similarity_prefix_style
+                        .apply(
+                            &self
+                                .0
+                                .user_interface
+                                .candidate_details
+                                .candidate_similarity_prefix
+                        ),
+                    similarity_suffix = self
+                        .0
+                        .user_interface
+                        .candidate_details
+                        .candidate_similarity_suffix_style
+                        .apply(
+                            &self
+                                .0
+                                .user_interface
+                                .candidate_details
+                                .candidate_similarity_suffix
+                        ),
                 )
             }
             ReleaseCandidateSelectionOption::EnterMusicBrainzId
             | ReleaseCandidateSelectionOption::SkipItem => {
-                let text = match &self {
+                let text = match &self.1 {
                     ReleaseCandidateSelectionOption::EnterMusicBrainzId => "Enter MusicBrainz ID",
                     ReleaseCandidateSelectionOption::SkipItem => "Skip Item",
                     ReleaseCandidateSelectionOption::Candidate(_) => unreachable!(),
                 };
-                write!(f, "{}", text.blue())
+                write!(
+                    f,
+                    "{}",
+                    self.0
+                        .user_interface
+                        .candidate_details
+                        .action_style
+                        .apply(text)
+                )
             }
         }
+    }
+}
+
+impl<'a, T: ReleaseLike> ReleaseCandidateSelectionOption<'a, T> {
+    /// Style this `ReleaseCandidateSelectionOption` using the styles defined in the `Config`.
+    fn into_styled(self, config: &'a Config) -> StyledReleaseCandidateSelectionOption<'a, T> {
+        StyledReleaseCandidateSelectionOption(config, self)
+    }
+}
+
+impl<'a, T: ReleaseLike> From<StyledReleaseCandidateSelectionOption<'a, T>>
+    for ReleaseCandidateSelectionOption<'a, T>
+{
+    fn from(value: StyledReleaseCandidateSelectionOption<'a, T>) -> Self {
+        value.1
     }
 }
 
 /// Present a selection of releases to the user, and loop until either a release was selected or
 /// the item is skipped. In the latter case, `None` is returned.
 pub fn select_candidate<'a, T: ReleaseLike>(
+    config: &'a Config,
     candidates: &'a ReleaseCandidateCollection<T>,
     allow_autoselection: bool,
 ) -> Result<ReleaseCandidateSelectionResult<'a, T>, InquireError> {
@@ -94,10 +158,11 @@ pub fn select_candidate<'a, T: ReleaseLike>(
         ReleaseCandidateSelectionOption::EnterMusicBrainzId,
         ReleaseCandidateSelectionOption::SkipItem,
     ];
-    let options: Vec<ReleaseCandidateSelectionOption<'a, T>> = candidates
+    let options: Vec<StyledReleaseCandidateSelectionOption<'a, T>> = candidates
         .iter()
         .map(ReleaseCandidateSelectionOption::Candidate)
         .chain(additional_options)
+        .map(|option| option.into_styled(config))
         .collect();
     loop {
         let prompt = match candidates.len() {
@@ -105,7 +170,7 @@ pub fn select_candidate<'a, T: ReleaseLike>(
             candidate_count => format!("Select one of {candidate_count} release candidates:"),
         };
         let selection = Select::new(&prompt, options.clone()).prompt()?;
-        match selection {
+        match selection.into() {
             ReleaseCandidateSelectionOption::Candidate(candidate) => {
                 break Ok(ReleaseCandidateSelectionResult::Candidate(candidate))
             }

@@ -34,6 +34,11 @@ track_number_style = {}
 track_number_style_default = { foreground_color = "grey" }
 changed_value_style = { foreground_color = "yellow", attributes = ["bold"] }
 action_style = { foreground_color = "blue" }
+candidate_similarity_style = { attributes = ["bold"] }
+candidate_similarity_prefix = " ("
+candidate_similarity_prefix_style = { foreground_color = "grey" }
+candidate_similarity_suffix = ")"
+candidate_similarity_suffix_style = { foreground_color = "grey" }
 
 [user_interface.candidate_details.unmatched_tracks_residual]
 prefix = "  ! "
