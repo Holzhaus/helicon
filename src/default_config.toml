@@ -21,3 +21,6 @@ track_assignment = 1.0
 
 [user_interface]
 default_terminal_width = 80
+
+[user_interface.candidate_details]
+action_style = { foreground_color = "blue" }

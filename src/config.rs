@@ -201,14 +201,22 @@ impl TextStyleConfig {
 }
 
 /// Configuration for the user interface.
-#[expect(missing_copy_implementations)]
-#[derive(Debug, Default, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct CandidateDetails {
+    /// Style for the selection
+    pub action_style: TextStyleConfig,
+}
+
+/// Configuration for the user interface.
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct UiConfig {
     /// Default width of the terminal that is assumed if it cannot be detected.
     pub default_terminal_width: usize,
     /// Maximum terminal width to use. If the terminal is wider, this configured width will be
     /// used.
     pub max_terminal_width: Option<usize>,
+    /// Styles for the candidate details view.
+    pub candidate_details: CandidateDetails,
 }
 
 /// The main configuration struct.

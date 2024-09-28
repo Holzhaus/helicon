@@ -34,14 +34,38 @@ pub enum HandleCandidateResult {
     BackToSelection,
 }
 
-impl fmt::Display for HandleCandidateResult {
+/// A styled version of `HandleCandidateResult` that is displayed to the user.
+struct StyledHandleCandidateResult<'a>(&'a Config, HandleCandidateResult);
+
+impl fmt::Display for StyledHandleCandidateResult<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let text = match &self {
-            Self::Apply => "Apply candidate",
-            Self::Skip => "Skip album",
-            Self::BackToSelection => "Back to candidate selection",
+        let text = match &self.1 {
+            HandleCandidateResult::Apply => "Apply candidate",
+            HandleCandidateResult::Skip => "Skip album",
+            HandleCandidateResult::BackToSelection => "Back to candidate selection",
         };
-        write!(f, "{}", text.blue())
+        write!(
+            f,
+            "{}",
+            self.0
+                .user_interface
+                .candidate_details
+                .action_style
+                .apply(text)
+        )
+    }
+}
+
+impl<'a> HandleCandidateResult {
+    /// Style this `HandleCandidateResult` using the styles defined in the `Config`.
+    fn into_styled(self, config: &'a Config) -> StyledHandleCandidateResult<'a> {
+        StyledHandleCandidateResult(config, self)
+    }
+}
+
+impl From<StyledHandleCandidateResult<'_>> for HandleCandidateResult {
+    fn from(value: StyledHandleCandidateResult<'_>) -> Self {
+        value.1
     }
 }
 
@@ -248,15 +272,15 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
     }
 
     let options = vec![
-        HandleCandidateResult::Apply,
-        HandleCandidateResult::Skip,
-        HandleCandidateResult::BackToSelection,
+        HandleCandidateResult::Apply.into_styled(config),
+        HandleCandidateResult::Skip.into_styled(config),
+        HandleCandidateResult::BackToSelection.into_styled(config),
     ];
 
     match Select::new("Select an option:", options).prompt() {
-        Ok(option) => Ok(option),
+        Ok(option) => Ok(option.into()),
         Err(InquireError::OperationCanceled) => Ok(HandleCandidateResult::BackToSelection),
-        result => result,
+        Err(err) => Err(err),
     }
 }
 
