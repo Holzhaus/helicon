@@ -176,6 +176,12 @@ impl<'a> FromIterator<StyledContent<Cow<'a, str>>> for StyledContentList<'a> {
     }
 }
 
+impl<'a> From<StyledContent<&'a str>> for StyledContentList<'a> {
+    fn from(value: StyledContent<&'a str>) -> Self {
+        Self::new(vec![convert_styled_content(value)])
+    }
+}
+
 impl<'a> From<StyledContent<Cow<'a, str>>> for StyledContentList<'a> {
     fn from(value: StyledContent<Cow<'a, str>>) -> Self {
         Self::new(vec![value])

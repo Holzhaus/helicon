@@ -219,9 +219,47 @@ pub struct StringDiffStyleConfig {
     pub replace_new: TextStyleConfig,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct UnmatchedTrackStyleConfig {
+    /// Prefix that is displayed at the start of the line.
+    pub prefix: String,
+    /// Style of the prefix that is displayed at the start of the line.
+    pub prefix_style: TextStyleConfig,
+    /// Headline style.
+    pub headline_style: TextStyleConfig,
+    /// Track number style.
+    pub track_number_style: TextStyleConfig,
+    /// Track title style.
+    pub track_title_style: TextStyleConfig,
+}
+
 /// Configuration for the user interface.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CandidateDetails {
+    /// Indent string for the tracklist.
+    pub tracklist_indent: String,
+    /// Separator between the left and the right side of the tracklist.
+    pub tracklist_separator: String,
+    /// Indent string for additional tags.
+    pub tracklist_extra_indent: String,
+    /// Separator between the left and the right side for additional tags.
+    pub tracklist_extra_separator: String,
+    /// Release artist and title style.
+    pub release_artist_and_title_style: TextStyleConfig,
+    /// Release metadata style.
+    pub release_meta_style: TextStyleConfig,
+    /// Disc title style.
+    pub disc_title_style: TextStyleConfig,
+    /// Track number style.
+    pub track_number_style: TextStyleConfig,
+    /// Track number style for defaulted (missing) track numbers.
+    pub track_number_style_default: TextStyleConfig,
+    /// Changed value indicator style.
+    pub changed_value_style: TextStyleConfig,
+    /// Styles for residual tracks.
+    pub unmatched_tracks_residual: UnmatchedTrackStyleConfig,
+    /// Styles for missing tracks.
+    pub unmatched_tracks_missing: UnmatchedTrackStyleConfig,
     /// Style for the selection
     pub action_style: TextStyleConfig,
     /// Styles for string diffs.

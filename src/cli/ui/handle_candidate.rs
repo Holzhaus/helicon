@@ -9,14 +9,14 @@
 //! Show candidate details and select next action.
 
 use super::util::{self, LayoutItem, StyledContentList};
+use crate::config::{Config, UnmatchedTrackStyleConfig};
 use crate::distance::{TrackSimilarity, UnmatchedTracksSource};
 use crate::media::MediaLike;
 use crate::release::ReleaseLike;
 use crate::release_candidate::ReleaseCandidate;
 use crate::track::TrackLike;
-use crate::Config;
 use crossterm::{
-    style::{ContentStyle, StyledContent, Stylize},
+    style::{ContentStyle, Stylize},
     terminal,
 };
 use inquire::{InquireError, Select};
@@ -75,13 +75,19 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
     base_release: &B,
     candidate: &ReleaseCandidate<C>,
 ) -> Result<HandleCandidateResult, InquireError> {
+    let candidate_details_config = &config.user_interface.candidate_details;
+
     let distance_color = util::distance_color(&candidate.distance());
 
     let release = candidate.release();
     let release_artist_and_title = util::format_release_artist_and_title(release);
+
     println!(
         "{release_artist_and_title}",
-        release_artist_and_title = release_artist_and_title.with(distance_color).bold()
+        release_artist_and_title =
+            ContentStyle::from(&candidate_details_config.release_artist_and_title_style)
+                .with(distance_color)
+                .apply(release_artist_and_title),
     );
     println!(
         "Similarity: {similarity}",
@@ -124,10 +130,18 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
             text + " | " + item.as_ref()
         }
     });
-    println!("{}", release_meta.grey());
+    println!(
+        "{}",
+        candidate_details_config
+            .release_meta_style
+            .apply(release_meta)
+    );
 
     if let Some(mb_url) = release.musicbrainz_release_url() {
-        println!("{}", mb_url.grey());
+        println!(
+            "{}",
+            candidate_details_config.release_meta_style.apply(mb_url)
+        );
     }
 
     // Show the tracklist of matched and unmatched tracks.
@@ -146,7 +160,11 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
         } else {
             format!("{format} {index}", index = media_index + 1)
         };
-        println!("{}", disc_title.underlined());
+
+        println!(
+            "{}",
+            candidate_details_config.disc_title_style.apply(disc_title)
+        );
 
         for rhs_track in media.media_tracks() {
             let Some((lhs_track_index, track_similarity)) = matched_track_map.get(&rhs_track_index)
@@ -172,9 +190,8 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
                 StyledContentList::default()
             } else {
                 StyledContentList::from(
-                    ContentStyle::new()
-                        .yellow()
-                        .bold()
+                    candidate_details_config
+                        .changed_value_style
                         .apply(Cow::from(format!(" ({changes})"))),
                 )
             };
@@ -183,48 +200,72 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
                 lhs_track.track_title(),
                 rhs_track.track_title(),
                 "<unknown title>",
-                &config.user_interface.candidate_details.string_diff_style,
+                &candidate_details_config.string_diff_style,
             );
 
-            let lhs_track_number = util::convert_styled_content(StyledContent::new(
-                ContentStyle::new(),
-                lhs_track
-                    .track_number()
-                    .unwrap_or_else(|| Cow::from(format!("#{lhs_track_index}"))),
-            ));
+            let lhs_track_number = lhs_track.track_number().map_or_else(
+                || {
+                    candidate_details_config
+                        .track_number_style_default
+                        .apply(Cow::from(format!("#{lhs_track_index}")))
+                },
+                |number| candidate_details_config.track_number_style.apply(number),
+            );
 
             let lhs = LayoutItem::new(lhs_track_title).with_prefix(StyledContentList::new(vec![
                 lhs_track_number,
-                util::convert_styled_content(". ".grey()),
+                candidate_details_config
+                    .track_number_style_default
+                    .apply(Cow::from(". ")),
             ]));
 
-            let rhs_track_number = util::convert_styled_content(StyledContent::new(
-                ContentStyle::new(),
-                rhs_track
-                    .track_number()
-                    .unwrap_or_else(|| Cow::from(format!("#{rhs_track_index}"))),
-            ));
+            let rhs_track_number = rhs_track.track_number().map_or_else(
+                || {
+                    candidate_details_config
+                        .track_number_style_default
+                        .apply(Cow::from(format!("#{rhs_track_index}")))
+                },
+                |number| candidate_details_config.track_number_style.apply(number),
+            );
+
             let rhs = LayoutItem::new(rhs_track_title)
                 .with_prefix(StyledContentList::new(vec![
                     rhs_track_number,
-                    util::convert_styled_content(". ".grey()),
+                    candidate_details_config
+                        .track_number_style_default
+                        .apply(Cow::from(". ")),
                 ]))
                 .with_suffix(rhs_suffix);
 
-            util::print_column_layout(lhs, rhs, " * ", " -> ", max_width);
+            util::print_column_layout(
+                lhs,
+                rhs,
+                &candidate_details_config.tracklist_indent,
+                &candidate_details_config.tracklist_separator,
+                max_width,
+            );
 
             if !track_similarity.is_track_artist_equal() {
                 let (lhs_track_artist, rhs_track_artist) = util::string_diff_opt(
                     lhs_track.track_artist(),
                     rhs_track.track_artist(),
                     "<unknown artist>",
-                    &config.user_interface.candidate_details.string_diff_style,
+                    &candidate_details_config.string_diff_style,
                 );
                 let lhs = LayoutItem::new(lhs_track_artist);
-                let rhs = LayoutItem::new(rhs_track_artist).with_suffix(StyledContentList::from(
-                    util::convert_styled_content("(artist)".yellow().bold()),
-                ));
-                util::print_column_layout(lhs, rhs, "   ", " -> ", max_width);
+                let rhs = LayoutItem::new(rhs_track_artist).with_suffix(
+                    candidate_details_config
+                        .changed_value_style
+                        .apply("(artist)")
+                        .into(),
+                );
+                util::print_column_layout(
+                    lhs,
+                    rhs,
+                    &candidate_details_config.tracklist_extra_indent,
+                    &candidate_details_config.tracklist_extra_separator,
+                    max_width,
+                );
             }
 
             if !track_similarity.is_musicbrainz_recording_id_equal() {
@@ -232,12 +273,15 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
                     lhs_track.musicbrainz_recording_id(),
                     rhs_track.musicbrainz_recording_id(),
                     "<unknown id>",
-                    &config.user_interface.candidate_details.string_diff_style,
+                    &candidate_details_config.string_diff_style,
                 );
                 let lhs = LayoutItem::new(lhs_mb_rec_id);
-                let rhs = LayoutItem::new(rhs_mb_rec_id).with_suffix(StyledContentList::from(
-                    util::convert_styled_content("(id)".yellow().bold()),
-                ));
+                let rhs = LayoutItem::new(rhs_mb_rec_id).with_suffix(
+                    candidate_details_config
+                        .changed_value_style
+                        .apply("(id)")
+                        .into(),
+                );
                 util::print_column_layout(lhs, rhs, "   ", " -> ", max_width);
             }
 
@@ -259,8 +303,18 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
                     unmatched_count = unmatched_track_indices.len(),
                     total_count = "??"
                 );
-                println!("{}", title.yellow().underlined());
-                print_unmatched_tracks(base_release, &unmatched_track_indices);
+                println!(
+                    "{}",
+                    candidate_details_config
+                        .unmatched_tracks_residual
+                        .headline_style
+                        .apply(title)
+                );
+                print_unmatched_tracks(
+                    base_release,
+                    &unmatched_track_indices,
+                    &candidate_details_config.unmatched_tracks_residual,
+                );
             }
             UnmatchedTracksSource::Right => {
                 let title = format!(
@@ -268,8 +322,18 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
                     unmatched_count = unmatched_track_indices.len(),
                     total_count = rhs_track_index
                 );
-                println!("{}", title.yellow().underlined());
-                print_unmatched_tracks(release, &unmatched_track_indices);
+                println!(
+                    "{}",
+                    candidate_details_config
+                        .unmatched_tracks_missing
+                        .headline_style
+                        .apply(title)
+                );
+                print_unmatched_tracks(
+                    release,
+                    &unmatched_track_indices,
+                    &candidate_details_config.unmatched_tracks_missing,
+                );
             }
         }
     }
@@ -288,7 +352,11 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
 }
 
 /// Print a list of unmatched tracks.
-fn print_unmatched_tracks(release: &impl ReleaseLike, unmatched_track_indices: &HashSet<usize>) {
+fn print_unmatched_tracks(
+    release: &impl ReleaseLike,
+    unmatched_track_indices: &HashSet<usize>,
+    config: &UnmatchedTrackStyleConfig,
+) {
     for (i, track) in release
         .release_tracks()
         .enumerate()
@@ -300,10 +368,14 @@ fn print_unmatched_tracks(release: &impl ReleaseLike, unmatched_track_indices: &
         let track_title = track.track_title().unwrap_or_else(|| "".into());
 
         println!(
-            "  ! {track_number}{track_number_suffix}{track_title}",
-            track_number = track_number.grey(),
-            track_number_suffix = if track_number.is_empty() { "" } else { ". " }.grey(),
-            track_title = track_title.yellow(),
+            "{prefix}{track_number}{track_number_suffix}{track_title}",
+            prefix = config.prefix_style.apply(&config.prefix),
+            track_number = config.track_number_style.apply(&track_number),
+            track_number_suffix =
+                config
+                    .track_number_style
+                    .apply(if track_number.is_empty() { "" } else { ". " }),
+            track_title = config.track_title_style.apply(track_title),
         );
     }
 }
