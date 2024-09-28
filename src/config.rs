@@ -86,6 +86,120 @@ pub struct LookupConfig {
     pub release_candidate_limit: u8,
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "crossterm::style::Color")]
+#[serde(rename_all = "snake_case")]
+#[allow(clippy::missing_docs_in_private_items)]
+enum ColorDef {
+    Reset,
+    Black,
+    DarkGrey,
+    Red,
+    DarkRed,
+    Green,
+    DarkGreen,
+    Yellow,
+    DarkYellow,
+    Blue,
+    DarkBlue,
+    Magenta,
+    DarkMagenta,
+    Cyan,
+    DarkCyan,
+    White,
+    Grey,
+    Rgb { r: u8, g: u8, b: u8 },
+    AnsiValue(u8),
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "crossterm::style::Attribute")]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+#[allow(clippy::missing_docs_in_private_items)]
+enum AttributeDef {
+    Reset,
+    Bold,
+    Dim,
+    Italic,
+    Underlined,
+    DoubleUnderlined,
+    Undercurled,
+    Underdotted,
+    Underdashed,
+    SlowBlink,
+    RapidBlink,
+    Reverse,
+    Hidden,
+    CrossedOut,
+    Fraktur,
+    NoBold,
+    NormalIntensity,
+    NoItalic,
+    NoUnderline,
+    NoBlink,
+    NoReverse,
+    NoHidden,
+    NotCrossedOut,
+    Framed,
+    Encircled,
+    OverLined,
+    NotFramedOrEncircled,
+    NotOverLined,
+}
+
+/// Wrapper for crossterm's `Color` type that supports Serde.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+struct TextColor(#[serde(with = "ColorDef")] crossterm::style::Color);
+impl From<TextColor> for crossterm::style::Color {
+    fn from(value: TextColor) -> Self {
+        value.0
+    }
+}
+
+/// Wrapper for crossterm's `Attribute` type that supports Serde.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+struct TextAttribute(#[serde(with = "AttributeDef")] crossterm::style::Attribute);
+impl From<&TextAttribute> for crossterm::style::Attribute {
+    fn from(value: &TextAttribute) -> Self {
+        value.0
+    }
+}
+
+/// Style definition that supports Serde.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TextStyleConfig {
+    /// Text foreground color.
+    foreground_color: Option<TextColor>,
+    /// Text background color.
+    background_color: Option<TextColor>,
+    /// Text underline color.
+    underline_color: Option<TextColor>,
+    /// Text attributes.
+    attributes: Option<Vec<TextAttribute>>,
+}
+
+impl From<&TextStyleConfig> for crossterm::style::ContentStyle {
+    fn from(value: &TextStyleConfig) -> crossterm::style::ContentStyle {
+        let mut content_style = crossterm::style::ContentStyle::new();
+        content_style.foreground_color = value.foreground_color.map(TextColor::into);
+        content_style.background_color = value.background_color.map(TextColor::into);
+        content_style.underline_color = value.underline_color.map(TextColor::into);
+        content_style.attributes = value.attributes.iter().flat_map(|v| v.iter()).fold(
+            crossterm::style::Attributes::none(),
+            |attributes, attribute| attributes.with(attribute.into()),
+        );
+        content_style
+    }
+}
+
+impl TextStyleConfig {
+    /// Apply the style to text.
+    pub fn apply<D: std::fmt::Display>(&self, val: D) -> crossterm::style::StyledContent<D> {
+        crossterm::style::ContentStyle::from(self).apply(val)
+    }
+}
+
 /// Configuration for the user interface.
 #[expect(missing_copy_implementations)]
 #[derive(Debug, Default, Clone, Deserialize, Serialize)]
