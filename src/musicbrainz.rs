@@ -17,14 +17,11 @@ use futures::{
     future::TryFutureExt,
     stream::{self, Stream, StreamExt},
 };
+pub use musicbrainz_rs_nova::entity::{
+    release::Release as MusicBrainzRelease, release_group::ReleaseGroup as MusicBrainzReleaseGroup,
+};
 use musicbrainz_rs_nova::{
-    entity::{
-        release::{
-            Release as MusicBrainzRelease, ReleaseSearchQuery as MusicBrainzReleaseSearchQuery,
-        },
-        release_group::ReleaseGroup as MusicBrainzReleaseGroup,
-    },
-    Fetch, Search,
+    entity::release::ReleaseSearchQuery as MusicBrainzReleaseSearchQuery, Fetch, Search,
 };
 use regex::Regex;
 use std::borrow::{Borrow, Cow};

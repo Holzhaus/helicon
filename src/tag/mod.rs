@@ -246,7 +246,7 @@ pub enum TagType {
 }
 
 /// A tag tag can be used for reading.
-pub trait Tag {
+pub trait Tag: Send + Sync {
     /// Get the tag type.
     fn tag_type(&self) -> TagType;
     /// Get the string value for the tag key.

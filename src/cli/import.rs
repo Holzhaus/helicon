@@ -10,6 +10,7 @@
 
 use super::ui;
 use crate::musicbrainz::MusicBrainzClient;
+use crate::release::ReleaseLike;
 use crate::release_candidate::{ReleaseCandidate, ReleaseCandidateCollection};
 use crate::util::walk_dir;
 use crate::Cache;
@@ -68,15 +69,44 @@ fn find_track_collections(input_path: PathBuf) -> impl Iterator<Item = TaggedFil
 /// If the underlying [`walk_dir`] function encounters any form of I/O or other error, an error
 /// variant will be returned.
 pub async fn run(config: &Config, cache: Option<&Cache>, args: Args) -> crate::Result<()> {
-    let musicbrainz = MusicBrainzClient::new(config, cache);
-
     let input_path = args.path;
 
-    'handle_next_collection: for track_collection in find_track_collections(input_path) {
-        let mut candidates = ReleaseCandidateCollection::new(
-            musicbrainz
+    let (tx, mut rx) = tokio::sync::mpsc::channel(20);
+    let cloned_config = config.clone();
+    let cloned_cache = cache.cloned();
+    let _scanner_handle = tokio::task::spawn(async move {
+        let musicbrainz = MusicBrainzClient::new(&cloned_config, cloned_cache.as_ref());
+        for track_collection in find_track_collections(input_path) {
+            let candidates = match musicbrainz
                 .find_releases_by_similarity(&track_collection)
-                .await?,
+                .await
+            {
+                Ok(releases) => ReleaseCandidateCollection::new(releases),
+                Err(err) => {
+                    log::error!("Receiver dropped: {err}");
+                    continue;
+                }
+            };
+
+            let item = (track_collection, candidates);
+            if let Err(err) = tx.send(item).await {
+                log::error!("Receiver dropped: {err}");
+                continue;
+            }
+        }
+    });
+
+    let musicbrainz = MusicBrainzClient::new(config, cache);
+    'handle_next_collection: while let Some((track_collection, mut candidates)) = rx.recv().await {
+        println!(
+            "Tagging: {artist} - {title} ({track_count} tracks)",
+            artist = track_collection
+                .release_artist()
+                .unwrap_or("[unknown artist]".into()),
+            title = track_collection
+                .release_title()
+                .unwrap_or("[unknown title]".into()),
+            track_count = track_collection.release_track_count().unwrap_or(0),
         );
         let mut allow_autoselection = candidates.len() == 1;
         'select_candidate: loop {
@@ -108,6 +138,9 @@ pub async fn run(config: &Config, cache: Option<&Cache>, args: Args) -> crate::R
                                 acc
                             })
                             .await;
+                    }
+                    Err(inquire::InquireError::OperationInterrupted) => {
+                        Err(inquire::InquireError::OperationInterrupted)?;
                     }
                     Err(err) => {
                         log::warn!("Selection failed: {err}");
