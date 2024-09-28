@@ -14,6 +14,7 @@ use crate::media::MediaLike;
 use crate::release::ReleaseLike;
 use crate::release_candidate::ReleaseCandidate;
 use crate::track::TrackLike;
+use crate::Config;
 use crossterm::{
     style::{ContentStyle, StyledContent, Stylize},
     terminal,
@@ -46,6 +47,7 @@ impl fmt::Display for HandleCandidateResult {
 
 /// Display details about the candidate.
 pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
+    config: &Config,
     base_release: &B,
     candidate: &ReleaseCandidate<C>,
 ) -> Result<HandleCandidateResult, InquireError> {
@@ -62,8 +64,17 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
         similarity = util::format_similarity(&candidate.distance())
     );
 
+    // Calculate maximum width of the terminal.
+    let max_width = terminal::size().map_or(
+        config.user_interface.default_terminal_width,
+        |(cols, _rows)| usize::from(cols),
+    );
+    let max_width = config
+        .user_interface
+        .max_terminal_width
+        .map_or(max_width, |max| max_width.min(max));
+
     // Show release metadata
-    let max_length = terminal::size().map_or(80, |(cols, _rows)| usize::from(cols));
     let release_meta = [
         release.release_media_format(),
         release.release_date(),
@@ -76,13 +87,13 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
     .flatten()
     .fold(String::new(), |text, item| {
         if text.is_empty() {
-            if (text.len() + item.len()) > max_length {
+            if (text.len() + item.len()) > max_width {
                 return text;
             }
 
             text + item.as_ref()
         } else {
-            if (text.len() + item.len() + 3) > max_length {
+            if (text.len() + item.len() + 3) > max_width {
                 return text;
             }
 
@@ -175,7 +186,7 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
                 ]))
                 .with_suffix(rhs_suffix);
 
-            util::print_column_layout(lhs, rhs, " * ", " -> ", max_length);
+            util::print_column_layout(lhs, rhs, " * ", " -> ", max_width);
 
             if !track_similarity.is_track_artist_equal() {
                 let (lhs_track_artist, rhs_track_artist) = util::string_diff_opt(
@@ -187,7 +198,7 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
                 let rhs = LayoutItem::new(rhs_track_artist).with_suffix(StyledContentList::from(
                     util::convert_styled_content("(artist)".yellow().bold()),
                 ));
-                util::print_column_layout(lhs, rhs, "   ", " -> ", max_length);
+                util::print_column_layout(lhs, rhs, "   ", " -> ", max_width);
             }
 
             if !track_similarity.is_musicbrainz_recording_id_equal() {
@@ -200,7 +211,7 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
                 let rhs = LayoutItem::new(rhs_mb_rec_id).with_suffix(StyledContentList::from(
                     util::convert_styled_content("(id)".yellow().bold()),
                 ));
-                util::print_column_layout(lhs, rhs, "   ", " -> ", max_length);
+                util::print_column_layout(lhs, rhs, "   ", " -> ", max_width);
             }
 
             rhs_track_index += 1;

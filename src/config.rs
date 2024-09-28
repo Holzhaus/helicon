@@ -86,6 +86,17 @@ pub struct LookupConfig {
     pub release_candidate_limit: u8,
 }
 
+/// Configuration for the user interface.
+#[expect(missing_copy_implementations)]
+#[derive(Debug, Default, Clone, Deserialize, Serialize)]
+pub struct UiConfig {
+    /// Default width of the terminal that is assumed if it cannot be detected.
+    pub default_terminal_width: usize,
+    /// Maximum terminal width to use. If the terminal is wider, this configured width will be
+    /// used.
+    pub max_terminal_width: Option<usize>,
+}
+
 /// The main configuration struct.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
@@ -93,6 +104,8 @@ pub struct Config {
     pub lookup: LookupConfig,
     /// Weight configuration.
     pub weights: DistanceWeights,
+    /// UI configuration.
+    pub user_interface: UiConfig,
 }
 
 impl Default for Config {

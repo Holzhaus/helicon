@@ -116,7 +116,7 @@ pub async fn run(config: &Config, cache: Option<&Cache>, args: Args) -> crate::R
             };
             allow_autoselection = false;
 
-            match ui::handle_candidate(&track_collection, selected_candidate)? {
+            match ui::handle_candidate(config, &track_collection, selected_candidate)? {
                 ui::HandleCandidateResult::Apply => todo!(),
                 ui::HandleCandidateResult::Skip => {
                     log::warn!("Skipping collection");
