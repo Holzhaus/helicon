@@ -154,6 +154,11 @@ impl Tag for FlacTag {
             self.data.remove_vorbis(frame);
         }
     }
+
+    fn write(&mut self, path: &Path) -> crate::Result<()> {
+        self.data.write_to_path(path)?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]

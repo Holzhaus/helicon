@@ -162,6 +162,19 @@ impl TaggedFileCollection {
             .collect();
         self
     }
+
+    /// Write tags for all tracks in this collection.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any of the underlying tags fail to write.
+    pub fn write_tags(&mut self) -> crate::Result<()> {
+        for track in &mut self.0 {
+            track.write_tags()?;
+        }
+
+        Ok(())
+    }
 }
 
 impl IntoIterator for TaggedFileCollection {

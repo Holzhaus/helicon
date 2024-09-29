@@ -187,7 +187,10 @@ pub async fn run(config: &Config, cache: Option<&Cache>, args: Args) -> crate::R
     )>(20);
     let importer_handle = tokio::task::spawn(async move {
         while let Some((track_collection, selected_candidate)) = importer_rx.recv().await {
-            let _track_collection = track_collection.assign_tags(&selected_candidate);
+            let mut track_collection = track_collection.assign_tags(&selected_candidate);
+            if let Err(err) = track_collection.write_tags() {
+                log::error!("Failed to write tags: {err}");
+            };
         }
     });
 

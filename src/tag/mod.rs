@@ -263,6 +263,8 @@ pub trait Tag: Send + Sync {
             self.clear(key);
         }
     }
+    /// Write the tags to the path.
+    fn write(&mut self, path: &Path) -> crate::Result<()>;
 }
 
 /// Return a vector of tags from the file at the given path.

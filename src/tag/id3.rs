@@ -371,6 +371,11 @@ impl Tag for ID3v2Tag {
             }
         }
     }
+
+    fn write(&mut self, path: &Path) -> crate::Result<()> {
+        self.data.write_to_path(path, self.data.version())?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]

@@ -13,10 +13,12 @@ use crate::tag::{read_tags_from_path, Tag, TagKey};
 use crate::track::TrackLike;
 use std::borrow::Cow;
 use std::fmt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// A tagged file that contains zero or more tags.
 pub struct TaggedFile {
+    /// Path of the file.
+    path: PathBuf,
     /// Tags that are present in the file.
     content: Vec<Box<dyn Tag>>,
 }
@@ -36,7 +38,10 @@ impl TaggedFile {
     #[cfg(test)]
     #[must_use]
     pub fn new(content: Vec<Box<dyn Tag>>) -> Self {
-        TaggedFile { content }
+        TaggedFile {
+            path: PathBuf::new(),
+            content,
+        }
     }
 
     /// Creates a [`TaggedFile`] from the path.
@@ -45,7 +50,10 @@ impl TaggedFile {
     ///
     /// Returns an error in case the file at the given path does not exist or is unsupported.
     pub fn read_from_path(path: impl AsRef<Path>) -> crate::Result<Self> {
-        read_tags_from_path(path).map(|content| Self { content })
+        read_tags_from_path(path.as_ref()).map(|content| Self {
+            path: path.as_ref().to_path_buf(),
+            content,
+        })
     }
 
     /// Returns zero or more [`Tag`] objects.
@@ -93,6 +101,19 @@ impl TaggedFile {
             TagKey::MusicBrainzRecordingId,
             track.musicbrainz_recording_id(),
         );
+    }
+
+    /// Write tags to file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if writing any underlying tag fails.
+    pub fn write_tags(&mut self) -> crate::Result<()> {
+        for tag in &mut self.content {
+            tag.write(self.path.as_path())?;
+        }
+
+        Ok(())
     }
 }
 
