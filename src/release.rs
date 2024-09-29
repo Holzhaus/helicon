@@ -11,6 +11,7 @@ use crate::distance::ReleaseSimilarity;
 use crate::media::MediaLike;
 use crate::track::TrackLike;
 use crate::Config;
+use itertools::Itertools;
 use musicbrainz_rs_nova::entity::release::Release as MusicBrainzRelease;
 use std::borrow::Cow;
 
@@ -40,7 +41,32 @@ pub trait ReleaseLike {
     /// Release Country.
     fn release_country(&self) -> Option<Cow<'_, str>>;
     /// Media format
-    fn release_media_format(&self) -> Option<Cow<'_, str>>;
+    fn release_media_format(&self) -> Option<Cow<'_, str>> {
+        let formats = self
+            .media()
+            .filter_map(MediaLike::media_format)
+            .chunk_by(|format: &Cow<'_, str>| format.to_string())
+            .into_iter()
+            .map(|(key, group)| (group.count(), key))
+            .fold(String::new(), |acc, (count, format)| {
+                let counted_format = if count > 1 {
+                    format!("{count}×{format}")
+                } else {
+                    format
+                };
+                if acc.is_empty() {
+                    counted_format
+                } else {
+                    format!("{acc}+{counted_format}")
+                }
+            });
+
+        if formats.is_empty() {
+            None
+        } else {
+            Some(Cow::from(formats))
+        }
+    }
     /// Record Label
     fn record_label(&self) -> Option<Cow<'_, str>>;
     /// Catalog Number
@@ -104,10 +130,6 @@ impl ReleaseLike for MusicBrainzRelease {
 
     fn release_country(&self) -> Option<Cow<'_, str>> {
         self.country.as_ref().map(Cow::from)
-    }
-
-    fn release_media_format(&self) -> Option<Cow<'_, str>> {
-        self.media().find_map(MediaLike::media_format)
     }
 
     fn record_label(&self) -> Option<Cow<'_, str>> {

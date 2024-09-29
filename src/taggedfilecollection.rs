@@ -199,10 +199,6 @@ impl ReleaseLike for TaggedFileCollection {
             .map(Cow::from)
     }
 
-    fn release_media_format(&self) -> Option<Cow<'_, str>> {
-        self.find_consensual_tag_value(TagKey::Media).map(Cow::from)
-    }
-
     fn record_label(&self) -> Option<Cow<'_, str>> {
         self.find_consensual_tag_value(TagKey::RecordLabel)
             .map(Cow::from)
