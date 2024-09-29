@@ -95,12 +95,14 @@ async fn select_release<'a>(
             match ui::select_candidate(config, &candidates, allow_autoselection)? {
                 ui::ReleaseCandidateSelectionResult::Candidate(candidate) => break candidate,
                 ui::ReleaseCandidateSelectionResult::FetchCandidateRelease(release_id) => {
+                    log::debug!("Manually adding release candidate with release ID {release_id}");
                     let release = musicbrainz.find_release_by_id(release_id).await?;
                     candidates.add_release(release, &track_collection, config);
                 }
                 ui::ReleaseCandidateSelectionResult::FetchCandidateReleaseGroup(
                     release_group_id,
                 ) => {
+                    log::debug!("Manually adding release candidate with release group ID {release_group_id}");
                     candidates = musicbrainz
                         .find_releases_by_release_group_id(release_group_id)
                         .await?

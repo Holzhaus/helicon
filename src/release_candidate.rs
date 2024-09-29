@@ -112,8 +112,23 @@ impl<T: ReleaseLike> ReleaseCandidateCollection<T> {
     /// Add a new candidate to this collection.
     pub fn add_candidate(&mut self, candidate: ReleaseCandidate<T>) {
         match self.candidates.binary_search(&candidate) {
-            Ok(_) => {} // candidate already at correct position in vector.
-            Err(pos) => self.candidates.insert(pos, candidate),
+            Ok(pos) => {
+                // There already is a candidate with the same distance in the candidate list.
+                if !self.candidates.iter().skip(pos).any(|c| {
+                    c == &candidate
+                        && c.release().musicbrainz_release_id()
+                            == candidate.release().musicbrainz_release_id()
+                }) {
+                    self.candidates.insert(pos, candidate);
+                }
+            }
+            Err(pos) => {
+                log::debug!(
+                    "Adding candidate: {}",
+                    candidate.release().release_title().unwrap_or_default()
+                );
+                self.candidates.insert(pos, candidate);
+            }
         };
     }
 
