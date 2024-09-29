@@ -14,6 +14,7 @@ use crate::release::ReleaseLike;
 use crate::track::TrackLike;
 use crate::Config;
 use std::cmp;
+use std::collections::HashMap;
 use std::iter;
 
 /// Convert an `f64` into an `u64`.
@@ -230,6 +231,14 @@ impl TrackAssignment {
     /// Returns an iterator over [`TrackMatchPair`] items.
     pub fn matched_tracks(&self) -> impl Iterator<Item = &TrackMatchPair> {
         self.matched_tracks.iter()
+    }
+
+    /// Returns a [`HashMap`] that maps the matched tracks from the left hand side side to the
+    /// corresponding track on the right hand side.
+    pub fn matched_tracks_map(&self) -> HashMap<usize, (usize, &TrackSimilarity)> {
+        self.matched_tracks()
+            .map(|pair| (pair.rhs, (pair.lhs, &pair.similarity)))
+            .collect()
     }
 
     /// Returns a slice of unmatched track indices. The indices either belong to the left or right

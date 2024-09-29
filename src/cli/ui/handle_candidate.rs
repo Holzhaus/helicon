@@ -10,7 +10,7 @@
 
 use super::util::{self, LayoutItem, StyledContentList};
 use crate::config::{Config, UnmatchedTrackStyleConfig};
-use crate::distance::{TrackSimilarity, UnmatchedTracksSource};
+use crate::distance::UnmatchedTracksSource;
 use crate::media::MediaLike;
 use crate::release::ReleaseLike;
 use crate::release_candidate::ReleaseCandidate;
@@ -21,7 +21,7 @@ use crossterm::{
 };
 use inquire::{InquireError, Select};
 use std::borrow::Cow;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt;
 
 /// The result of a `handle_candidate` all.
@@ -151,10 +151,7 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
     //
     // First, show the matched tracks.
     let track_assignment = candidate.similarity().track_assignment();
-    let matched_track_map = track_assignment
-        .matched_tracks()
-        .map(|pair| (pair.rhs, (pair.lhs, &pair.similarity)))
-        .collect::<HashMap<usize, (usize, &TrackSimilarity)>>();
+    let matched_track_map = track_assignment.matched_tracks_map();
     let mut rhs_track_index: usize = 0;
     for (media_index, media) in release.media().enumerate() {
         let format = media.media_format().unwrap_or_else(|| "Medium".into());

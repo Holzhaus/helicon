@@ -179,10 +179,13 @@ pub async fn run(config: &Config, cache: Option<&Cache>, args: Args) -> crate::R
         }
     });
 
-    let (importer_tx, mut importer_rx) = tokio::sync::mpsc::channel(20);
+    let (importer_tx, mut importer_rx) = tokio::sync::mpsc::channel::<(
+        TaggedFileCollection,
+        ReleaseCandidate<MusicBrainzRelease>,
+    )>(20);
     let importer_handle = tokio::task::spawn(async move {
-        while let Some(_import_item) = importer_rx.recv().await {
-            // TODO: implement this.
+        while let Some((track_collection, selected_candidate)) = importer_rx.recv().await {
+            let _track_collection = track_collection.assign_tags(&selected_candidate);
         }
     });
 

@@ -10,6 +10,7 @@
 
 use crate::media::MediaLike;
 use crate::release::ReleaseLike;
+use crate::release_candidate::ReleaseCandidate;
 use crate::tag::TagKey;
 use crate::track::TrackLike;
 use crate::TaggedFile;
@@ -136,6 +137,45 @@ impl TaggedFileCollection {
     fn find_consensual_tag_value(&self, key: TagKey) -> Option<&str> {
         self.find_most_common_tag_value(key)
             .and_then(MostCommonItem::into_concensus)
+    }
+
+    /// Assign tracks from a release candidate.
+    #[must_use]
+    pub fn assign_tags<T: ReleaseLike>(mut self, release_candidate: &ReleaseCandidate<T>) -> Self {
+        let matched_track_map = release_candidate
+            .similarity()
+            .track_assignment()
+            .matched_tracks_map();
+        self = self
+            .into_iter()
+            .enumerate()
+            .filter_map(|(i, track)| {
+                matched_track_map.get(&i).map(|(j, _)| j).and_then(|j| {
+                    Some(track).zip(release_candidate.release().release_tracks().nth(*j))
+                })
+            })
+            .map(|(mut track, other_track)| {
+                track.assign_tags_from_release(release_candidate.release());
+                track.assign_tags_from_track(other_track);
+                track
+            })
+            .collect();
+        self
+    }
+}
+
+impl IntoIterator for TaggedFileCollection {
+    type Item = TaggedFile;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl FromIterator<TaggedFile> for TaggedFileCollection {
+    fn from_iter<I: IntoIterator<Item = TaggedFile>>(iter: I) -> Self {
+        Self(iter.into_iter().collect::<Vec<TaggedFile>>())
     }
 }
 

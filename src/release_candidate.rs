@@ -14,6 +14,7 @@ use crate::Config;
 use std::cmp;
 
 /// A candidate release that potentially matches the base release.
+#[derive(Debug, Clone)]
 pub struct ReleaseCandidate<T: ReleaseLike> {
     /// The release from MusicBrainz.
     release: T,
