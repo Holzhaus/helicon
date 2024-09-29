@@ -138,22 +138,27 @@ pub fn print_column_layout(
         let lhs_line: Option<StyledContentList<'_>> = lhs_lines.next();
         let rhs_line: Option<StyledContentList<'_>> = rhs_lines.next();
 
-        if lhs_line.is_some() && rhs_line.is_some() {
+        if lhs_line.is_some() || rhs_line.is_some() {
             next_line = StyledContentList::default()
                 .fill_right(' ', indent.len())
                 .into_iter()
                 .chain(
                     lhs_line
-                        .into_iter()
-                        .map(|line| line.fill_right(' ', column_width))
-                        .flat_map(StyledContentList::into_iter),
+                        .unwrap_or_default()
+                        .fill_right(' ', column_width)
+                        .into_iter(),
                 )
                 .chain(
                     StyledContentList::default()
                         .fill_right(' ', separator.len())
                         .into_iter(),
                 )
-                .chain(rhs_line.into_iter().flat_map(StyledContentList::into_iter))
+                .chain(
+                    rhs_line
+                        .unwrap_or_default()
+                        .fill_right(' ', column_width)
+                        .into_iter(),
+                )
                 .collect::<StyledContentList<'_>>()
                 .into();
         } else {
