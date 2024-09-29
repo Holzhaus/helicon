@@ -241,11 +241,215 @@ mod tests {
 
     pub struct TestTrack(pub &'static str);
     impl TrackLike for TestTrack {
-        fn track_title(&self) -> Option<Cow<'_, str>> {
-            Cow::from(self.0).into()
+        fn acoustid(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn acoustid_fingerprint(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn arranger(&self) -> Option<Cow<'_, str>> {
+            None
         }
 
         fn track_artist(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn track_artist_sort_order(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn bpm(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn comment(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn composer(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn composer_sort_order(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn conductor(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn copyright(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn director(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn dj_mixer(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn encoded_by(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn encoder_settings(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn engineer(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn genre(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn initial_key(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn isrc(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn language(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn license(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn lyricist(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn lyrics(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn mixer(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn mood(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn movement(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn movement_count(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn movement_number(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn musicbrainz_artist_id(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn musicbrainz_original_artist_id(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn musicbrainz_original_release_id(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn musicbrainz_recording_id(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn musicbrainz_track_id(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn musicbrainz_trm_id(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn musicbrainz_work_id(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn musicip_fingerprint(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn musicip_puid(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn original_album(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn original_artist(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn original_filename(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn original_release_date(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn original_release_year(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn performer(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn producer(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn rating(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn remixer(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn replay_gain_album_gain(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn replay_gain_album_peak(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn replay_gain_album_range(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn replay_gain_reference_loudness(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn replay_gain_track_gain(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn replay_gain_track_peak(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn replay_gain_track_range(&self) -> Option<Cow<'_, str>> {
             None
         }
 
@@ -253,11 +457,27 @@ mod tests {
             None
         }
 
-        fn track_length(&self) -> Option<chrono::TimeDelta> {
+        fn track_title(&self) -> Option<Cow<'_, str>> {
+            Cow::from(self.0).into()
+        }
+
+        fn track_title_sort_order(&self) -> Option<Cow<'_, str>> {
             None
         }
 
-        fn musicbrainz_recording_id(&self) -> Option<Cow<'_, str>> {
+        fn artist_website(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn work_title(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn writer(&self) -> Option<Cow<'_, str>> {
+            None
+        }
+
+        fn track_length(&self) -> Option<chrono::TimeDelta> {
             None
         }
     }
