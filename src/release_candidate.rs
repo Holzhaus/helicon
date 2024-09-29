@@ -100,7 +100,11 @@ impl<T: ReleaseLike> ReleaseCandidateCollection<T> {
         self.candidates
             .iter()
             .enumerate()
-            .find_map(|(i, candidate)| (candidate == selected_candidate).then_some(i))
+            .find_map(|(i, candidate)| {
+                (candidate.release().musicbrainz_release_id()
+                    == selected_candidate.release().musicbrainz_release_id())
+                .then_some(i)
+            })
             .expect("Failed to find selected candidate in candidate collection.")
     }
 
