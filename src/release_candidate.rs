@@ -110,7 +110,7 @@ impl<T: ReleaseLike> ReleaseCandidateCollection<T> {
 
     /// Select the candidate by index and discard the other candidates.
     pub fn select_index(mut self, index: usize) -> ReleaseCandidate<T> {
-        self.candidates.remove(index)
+        self.candidates.swap_remove(index)
     }
 
     /// Add a new candidate to this collection.
