@@ -259,7 +259,7 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
                 let rhs = LayoutItem::new(rhs_track_artist).with_suffix(
                     candidate_details_config
                         .changed_value_style
-                        .apply("(artist)")
+                        .apply(" (artist)")
                         .into(),
                 );
                 util::print_column_layout(
@@ -282,7 +282,7 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
                 let rhs = LayoutItem::new(rhs_mb_rec_id).with_suffix(
                     candidate_details_config
                         .changed_value_style
-                        .apply("(id)")
+                        .apply(" (id)")
                         .into(),
                 );
                 util::print_column_layout(lhs, rhs, "   ", " -> ", max_width);
