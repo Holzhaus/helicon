@@ -85,11 +85,36 @@ impl TaggedFile {
     pub fn assign_tags_from_release(&mut self, release: &impl ReleaseLike) {
         self.set_tag_value(TagKey::Album, release.release_title());
         self.set_tag_value(TagKey::AlbumArtist, release.release_artist());
-        self.set_tag_value(TagKey::ReleaseCountry, release.release_country());
+        self.set_tag_value(
+            TagKey::AlbumArtistSortOrder,
+            release.release_artist_sort_order(),
+        );
+        self.set_tag_value(TagKey::AlbumSortOrder, release.release_sort_order());
+        self.set_tag_value(TagKey::Asin, release.asin());
+        self.set_tag_value(TagKey::Barcode, release.barcode());
+        self.set_tag_value(TagKey::CatalogNumber, release.catalog_number());
+        self.set_tag_value(TagKey::Compilation, release.compilation());
+        self.set_tag_value(TagKey::Grouping, release.grouping());
+        self.set_tag_value(
+            TagKey::MusicBrainzReleaseArtistId,
+            release.musicbrainz_release_artist_id(),
+        );
+        self.set_tag_value(
+            TagKey::MusicBrainzReleaseGroupId,
+            release.musicbrainz_release_group_id(),
+        );
         self.set_tag_value(
             TagKey::MusicBrainzReleaseId,
             release.musicbrainz_release_id(),
         );
+        self.set_tag_value(TagKey::RecordLabel, release.record_label());
+        self.set_tag_value(TagKey::ReleaseCountry, release.release_country());
+        self.set_tag_value(TagKey::ReleaseDate, release.release_date());
+        self.set_tag_value(TagKey::ReleaseYear, release.release_year());
+        self.set_tag_value(TagKey::ReleaseStatus, release.release_status());
+        self.set_tag_value(TagKey::ReleaseType, release.release_type());
+        self.set_tag_value(TagKey::Script, release.script());
+        self.set_tag_value(TagKey::TotalDiscs, release.total_discs());
     }
 
     /// Assign metadata from another `TrackLike` struct (e.g. a MusicBrainz track).

@@ -237,33 +237,88 @@ impl ReleaseLike for TaggedFileCollection {
             .map(Cow::from)
     }
 
-    fn musicbrainz_release_id(&self) -> Option<Cow<'_, str>> {
-        self.find_consensual_tag_value(TagKey::MusicBrainzReleaseId)
+    fn release_artist_sort_order(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(TagKey::AlbumArtistSortOrder)
             .map(Cow::from)
     }
 
-    fn release_date(&self) -> Option<Cow<'_, str>> {
-        self.find_consensual_tag_value(TagKey::ReleaseDate)
+    fn release_sort_order(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(TagKey::AlbumSortOrder)
             .map(Cow::from)
     }
 
-    fn release_country(&self) -> Option<Cow<'_, str>> {
-        self.find_consensual_tag_value(TagKey::ReleaseCountry)
-            .map(Cow::from)
+    fn asin(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(TagKey::Asin).map(Cow::from)
     }
 
-    fn record_label(&self) -> Option<Cow<'_, str>> {
-        self.find_consensual_tag_value(TagKey::RecordLabel)
+    fn barcode(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(TagKey::Barcode)
             .map(Cow::from)
     }
-
     fn catalog_number(&self) -> Option<Cow<'_, str>> {
         self.find_consensual_tag_value(TagKey::CatalogNumber)
             .map(Cow::from)
     }
 
-    fn barcode(&self) -> Option<Cow<'_, str>> {
-        self.find_consensual_tag_value(TagKey::Barcode)
+    fn compilation(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(TagKey::Compilation)
+            .map(Cow::from)
+    }
+
+    fn grouping(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(TagKey::Grouping)
+            .map(Cow::from)
+    }
+
+    fn musicbrainz_release_artist_id(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(TagKey::MusicBrainzReleaseArtistId)
+            .map(Cow::from)
+    }
+
+    fn musicbrainz_release_group_id(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(TagKey::MusicBrainzReleaseGroupId)
+            .map(Cow::from)
+    }
+
+    fn musicbrainz_release_id(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(TagKey::MusicBrainzReleaseId)
+            .map(Cow::from)
+    }
+    fn record_label(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(TagKey::RecordLabel)
+            .map(Cow::from)
+    }
+    fn release_country(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(TagKey::ReleaseCountry)
+            .map(Cow::from)
+    }
+    fn release_date(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(TagKey::ReleaseDate)
+            .map(Cow::from)
+    }
+
+    fn release_year(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(TagKey::ReleaseYear)
+            .map(Cow::from)
+    }
+
+    fn release_status(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(TagKey::ReleaseStatus)
+            .map(Cow::from)
+    }
+
+    fn release_type(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(TagKey::ReleaseType)
+            .map(Cow::from)
+    }
+
+    fn script(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(TagKey::Script)
+            .map(Cow::from)
+    }
+
+    fn total_discs(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(TagKey::TotalDiscs)
             .map(Cow::from)
     }
 
