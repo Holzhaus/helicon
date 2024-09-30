@@ -120,8 +120,8 @@ impl FlacTag {
             TagKey::ShowNameSortOrder => None,
             TagKey::ShowMovement => "SHOWMOVEMENT".into(),
             TagKey::Subtitle => "SUBTITLE".into(),
-            TagKey::TotalDiscs => "DISCTOTAL and TOTALDISCS".into(),
-            TagKey::TotalTracks => "TRACKTOTAL and TOTALTRACKS".into(),
+            TagKey::TotalDiscs => "TOTALDISCS".into(), // TODO: Also map this to DISCTOTAL.
+            TagKey::TotalTracks => "TOTALTRACKS".into(), // TODO: Also map this to TRACKTOTAL.
             TagKey::TrackNumber => "TRACKNUMBER".into(),
             TagKey::TrackTitle => "TITLE".into(),
             TagKey::TrackTitleSortOrder => "TITLESORT".into(),
