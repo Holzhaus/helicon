@@ -193,6 +193,11 @@ impl FromIterator<TaggedFile> for TaggedFileCollection {
 }
 
 impl MediaLike for TaggedFileCollection {
+    fn disc_number(&self) -> Option<u32> {
+        self.find_consensual_tag_value(TagKey::DiscNumber)
+            .and_then(|number| number.parse::<u32>().ok())
+    }
+
     fn media_title(&self) -> Option<Cow<'_, str>> {
         self.find_consensual_tag_value(TagKey::DiscSubtitle)
             .map(Cow::from)
@@ -202,8 +207,22 @@ impl MediaLike for TaggedFileCollection {
         self.find_consensual_tag_value(TagKey::Media).map(Cow::from)
     }
 
+    fn musicbrainz_disc_id(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(TagKey::MusicBrainzDiscId)
+            .map(Cow::from)
+    }
+
     fn media_track_count(&self) -> Option<usize> {
         self.0.len().into()
+    }
+
+    fn gapless_playback(&self) -> Option<bool> {
+        self.find_consensual_tag_value(TagKey::GaplessPlayback)
+            .map(|value| {
+                let value_lower = value.to_ascii_lowercase();
+                let result = &["1", "on", "true", "yes"].contains(&value_lower.as_str());
+                *result
+            })
     }
 
     fn media_tracks(&self) -> impl Iterator<Item = &(impl TrackLike + '_)> {
