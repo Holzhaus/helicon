@@ -12,7 +12,10 @@ use crate::media::MediaLike;
 use crate::track::TrackLike;
 use crate::Config;
 use itertools::Itertools;
-use musicbrainz_rs_nova::entity::release::Release as MusicBrainzRelease;
+use musicbrainz_rs_nova::entity::release::{Release as MusicBrainzRelease, ReleaseStatus};
+use musicbrainz_rs_nova::entity::release_group::{
+    ReleaseGroupPrimaryType, ReleaseGroupSecondaryType,
+};
 use std::borrow::Cow;
 
 /// Represent a generic release, independent of the underlying source.
@@ -168,8 +171,18 @@ impl ReleaseLike for MusicBrainzRelease {
     }
 
     fn release_artist_sort_order(&self) -> Option<Cow<'_, str>> {
-        // TODO:: Implement this.
-        None
+        let value = self
+            .artist_credit
+            .iter()
+            .flat_map(|artists| artists.iter())
+            .map(|artist_credit| &artist_credit.artist)
+            .map(|artist| &artist.sort_name)
+            .join("; ");
+        if value.is_empty() {
+            None
+        } else {
+            Cow::from(value).into()
+        }
     }
 
     fn release_sort_order(&self) -> Option<Cow<'_, str>> {
@@ -206,13 +219,17 @@ impl ReleaseLike for MusicBrainzRelease {
     }
 
     fn musicbrainz_release_artist_id(&self) -> Option<Cow<'_, str>> {
-        // TODO:: Implement this.
-        None
+        self.artist_credit
+            .iter()
+            .flat_map(|vec| vec.iter())
+            .map(|artist_credit| Cow::from(&artist_credit.artist.id))
+            .next()
     }
 
     fn musicbrainz_release_group_id(&self) -> Option<Cow<'_, str>> {
-        // TODO:: Implement this.
-        None
+        self.release_group
+            .as_ref()
+            .map(|release_group| Cow::from(&release_group.id))
     }
 
     fn musicbrainz_release_id(&self) -> Option<Cow<'_, str>> {
@@ -240,18 +257,71 @@ impl ReleaseLike for MusicBrainzRelease {
     }
 
     fn release_year(&self) -> Option<Cow<'_, str>> {
-        // TODO:: Implement this.
-        None
+        self.date
+            .map(|date| date.format("%Y").to_string())
+            .map(Cow::from)
     }
 
     fn release_status(&self) -> Option<Cow<'_, str>> {
-        // TODO:: Implement this.
-        None
+        self.status
+            .as_ref()
+            .and_then(|status| match status {
+                ReleaseStatus::Official => "official".into(),
+                ReleaseStatus::Promotion => "promotion".into(),
+                ReleaseStatus::Bootleg => "bootleg".into(),
+                ReleaseStatus::PseudoRelease => "pseudo-release".into(),
+                _ => None,
+            })
+            .map(Cow::from)
     }
 
     fn release_type(&self) -> Option<Cow<'_, str>> {
         // TODO:: Implement this.
-        None
+        self.release_group
+            .iter()
+            .flat_map(|release_group| {
+                release_group
+                    .primary_type
+                    .iter()
+                    .filter_map(|primary_type| {
+                        // FIXME: Something like `to_str()` should be implement upstream.
+                        match primary_type {
+                            ReleaseGroupPrimaryType::Album => "album".into(),
+                            ReleaseGroupPrimaryType::Single => "single".into(),
+                            ReleaseGroupPrimaryType::Ep => "ep".into(),
+                            ReleaseGroupPrimaryType::Broadcast => "broadcast".into(),
+                            ReleaseGroupPrimaryType::Other => "other".into(),
+                            _ => None,
+                        }
+                    })
+                    .map(Cow::from)
+                    .chain(
+                        release_group
+                            .secondary_types
+                            .iter()
+                            .filter_map(|secondary_type| {
+                                // FIXME: Something like `to_str()` should be implement upstream.
+                                match secondary_type {
+                                    ReleaseGroupSecondaryType::AudioDrama => "audiodrama".into(),
+                                    ReleaseGroupSecondaryType::Audiobook => "audiobook".into(),
+                                    ReleaseGroupSecondaryType::Compilation => "compilation".into(),
+                                    ReleaseGroupSecondaryType::DjMix => "djmix".into(),
+                                    ReleaseGroupSecondaryType::Demo => "demo".into(),
+                                    ReleaseGroupSecondaryType::Interview => "interview".into(),
+                                    ReleaseGroupSecondaryType::Live => "live".into(),
+                                    ReleaseGroupSecondaryType::MixtapeStreet => {
+                                        "mixtapestreet".into()
+                                    }
+                                    ReleaseGroupSecondaryType::Remix => "remix".into(),
+                                    ReleaseGroupSecondaryType::Soundtrack => "soundtrack".into(),
+                                    ReleaseGroupSecondaryType::Spokenword => "spokenword".into(),
+                                    _ => None,
+                                }
+                            })
+                            .map(Cow::from),
+                    )
+            })
+            .next()
     }
 
     fn script(&self) -> Option<Cow<'_, str>> {
@@ -260,7 +330,8 @@ impl ReleaseLike for MusicBrainzRelease {
     }
 
     fn total_discs(&self) -> Option<Cow<'_, str>> {
-        // TODO:: Implement this.
-        None
+        self.media
+            .as_ref()
+            .map(|media| Cow::from(media.len().to_string()))
     }
 }
