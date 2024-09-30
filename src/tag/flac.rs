@@ -96,7 +96,7 @@ impl FlacTag {
             TagKey::OriginalFilename => "ORIGINALFILENAME".into(),
             TagKey::OriginalReleaseDate => "ORIGINALDATE".into(),
             TagKey::OriginalReleaseYear => "ORIGINALYEAR".into(),
-            TagKey::Performer => "PERFORMER={artist} (instrument)".into(),
+            TagKey::Performer => "PERFORMER".into(), // This should be in "PERFORMER={artist} (instrument)" format.
             TagKey::Podcast => None,
             TagKey::PodcastUrl => None,
             TagKey::Producer => "PRODUCER".into(),
