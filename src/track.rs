@@ -10,9 +10,12 @@
 use crate::distance::TrackSimilarity;
 use crate::Config;
 use itertools::Itertools;
+use musicbrainz_rs_nova::entity::artist::Artist as MusicBrainzArtist;
+use musicbrainz_rs_nova::entity::relations::Relation as MusicBrainzRelation;
 use musicbrainz_rs_nova::entity::relations::RelationContent as MusicBrainzRelationContent;
 use musicbrainz_rs_nova::entity::release::Track as MusicBrainzReleaseTrack;
 use std::borrow::Cow;
+use std::iter::Iterator;
 
 /// Represent a generic release, independent of the underlying source.
 pub trait TrackLike {
@@ -226,39 +229,74 @@ pub trait TrackLike {
 
 /// Adds helper methods to the `MusicBrainzReleaseTrack` struct.
 trait MusicBrainzReleaseTrackHelper {
-    /// Get artists by relation types.
-    fn find_artist_by_relationship(
+    /// Get release relations by types.
+    fn find_release_relations_by_type(
         &self,
         relation_types: &[&str],
-    ) -> impl Iterator<Item = Cow<'_, str>>;
+    ) -> impl Iterator<Item = &MusicBrainzRelation>;
 
-    /// Get artists by relation types (joined to a single value).
-    fn find_artist_by_relationship_joined(&self, relation_types: &[&str]) -> Option<Cow<'_, str>>;
+    /// Get work relations by types.
+    fn find_work_relations_by_type(
+        &self,
+        relation_types: &[&str],
+    ) -> impl Iterator<Item = &MusicBrainzRelation>;
+
+    /// Get release relation artists by relation types (joined to a single value).
+    fn find_release_relation_artists_joined(&self, relation_types: &[&str])
+        -> Option<Cow<'_, str>>;
 }
 
 impl MusicBrainzReleaseTrackHelper for MusicBrainzReleaseTrack {
-    fn find_artist_by_relationship(
+    fn find_release_relations_by_type(
         &self,
         relation_types: &[&str],
-    ) -> impl Iterator<Item = Cow<'_, str>> {
+    ) -> impl Iterator<Item = &MusicBrainzRelation> {
         self.recording
             .relations
             .iter()
             .flat_map(|relations| relations.iter())
-            .filter_map(|relation| {
-                let MusicBrainzRelationContent::Artist(artist) = &relation.content else {
-                    return None;
-                };
-                relation_types
-                    .contains(&relation.relation_type.as_str())
-                    .then_some(Cow::from(&artist.name))
-            })
+            .filter(|relation| relation_types.contains(&relation.relation_type.as_str()))
     }
 
-    fn find_artist_by_relationship_joined(&self, relation_types: &[&str]) -> Option<Cow<'_, str>> {
-        Some(self.find_artist_by_relationship(relation_types).join("; "))
-            .filter(|s| !s.is_empty())
-            .map(Cow::from)
+    fn find_work_relations_by_type(
+        &self,
+        relation_types: &[&str],
+    ) -> impl Iterator<Item = &MusicBrainzRelation> {
+        self.find_release_relations_by_type(&["performance"])
+            .filter(|relation| relation.direction.as_str() == "forward")
+            .filter_map(|relation| {
+                if let MusicBrainzRelationContent::Work(work) = &relation.content {
+                    Some(work)
+                } else {
+                    None
+                }
+            })
+            .flat_map(|work| work.relations.iter())
+            .flat_map(|relations| relations.iter())
+            .filter(|relation| relation_types.contains(&relation.relation_type.as_str()))
+    }
+
+    fn find_release_relation_artists_joined(
+        &self,
+        relation_types: &[&str],
+    ) -> Option<Cow<'_, str>> {
+        Some(
+            self.find_release_relations_by_type(relation_types)
+                .filter_map(relation_artist)
+                .map(|artist| &artist.name)
+                .join(";"),
+        )
+        .filter(|s| !s.is_empty())
+        .map(Cow::from)
+    }
+}
+
+/// Helper method to get the artist from a relation.
+fn relation_artist(relation: &MusicBrainzRelation) -> Option<&MusicBrainzArtist> {
+    if let MusicBrainzRelationContent::Artist(artist) = &relation.content {
+        Some(artist)
+    } else {
+        None
     }
 }
 
@@ -275,15 +313,25 @@ impl TrackLike for MusicBrainzReleaseTrack {
 
     fn arranger(&self) -> Option<Cow<'_, str>> {
         // TODO: This should be multi-valued.
-        self.find_artist_by_relationship_joined(&[
-            "arranger",
-            "instrument arranger",
-            "orchestrator",
-            "vocal arranger",
-        ])
+        Some(
+            self.find_release_relations_by_type(&[
+                "arranger",
+                "instrument arranger",
+                "orchestrator",
+                "vocal arranger",
+            ])
+            .filter_map(relation_artist)
+            .map(|artist| &artist.name)
+            .join(";"),
+        )
+        .filter(|s| !s.is_empty())
+        .map(Cow::from)
     }
 
     fn track_artist(&self) -> Option<Cow<'_, str>> {
+        // TODO: Use the artist credit for the track, once
+        // https://github.com/RustyNova016/musicbrainz_rs_nova/issues/36
+        // has been fixed.
         Cow::from(
             self.recording
                 .artist_credit
@@ -302,6 +350,9 @@ impl TrackLike for MusicBrainzReleaseTrack {
     }
 
     fn track_artist_sort_order(&self) -> Option<Cow<'_, str>> {
+        // TODO: Use the artist credit for the track, once
+        // https://github.com/RustyNova016/musicbrainz_rs_nova/issues/36
+        // has been fixed.
         Cow::from(
             self.recording
                 .artist_credit
@@ -331,17 +382,32 @@ impl TrackLike for MusicBrainzReleaseTrack {
 
     fn composer(&self) -> Option<Cow<'_, str>> {
         // TODO: This should be multi-valued.
-        self.find_artist_by_relationship_joined(&["composition", "composer"])
+        Some(
+            self.find_release_relations_by_type(&["composition", "composer"])
+                .chain(self.find_work_relations_by_type(&["composition", "composer"]))
+                .filter_map(relation_artist)
+                .map(|artist| &artist.name)
+                .join(";"),
+        )
+        .filter(|s| !s.is_empty())
+        .map(Cow::from)
     }
 
     fn composer_sort_order(&self) -> Option<Cow<'_, str>> {
-        // TODO: Implement this.
-        None
+        Some(
+            self.find_release_relations_by_type(&["composition", "composer"])
+                .chain(self.find_work_relations_by_type(&["composition", "composer"]))
+                .filter_map(relation_artist)
+                .map(|artist| &artist.sort_name)
+                .join(";"),
+        )
+        .filter(|s| !s.is_empty())
+        .map(Cow::from)
     }
 
     fn conductor(&self) -> Option<Cow<'_, str>> {
         // TODO: This should be multi-valued.
-        self.find_artist_by_relationship_joined(&["conductor"])
+        self.find_release_relation_artists_joined(&["conductor"])
     }
 
     fn copyright(&self) -> Option<Cow<'_, str>> {
@@ -351,7 +417,7 @@ impl TrackLike for MusicBrainzReleaseTrack {
 
     fn director(&self) -> Option<Cow<'_, str>> {
         // TODO: This should be multi-valued.
-        self.find_artist_by_relationship_joined(&[
+        self.find_release_relation_artists_joined(&[
             "audio director",
             "video director",
             "creative direction",
@@ -361,7 +427,7 @@ impl TrackLike for MusicBrainzReleaseTrack {
 
     fn dj_mixer(&self) -> Option<Cow<'_, str>> {
         // TODO: This should be multi-valued.
-        self.find_artist_by_relationship_joined(&["mix-DJ"])
+        self.find_release_relation_artists_joined(&["mix-DJ"])
     }
 
     fn encoded_by(&self) -> Option<Cow<'_, str>> {
@@ -375,7 +441,7 @@ impl TrackLike for MusicBrainzReleaseTrack {
     fn engineer(&self) -> Option<Cow<'_, str>> {
         // TODO: Implement this.
         // TODO: This should be multi-valued.
-        self.find_artist_by_relationship_joined(&[
+        self.find_release_relation_artists_joined(&[
             "engineer",
             "audio",
             "mastering",
@@ -424,7 +490,15 @@ impl TrackLike for MusicBrainzReleaseTrack {
 
     fn lyricist(&self) -> Option<Cow<'_, str>> {
         // TODO: This should be multi-valued.
-        self.find_artist_by_relationship_joined(&["lyricist"])
+        Some(
+            self.find_release_relations_by_type(&["lyricist"])
+                .chain(self.find_work_relations_by_type(&["lyricist"]))
+                .filter_map(relation_artist)
+                .map(|artist| &artist.name)
+                .join(";"),
+        )
+        .filter(|s| !s.is_empty())
+        .map(Cow::from)
     }
 
     fn lyrics(&self) -> Option<Cow<'_, str>> {
@@ -434,7 +508,7 @@ impl TrackLike for MusicBrainzReleaseTrack {
 
     fn mixer(&self) -> Option<Cow<'_, str>> {
         // TODO: This should be multi-valued.
-        self.find_artist_by_relationship_joined(&["mix"])
+        self.find_release_relation_artists_joined(&["mix"])
     }
 
     fn mood(&self) -> Option<Cow<'_, str>> {
@@ -527,41 +601,32 @@ impl TrackLike for MusicBrainzReleaseTrack {
 
     fn performer(&self) -> Option<Cow<'_, str>> {
         // TODO: This should be multi-valued.
-        let performers = self
-            .recording
-            .relations
-            .iter()
-            .flat_map(|relations| relations.iter())
-            .filter_map(|relation| {
-                let MusicBrainzRelationContent::Artist(artist) = &relation.content else {
-                    return None;
-                };
-                match relation.relation_type.as_ref() {
-                    "performer" | "instrument" | "vocal" => {
+        Some(
+            self.find_release_relations_by_type(&["performer", "instrument", "vocal"])
+                .filter_map(|relation| {
+                    if let MusicBrainzRelationContent::Artist(artist) = &relation.content {
                         Some((&artist.name, &relation.attributes))
+                    } else {
+                        None
                     }
-                    _ => None,
-                }
-            })
-            .map(|(artist, attributes)| {
-                let attrs = attributes.iter().flat_map(|vec| vec.iter()).join(", ");
-                if attrs.is_empty() {
-                    Cow::from(artist)
-                } else {
-                    Cow::from(format!("{artist} ({attrs})"))
-                }
-            })
-            .join("; ");
-        if performers.is_empty() {
-            None
-        } else {
-            Cow::from(performers).into()
-        }
+                })
+                .map(|(artist, attributes)| {
+                    let attrs = attributes.iter().flat_map(|vec| vec.iter()).join(", ");
+                    if attrs.is_empty() {
+                        Cow::from(artist)
+                    } else {
+                        Cow::from(format!("{artist} ({attrs})"))
+                    }
+                })
+                .join("; "),
+        )
+        .filter(|s| !s.is_empty())
+        .map(Cow::from)
     }
 
     fn producer(&self) -> Option<Cow<'_, str>> {
         // TODO: This should be multi-valued.
-        self.find_artist_by_relationship_joined(&["producer"])
+        self.find_release_relation_artists_joined(&["producer"])
     }
 
     fn rating(&self) -> Option<Cow<'_, str>> {
@@ -571,7 +636,7 @@ impl TrackLike for MusicBrainzReleaseTrack {
 
     fn remixer(&self) -> Option<Cow<'_, str>> {
         // TODO: This should be multi-valued.
-        self.find_artist_by_relationship_joined(&["remixer"])
+        self.find_release_relation_artists_joined(&["remixer"])
     }
 
     fn replay_gain_album_gain(&self) -> Option<Cow<'_, str>> {
@@ -634,14 +699,15 @@ impl TrackLike for MusicBrainzReleaseTrack {
 
     fn writer(&self) -> Option<Cow<'_, str>> {
         // TODO: This should be multi-valued.
-        self.find_artist_by_relationship_joined(&[
-            "writer",
-            "lyricist",
-            "librettist",
-            "revised by",
-            "translator",
-            "reconstructed by",
-        ])
+        Some(
+            self.find_release_relations_by_type(&["writer"])
+                .chain(self.find_work_relations_by_type(&["writer"]))
+                .filter_map(relation_artist)
+                .map(|artist| &artist.name)
+                .join(";"),
+        )
+        .filter(|s| !s.is_empty())
+        .map(Cow::from)
     }
 
     fn track_length(&self) -> Option<chrono::TimeDelta> {
