@@ -18,18 +18,11 @@ pub mod id3;
 /// A tag key describes the kind of information in a generic, format-independent way.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TagKey {
+    // Track Level
     /// AcoustID associated with the track.
     AcoustId,
     /// AcoustID Fingerprint for the track.
     AcoustIdFingerprint,
-    /// Title of the release.
-    Album,
-    /// Artist(s) primarily credited on the release.
-    AlbumArtist,
-    /// Release Artist’s Sort Name (e.g.: “Beatles, The”).
-    AlbumArtistSortOrder,
-    /// Release Title’s Sort Name.
-    AlbumSortOrder,
     /// Artist who arranged the tune for performance.
     Arranger,
     /// Track Artist Name(s).
@@ -38,20 +31,10 @@ pub enum TagKey {
     ArtistSortOrder,
     /// Track Artist Name(s).
     Artists,
-    /// Amazon Standard Identification Number - the number identifying the item on Amazon.
-    Asin,
-    /// Release Barcode - the barcode assigned to the release.
-    Barcode,
     /// Beats per minute of the track. Only available to the file naming script.
     Bpm,
-    /// The number(s) assigned to the release by the label(s), which can often be found on the
-    /// spine or near the barcode. There may be more than one, especially when multiple labels are
-    /// involved.
-    CatalogNumber,
     /// Comment.
     Comment,
-    /// 1 for Various Artist albums, otherwise 0 (compatible with iTunes).
-    Compilation,
     /// Composer Name(s).
     Composer,
     /// Composer Sort Name.
@@ -62,22 +45,18 @@ pub enum TagKey {
     Copyright,
     /// The director of a video track as provided by the Video Director relationship in MusicBrainz.
     Director,
-    /// Number of the disc in this release that contains this track.
-    DiscNumber,
-    /// The Media Title given to a specific disc.
-    DiscSubtitle,
+    /// DJ-Mix Artist Name(s).
+    ///
+    /// This only applies to DJ-Mixes.
+    DjMixer,
     /// Encoded by (person or organization).
     EncodedBy,
     /// Encoder Settings used.
     EncoderSettings,
     /// Recording Engineer Name(s).
     Engineer,
-    /// Indicated if the playback is gapless.
-    GaplessPlayback,
     /// Genre Name(s) of the track.
     Genre,
-    /// Content Group.
-    Grouping,
     /// Initial key of the track.
     InitialKey,
     /// International Standard Recording Code
@@ -93,12 +72,6 @@ pub enum TagKey {
     Lyricist,
     /// Lyrics.
     Lyrics,
-    /// Release Format (e.g.: CD).
-    Media,
-    /// DJ-Mix Artist Name(s).
-    ///
-    /// This only applies to DJ-Mixes.
-    DjMixer,
     /// Mixing Engineer Name(s).
     Mixer,
     /// Mood.
@@ -111,22 +84,12 @@ pub enum TagKey {
     MovementNumber,
     /// Track Artist’s MusicBrainz Identifier.
     MusicBrainzArtistId,
-    /// Disc ID is the code number which MusicBrainz uses to link a physical CD to a release
-    /// listing. This is based on the table of contents (TOC) information read from the disc. This
-    /// tag contains the Disc ID if the album information was retrieved using “Tools ‣ Lookup CD”.
-    MusicBrainzDiscId,
     /// Original Track Artist’s MusicBrainz Identifier.
     MusicBrainzOriginalArtistId,
     /// Original Release’s MusicBrainz Identifier.
     MusicBrainzOriginalReleaseId,
     /// Recording’s MusicBrainz Identifier.
     MusicBrainzRecordingId,
-    /// Release Artist’s MusicBrainz Identifier.
-    MusicBrainzReleaseArtistId,
-    /// Release Group’s MusicBrainz Identifier.
-    MusicBrainzReleaseGroupId,
-    /// Release MusicBrainz Identifier.
-    MusicBrainzReleaseId,
     /// Release Track MusicBrainz Identifier.
     MusicBrainzTrackId,
     /// MusicBrainz TRM ID
@@ -160,26 +123,10 @@ pub enum TagKey {
     OriginalReleaseYear,
     /// Performer.
     Performer,
-    /// Podcast.
-    Podcast,
-    /// Podcast URL.
-    PodcastUrl,
-    /// Producer Nae(s).
+    /// Producer Name(s).
     Producer,
     /// Rating of the track.
     Rating,
-    /// Release Record Label Name(s).
-    RecordLabel,
-    /// Country in which the release was issued.
-    ReleaseCountry,
-    /// Release Date (YYYY-MM-DD) - the date that the release was issued.
-    ReleaseDate,
-    /// Release Year (YYYY) - the year that the release was issued.
-    ReleaseYear,
-    /// Release Status indicating the “official” status of the release.
-    ReleaseStatus,
-    /// Release Group Type.
-    ReleaseType,
     /// Remixer Name(s).
     Remixer,
     /// ReplayGain Album Gain.
@@ -196,22 +143,6 @@ pub enum TagKey {
     ReplayGainTrackPeak,
     /// ReplayGain Track Range.
     ReplayGainTrackRange,
-    /// The script used to write the release’s track list.
-    ///
-    /// The values should be taken from the ISO 15924 standard.
-    Script,
-    /// Show Name.
-    ShowName,
-    /// Show Name Sort Order.
-    ShowNameSortOrder,
-    /// Show Work & Movement.
-    ShowMovement,
-    /// Used for information directly related to the contents title.
-    Subtitle,
-    /// Total number of discs in this release.
-    TotalDiscs,
-    /// Total tracks on this disc.
-    TotalTracks,
     /// Track number on the disc.
     TrackNumber,
     /// Track Title.
@@ -226,6 +157,82 @@ pub enum TagKey {
     ///
     /// This is used when uncertain whether the artist is the composer or the lyricist.
     Writer,
+
+    // Media Level
+    /// Number of the disc in this release that contains this track.
+    DiscNumber,
+    /// The Media Title given to a specific disc.
+    DiscSubtitle,
+    /// Indicated if the playback is gapless.
+    GaplessPlayback,
+    /// Release Format (e.g.: CD).
+    Media,
+    /// Disc ID is the code number which MusicBrainz uses to link a physical CD to a release
+    /// listing. This is based on the table of contents (TOC) information read from the disc. This
+    /// tag contains the Disc ID if the album information was retrieved using “Tools ‣ Lookup CD”.
+    MusicBrainzDiscId,
+    /// Total tracks on this disc.
+    TotalTracks,
+
+    // Release Level
+    /// Title of the release.
+    Album,
+    /// Artist(s) primarily credited on the release.
+    AlbumArtist,
+    /// Release Artist’s Sort Name (e.g.: “Beatles, The”).
+    AlbumArtistSortOrder,
+    /// Release Title’s Sort Name.
+    AlbumSortOrder,
+    /// Amazon Standard Identification Number - the number identifying the item on Amazon.
+    Asin,
+    /// Release Barcode - the barcode assigned to the release.
+    Barcode,
+    /// The number(s) assigned to the release by the label(s), which can often be found on the
+    /// spine or near the barcode. There may be more than one, especially when multiple labels are
+    /// involved.
+    CatalogNumber,
+    /// 1 for Various Artist albums, otherwise 0 (compatible with iTunes).
+    Compilation,
+    /// Content Group.
+    Grouping,
+    /// Release Artist’s MusicBrainz Identifier.
+    MusicBrainzReleaseArtistId,
+    /// Release Group’s MusicBrainz Identifier.
+    MusicBrainzReleaseGroupId,
+    /// Release MusicBrainz Identifier.
+    MusicBrainzReleaseId,
+    /// Release Record Label Name(s).
+    RecordLabel,
+    /// Country in which the release was issued.
+    ReleaseCountry,
+    /// Release Date (YYYY-MM-DD) - the date that the release was issued.
+    ReleaseDate,
+    /// Release Year (YYYY) - the year that the release was issued.
+    ReleaseYear,
+    /// Release Status indicating the “official” status of the release.
+    ReleaseStatus,
+    /// Release Group Type.
+    ReleaseType,
+    /// The script used to write the release’s track list.
+    ///
+    /// The values should be taken from the ISO 15924 standard.
+    Script,
+    /// Total number of discs in this release.
+    TotalDiscs,
+
+    // Unknown/Misc
+    /// Podcast.
+    Podcast,
+    /// Podcast URL.
+    PodcastUrl,
+    /// Show Name.
+    ShowName,
+    /// Show Name Sort Order.
+    ShowNameSortOrder,
+    /// Show Work & Movement.
+    ShowMovement,
+    /// Used for information directly related to the contents title.
+    Subtitle,
 }
 
 /// The tag type.
