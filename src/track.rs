@@ -14,6 +14,7 @@ use musicbrainz_rs_nova::entity::artist::Artist as MusicBrainzArtist;
 use musicbrainz_rs_nova::entity::relations::Relation as MusicBrainzRelation;
 use musicbrainz_rs_nova::entity::relations::RelationContent as MusicBrainzRelationContent;
 use musicbrainz_rs_nova::entity::release::Track as MusicBrainzReleaseTrack;
+use musicbrainz_rs_nova::entity::work::Work as MusicBrainzWork;
 use std::borrow::Cow;
 use std::iter::Iterator;
 
@@ -235,6 +236,9 @@ trait MusicBrainzReleaseTrackHelper {
         relation_types: &[&str],
     ) -> impl Iterator<Item = &MusicBrainzRelation>;
 
+    /// Get the works for this track.
+    fn find_works(&self) -> impl Iterator<Item = &Box<MusicBrainzWork>>;
+
     /// Get work relations by types.
     fn find_work_relations_by_type(
         &self,
@@ -258,10 +262,7 @@ impl MusicBrainzReleaseTrackHelper for MusicBrainzReleaseTrack {
             .filter(|relation| relation_types.contains(&relation.relation_type.as_str()))
     }
 
-    fn find_work_relations_by_type(
-        &self,
-        relation_types: &[&str],
-    ) -> impl Iterator<Item = &MusicBrainzRelation> {
+    fn find_works(&self) -> impl Iterator<Item = &Box<MusicBrainzWork>> {
         self.find_release_relations_by_type(&["performance"])
             .filter(|relation| relation.direction.as_str() == "forward")
             .filter_map(|relation| {
@@ -271,6 +272,13 @@ impl MusicBrainzReleaseTrackHelper for MusicBrainzReleaseTrack {
                     None
                 }
             })
+    }
+
+    fn find_work_relations_by_type(
+        &self,
+        relation_types: &[&str],
+    ) -> impl Iterator<Item = &MusicBrainzRelation> {
+        self.find_works()
             .flat_map(|work| work.relations.iter())
             .flat_map(|relations| relations.iter())
             .filter(|relation| relation_types.contains(&relation.relation_type.as_str()))
@@ -560,8 +568,7 @@ impl TrackLike for MusicBrainzReleaseTrack {
     }
 
     fn musicbrainz_work_id(&self) -> Option<Cow<'_, str>> {
-        // TODO: Implement this.
-        None
+        self.find_works().map(|work| &work.id).map(Cow::from).next()
     }
 
     fn musicip_fingerprint(&self) -> Option<Cow<'_, str>> {
@@ -693,8 +700,10 @@ impl TrackLike for MusicBrainzReleaseTrack {
     }
 
     fn work_title(&self) -> Option<Cow<'_, str>> {
-        // TODO: Implement this.
-        None
+        self.find_works()
+            .map(|work| &work.title)
+            .map(Cow::from)
+            .next()
     }
 
     fn writer(&self) -> Option<Cow<'_, str>> {
