@@ -526,7 +526,9 @@ impl TrackLike for MusicBrainzReleaseTrack {
     }
 
     fn performer(&self) -> Option<Cow<'_, str>> {
-        self.recording
+        // TODO: This should be multi-valued.
+        let performers = self
+            .recording
             .relations
             .iter()
             .flat_map(|relations| relations.iter())
@@ -534,8 +536,8 @@ impl TrackLike for MusicBrainzReleaseTrack {
                 let MusicBrainzRelationContent::Artist(artist) = &relation.content else {
                     return None;
                 };
-                match relation.target_type.as_deref() {
-                    Some("performer" | "instrument" | "vocal") => {
+                match relation.relation_type.as_ref() {
+                    "performer" | "instrument" | "vocal" => {
                         Some((&artist.name, &relation.attributes))
                     }
                     _ => None,
@@ -549,7 +551,12 @@ impl TrackLike for MusicBrainzReleaseTrack {
                     Cow::from(format!("{artist} ({attrs})"))
                 }
             })
-            .next()
+            .join("; ");
+        if performers.is_empty() {
+            None
+        } else {
+            Cow::from(performers).into()
+        }
     }
 
     fn producer(&self) -> Option<Cow<'_, str>> {
