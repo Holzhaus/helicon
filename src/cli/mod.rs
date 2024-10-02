@@ -8,6 +8,7 @@
 
 //! Command line interface.
 
+mod analyze;
 mod cache;
 mod config;
 mod import;
@@ -46,6 +47,8 @@ enum Commands {
     Config(config::Args),
     /// Import files into your collection.
     Import(import::Args),
+    /// Analyze a file.
+    Analyze(analyze::Args),
 }
 
 impl Args {
@@ -100,5 +103,6 @@ pub async fn main() -> crate::Result<()> {
         Commands::Import(cmd_args) => import::run(&config, Some(&cache), cmd_args).await,
         Commands::Config(cmd_args) => config::run(&config, Some(&cache), cmd_args),
         Commands::Cache(cmd_args) => cache::run(&config, Some(&cache), cmd_args),
+        Commands::Analyze(cmd_args) => analyze::run(&config, Some(&cache), cmd_args),
     }
 }

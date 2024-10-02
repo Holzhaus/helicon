@@ -49,6 +49,9 @@ pub enum ErrorType {
     /// An error from the user interface.
     #[error("Error encountered while showing UI: {0}")]
     InquireError(#[from] inquire::InquireError),
+    /// An error occurred while analyzing the audio track.
+    #[error("Audio analysis failed: {0}")]
+    AnalyzerError(#[from] crate::analyzer::AnalyzerError),
 }
 
 /// Convenience type.
