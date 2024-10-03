@@ -73,11 +73,11 @@ impl From<StyledHandleCandidateResult<'_>> for HandleCandidateResult {
 }
 
 /// Display details about the candidate.
-pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
+pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
     config: &Config,
     base_release: &B,
     candidate: &ReleaseCandidate<C>,
-) -> Result<HandleCandidateResult, InquireError> {
+) {
     let candidate_details_config = &config.user_interface.candidate_details;
 
     let distance_color = util::distance_color(&candidate.distance());
@@ -337,7 +337,15 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
             }
         }
     }
+}
 
+/// Prompt the user how to handle the candidate.
+pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
+    config: &Config,
+    base_release: &B,
+    candidate: &ReleaseCandidate<C>,
+) -> Result<HandleCandidateResult, InquireError> {
+    show_candidate(config, base_release, candidate);
     let options = vec![
         HandleCandidateResult::Apply.into_styled(config),
         HandleCandidateResult::Skip.into_styled(config),
