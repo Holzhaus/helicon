@@ -9,7 +9,7 @@
 //! Show candidate details and select next action.
 
 use super::util::{self, LayoutItem, StyledContentList};
-use crate::config::{Config, UnmatchedTrackStyleConfig};
+use crate::config::{CandidateDetails, Config, UnmatchedTrackStyleConfig};
 use crate::distance::UnmatchedTracksSource;
 use crate::media::MediaLike;
 use crate::release::ReleaseLike;
@@ -28,6 +28,10 @@ use std::fmt;
 pub enum HandleCandidateResult {
     /// Apply the current candidate.
     Apply,
+    /// Show more details about the current candidate.
+    ShowDetails,
+    /// Hide details about the current candidate.
+    HideDetails,
     /// Skip the release.
     Skip,
     /// Back to candidate selection.
@@ -43,6 +47,8 @@ impl fmt::Display for StyledHandleCandidateResult<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let text = match &self.1 {
             HandleCandidateResult::Apply => "Apply candidate",
+            HandleCandidateResult::ShowDetails => "Show details",
+            HandleCandidateResult::HideDetails => "Hide details",
             HandleCandidateResult::Skip => "Skip album",
             HandleCandidateResult::BackToSelection => "Back to candidate selection",
             HandleCandidateResult::Quit => "Quit",
@@ -72,11 +78,37 @@ impl From<StyledHandleCandidateResult<'_>> for HandleCandidateResult {
     }
 }
 
+/// Print additional metadata.
+fn print_extra_metadata(
+    lhs: Option<Cow<'_, str>>,
+    rhs: Option<Cow<'_, str>>,
+    missing_str: &'static str,
+    suffix: &'static str,
+    candidate_details_config: &CandidateDetails,
+    max_width: usize,
+) {
+    let (lhs_value, rhs_value) = util::string_diff_opt(
+        lhs,
+        rhs,
+        missing_str,
+        &candidate_details_config.string_diff_style,
+    );
+    let lhs = LayoutItem::new(lhs_value);
+    let rhs = LayoutItem::new(rhs_value).with_suffix(
+        candidate_details_config
+            .changed_value_style
+            .apply(suffix.as_ref())
+            .into(),
+    );
+    util::print_column_layout(lhs, rhs, "   ", " -> ", max_width);
+}
+
 /// Display details about the candidate.
 pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
     config: &Config,
     base_release: &B,
     candidate: &ReleaseCandidate<C>,
+    show_details: bool,
 ) {
     let candidate_details_config = &config.user_interface.candidate_details;
 
@@ -246,43 +278,29 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
             );
 
             if !track_similarity.is_track_artist_equal() {
-                let (lhs_track_artist, rhs_track_artist) = util::string_diff_opt(
+                print_extra_metadata(
                     lhs_track.track_artist(),
                     rhs_track.track_artist(),
                     "<unknown artist>",
-                    &candidate_details_config.string_diff_style,
-                );
-                let lhs = LayoutItem::new(lhs_track_artist);
-                let rhs = LayoutItem::new(rhs_track_artist).with_suffix(
-                    candidate_details_config
-                        .changed_value_style
-                        .apply(" (artist)")
-                        .into(),
-                );
-                util::print_column_layout(
-                    lhs,
-                    rhs,
-                    &candidate_details_config.tracklist_extra_indent,
-                    &candidate_details_config.tracklist_extra_separator,
+                    " (artist)",
+                    candidate_details_config,
                     max_width,
                 );
             }
 
-            if !track_similarity.is_musicbrainz_recording_id_equal() {
-                let (lhs_mb_rec_id, rhs_mb_rec_id) = util::string_diff_opt(
-                    lhs_track.musicbrainz_recording_id(),
-                    rhs_track.musicbrainz_recording_id(),
-                    "<unknown id>",
-                    &candidate_details_config.string_diff_style,
-                );
-                let lhs = LayoutItem::new(lhs_mb_rec_id);
-                let rhs = LayoutItem::new(rhs_mb_rec_id).with_suffix(
-                    candidate_details_config
-                        .changed_value_style
-                        .apply(" (id)")
-                        .into(),
-                );
-                util::print_column_layout(lhs, rhs, "   ", " -> ", max_width);
+            if show_details {
+                // TODO: Add more metadata here.
+
+                if !track_similarity.is_musicbrainz_recording_id_equal() {
+                    print_extra_metadata(
+                        lhs_track.musicbrainz_recording_id(),
+                        rhs_track.musicbrainz_recording_id(),
+                        "<unknown artist>",
+                        " (id)",
+                        candidate_details_config,
+                        max_width,
+                    );
+                }
             }
 
             rhs_track_index += 1;
@@ -345,19 +363,35 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
     base_release: &B,
     candidate: &ReleaseCandidate<C>,
 ) -> Result<HandleCandidateResult, InquireError> {
-    show_candidate(config, base_release, candidate);
-    let options = vec![
-        HandleCandidateResult::Apply.into_styled(config),
-        HandleCandidateResult::Skip.into_styled(config),
-        HandleCandidateResult::BackToSelection.into_styled(config),
-        HandleCandidateResult::Quit.into_styled(config),
-    ];
+    let mut show_details = false;
+    loop {
+        show_candidate(config, base_release, candidate, show_details);
+        let options = vec![
+            HandleCandidateResult::Apply.into_styled(config),
+            if show_details {
+                HandleCandidateResult::HideDetails.into_styled(config)
+            } else {
+                HandleCandidateResult::ShowDetails.into_styled(config)
+            },
+            HandleCandidateResult::Skip.into_styled(config),
+            HandleCandidateResult::BackToSelection.into_styled(config),
+            HandleCandidateResult::Quit.into_styled(config),
+        ];
 
-    match Select::new("Select an option:", options).prompt() {
-        Ok(option) => Ok(option.into()),
-        Err(InquireError::OperationCanceled) => Ok(HandleCandidateResult::BackToSelection),
-        Err(InquireError::OperationInterrupted) => Ok(HandleCandidateResult::Quit),
-        Err(err) => Err(err),
+        break match Select::new("Select an option:", options).prompt() {
+            Ok(StyledHandleCandidateResult(_, HandleCandidateResult::ShowDetails)) => {
+                show_details = true;
+                continue;
+            }
+            Ok(StyledHandleCandidateResult(_, HandleCandidateResult::HideDetails)) => {
+                show_details = false;
+                continue;
+            }
+            Ok(option) => Ok(option.into()),
+            Err(InquireError::OperationCanceled) => Ok(HandleCandidateResult::BackToSelection),
+            Err(InquireError::OperationInterrupted) => Ok(HandleCandidateResult::Quit),
+            Err(err) => Err(err),
+        };
     }
 }
 

@@ -143,6 +143,9 @@ async fn select_release<'a>(
             ui::HandleCandidateResult::Quit => {
                 return Ok(SelectionResult::Quit);
             }
+            ui::HandleCandidateResult::ShowDetails | ui::HandleCandidateResult::HideDetails => {
+                unreachable!()
+            }
         }
     }
 }
