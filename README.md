@@ -21,4 +21,4 @@ This software is [licensed][license] under the terms of the [Mozilla Public Lice
 [license]: https://github.com/Holzhaus/helicon/blob/main/COPYING
 [license-badge]: https://img.shields.io/github/license/Holzhaus/helicon
 [build]: https://github.com/Holzhaus/helicon/actions?query=branch%3Amain
-[build-badge]: https://img.shields.io/github/workflow/status/Holzhaus/helicon/Build
+[build-badge]: https://img.shields.io/github/actions/workflow/status/Holzhaus/helicon/build.yml?branch=main
