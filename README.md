@@ -1,4 +1,4 @@
-# Helicon [![License][license-badge]][license]
+# Helicon [![License][license-badge]][license] [![Build Status][build-badge]][build]
 
 Helicon is a command-line tool to tag and organize your music based on metadata
 from [MusicBrainz][musicbrainz], written in Rust.
@@ -20,3 +20,5 @@ This software is [licensed][license] under the terms of the [Mozilla Public Lice
 [musicbrainz]: https://musicbrainz.org/
 [license]: https://github.com/Holzhaus/helicon/blob/main/COPYING
 [license-badge]: https://img.shields.io/github/license/Holzhaus/helicon
+[build]: https://github.com/Holzhaus/helicon/actions?query=branch%3Amain
+[build-badge]: https://img.shields.io/github/workflow/status/Holzhaus/helicon/Build
