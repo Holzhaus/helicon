@@ -27,22 +27,23 @@ repos:
       --ignore-words=.codespellignore
     ]
     exclude_types: [tsv, json]
-- repo: https://github.com/doublify/pre-commit-rust
-  rev: v1.0
+- repo: local
   hooks:
-  - id: fmt
+  - id: cargo-fmt
+    name: cargo fmt
+    entry: cargo fmt
+    language: rust
+    types: [rust]
     args: [
       --all,
       --,
+      --check,
     ]
-  - id: cargo-check
-    args: [
-      --locked,
-      --workspace,
-      --all-features,
-      --all-targets,
-    ]
-  - id: clippy
+  - id: cargo-clippy
+    name: cargo clippy
+    entry: cargo clippy
+    language: rust
+    types: [rust]
     args: [
       --locked,
       --workspace,
@@ -52,6 +53,7 @@ repos:
       -D,
       warnings,
     ]
+    pass_filenames: false
 - repo: https://github.com/Holzhaus/sourceheaders
   rev: v0.0.4
   hooks:
