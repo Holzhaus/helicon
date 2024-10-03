@@ -321,7 +321,6 @@ impl<'a> StyledContentList<'a> {
         if let Some(byte_position) = split_position_bytes {
             let item = second_vec.remove(0);
 
-            #[cfg(debug_assertions)]
             let original_width = item.char_width();
 
             // Split the item
