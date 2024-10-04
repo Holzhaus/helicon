@@ -39,6 +39,7 @@ repos:
       --,
       --check,
     ]
+    pass_filenames: false
   - id: cargo-clippy
     name: cargo clippy
     entry: cargo clippy
