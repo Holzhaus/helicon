@@ -11,7 +11,7 @@ log = "0"
 thiserror = "1"
 unidecode = "0"
 levenshtein = "1"
-musicbrainz_rs_nova = { git = "https://github.com/RustyNova016/musicbrainz_rs_nova", rev = "71f94cc53d803dd3d41c8e17f270bb7cc275132b", default-features = false, features = ["async"] }
+musicbrainz_rs_nova = { git = "https://github.com/Holzhaus/musicbrainz_rs_nova", rev = "a6740c0c9dbdd9b63223f5284f43398c26266315", default-features = false, features = ["async"] }
 tokio = { version = "1", features = ["full"] }
 id3 = { version = "1", optional = true }
 metaflac = { version = "0", optional = true }

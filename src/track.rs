@@ -256,8 +256,8 @@ impl MusicBrainzReleaseTrackHelper for MusicBrainzReleaseTrack {
         relation_types: &[&str],
     ) -> impl Iterator<Item = &MusicBrainzRelation> {
         self.recording
-            .relations
             .iter()
+            .flat_map(|recording| recording.relations.iter())
             .flat_map(|relations| relations.iter())
             .filter(|relation| relation_types.contains(&relation.relation_type.as_str()))
     }
@@ -342,8 +342,8 @@ impl TrackLike for MusicBrainzReleaseTrack {
         // has been fixed.
         Cow::from(
             self.recording
-                .artist_credit
                 .iter()
+                .flat_map(|recording| recording.artist_credit.iter())
                 .flat_map(|artists| artists.iter())
                 .fold(String::new(), |acc, artist| {
                     acc + &artist.name
@@ -363,8 +363,8 @@ impl TrackLike for MusicBrainzReleaseTrack {
         // has been fixed.
         Cow::from(
             self.recording
-                .artist_credit
                 .iter()
+                .flat_map(|recording| recording.artist_credit.iter())
                 .flat_map(|artists| artists.iter())
                 .map(|artist| &artist.artist)
                 .fold(String::new(), |acc, artist| {
@@ -465,8 +465,8 @@ impl TrackLike for MusicBrainzReleaseTrack {
 
     fn genre(&self) -> Option<Cow<'_, str>> {
         self.recording
-            .genres
             .iter()
+            .flat_map(|recording| recording.genres.iter())
             .flat_map(|genres| genres.iter())
             .map(|genre| Cow::from(&genre.name))
             .next()
@@ -479,8 +479,8 @@ impl TrackLike for MusicBrainzReleaseTrack {
 
     fn isrc(&self) -> Option<Cow<'_, str>> {
         self.recording
-            .isrcs
             .iter()
+            .flat_map(|recording| recording.isrcs.iter())
             .flat_map(|isrcs| isrcs.iter())
             .next()
             .map(Cow::from)
@@ -555,7 +555,9 @@ impl TrackLike for MusicBrainzReleaseTrack {
     }
 
     fn musicbrainz_recording_id(&self) -> Option<Cow<'_, str>> {
-        Cow::from(self.recording.id.as_str()).into()
+        self.recording
+            .as_ref()
+            .map(|recording| Cow::from(&recording.id))
     }
 
     fn musicbrainz_track_id(&self) -> Option<Cow<'_, str>> {

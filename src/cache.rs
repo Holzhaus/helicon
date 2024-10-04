@@ -194,7 +194,6 @@ impl<'a> Cacheable<'a> for MusicBrainzReleaseGroup {
     }
 }
 
-// FIXME: This doesn't work due to <https://github.com/RustyNova016/musicbrainz_rs_nova/issues/33>.
 impl<'a> Cacheable<'a> for MusicBrainzReleaseSearchResult {
     type Key = (&'a str, u8, u16);
 

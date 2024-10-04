@@ -539,6 +539,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32085ea23f3234fc7846555e85283ba4de91e21016dc0455a16286d87a292d64"
 
 [[package]]
+name = "glob"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
+
+[[package]]
 name = "hashbrown"
 version = "0.14.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -937,9 +943,10 @@ dependencies = [
 [[package]]
 name = "musicbrainz_rs_nova"
 version = "0.7.0"
-source = "git+https://github.com/RustyNova016/musicbrainz_rs_nova?rev=71f94cc53d803dd3d41c8e17f270bb7cc275132b#71f94cc53d803dd3d41c8e17f270bb7cc275132b"
+source = "git+https://github.com/Holzhaus/musicbrainz_rs_nova?rev=a6740c0c9dbdd9b63223f5284f43398c26266315#a6740c0c9dbdd9b63223f5284f43398c26266315"
 dependencies = [
  "chrono",
+ "glob",
  "lucene_query_builder",
  "once_cell",
  "reqwest",
