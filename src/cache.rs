@@ -8,11 +8,12 @@
 
 //! Caching for MusicBrainz API queries.
 
+use chrono::{DateTime, Utc};
 use musicbrainz_rs_nova::entity::{
     release::Release as MusicBrainzRelease, release_group::ReleaseGroup as MusicBrainzReleaseGroup,
     search::SearchResult as MusicBrainzSearchResult,
 };
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs::File;
 use std::io::{self, BufReader, BufWriter};
@@ -36,6 +37,30 @@ pub enum CacheError {
     /// JSON (De-)Serialization Error.
     #[error("JSON error: {0}")]
     JsonError(#[from] serde_json::Error),
+}
+
+/// Envelope that allows storing additional metadata alongside the cache item.
+#[derive(Serialize, Deserialize)]
+struct CacheEnvelope<T> {
+    /// The date and time when the item was added to the cache.
+    created: DateTime<Utc>,
+    /// The cached item.
+    item: T,
+}
+
+impl<T> CacheEnvelope<T> {
+    /// Create a new cache envelope for an item using the current time.
+    fn new(item: T) -> Self {
+        Self {
+            created: Utc::now(),
+            item,
+        }
+    }
+
+    /// Get the cached item from the envelope, consuming it.
+    fn into_inner(self) -> T {
+        self.item
+    }
 }
 
 /// Maximum age of a a cache entry after which it expires.
@@ -65,7 +90,7 @@ impl Cache {
         let item_path = T::cache_path(key);
         let path = self
             .0
-            .find_cache_file(item_path)
+            .find_cache_file(&item_path)
             .ok_or(CacheError::CacheMiss)?;
         let cache_age = path
             .metadata()?
@@ -79,9 +104,28 @@ impl Cache {
             return Err(CacheError::CacheMiss);
         }
 
-        let f = File::open(path)?;
+        let f = File::open(&path)?;
         let reader = BufReader::new(f);
-        Ok(serde_json::from_reader(reader)?)
+        let envelope: CacheEnvelope<T> = serde_json::from_reader(reader)?;
+
+        let age = Utc::now().signed_duration_since(envelope.created);
+        // TODO: Make this configurable
+        if age.num_weeks() >= 2 {
+            log::debug!(
+                "Cache item {item_path} (created {created}) expired, removing it",
+                item_path = item_path.display(),
+                created = envelope.created
+            );
+            std::fs::remove_file(path)?;
+            return Err(CacheError::CacheMiss);
+        }
+
+        log::debug!(
+            "Cache item {item_path} (created {created}) is still valid",
+            item_path = item_path.display(),
+            created = envelope.created
+        );
+        Ok(envelope.into_inner())
     }
 
     /// Insert a JSON-deserializable item with the given path into cache.
@@ -98,7 +142,8 @@ impl Cache {
         let path = self.0.place_cache_file(item_path)?;
         let f = File::create(path)?;
         let writer = BufWriter::new(f);
-        Ok(serde_json::to_writer(writer, item)?)
+        let envelope = CacheEnvelope::new(item);
+        Ok(serde_json::to_writer(writer, &envelope)?)
     }
 
     /// Get a tuple `(item_count, total_size_in_bytes)` for items at given cache path.
