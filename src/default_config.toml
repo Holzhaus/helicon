@@ -1,3 +1,7 @@
+[analyzers]
+# The chromaprint_fingerprint analyzer is disabled by default.
+enabled = ["track_length"]
+
 [lookup]
 connection_limit = 10
 release_candidate_limit = 5

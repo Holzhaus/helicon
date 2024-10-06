@@ -8,7 +8,7 @@
 
 //! Audio analysis.
 
-use crate::config::Config;
+use crate::config::{AnalyzerType, Config};
 
 use std::path::Path;
 use thiserror::Error;
@@ -51,15 +51,6 @@ pub enum AnalyzerError {
     /// Custom, analyzer-specific error.
     #[error("analyzer specific error")]
     Custom(&'static str),
-}
-
-/// Analyzer type.
-#[derive(Debug, Clone, Copy)]
-pub enum AnalyzerType {
-    /// Track Length analyzer.
-    TrackLength,
-    /// Chromaprint Fingerprint analyzer.
-    ChromaprintFingerprint,
 }
 
 /// Analyzer trait.
@@ -191,20 +182,20 @@ impl Analyzer for CompoundAnalyzer {
 
     fn initialize(config: &Config, codec_params: &CodecParameters) -> Result<Self, AnalyzerError> {
         let mut results = CompoundAnalyzerResult::default();
-        let analyzers = [
-            AnalyzerType::TrackLength,
-            AnalyzerType::ChromaprintFingerprint,
-        ]
-        .into_iter()
-        .filter_map(|analyzer_type| {
-            CompoundAnalyzerItem::initialize_or_assign_result(
-                analyzer_type,
-                config,
-                codec_params,
-                &mut results,
-            )
-        })
-        .collect::<Vec<CompoundAnalyzerItem>>();
+        let analyzers = config
+            .analyzers
+            .enabled
+            .iter()
+            .copied()
+            .filter_map(|analyzer_type| {
+                CompoundAnalyzerItem::initialize_or_assign_result(
+                    analyzer_type,
+                    config,
+                    codec_params,
+                    &mut results,
+                )
+            })
+            .collect::<Vec<CompoundAnalyzerItem>>();
 
         Ok(Self { analyzers, results })
     }

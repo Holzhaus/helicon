@@ -294,7 +294,26 @@ pub struct UiConfig {
 
 /// The main configuration struct.
 #[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct AnalyzerConfig {
+    /// Analyzers that are enabled and will be used.
+    pub enabled: Vec<AnalyzerType>,
+}
+
+/// Analyzer type.
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AnalyzerType {
+    /// Track Length analyzer.
+    TrackLength,
+    /// Chromaprint Fingerprint analyzer.
+    ChromaprintFingerprint,
+}
+
+/// The main configuration struct.
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
+    /// Analyzer configuration.
+    pub analyzers: AnalyzerConfig,
     /// Configuration for track/release lookup.
     pub lookup: LookupConfig,
     /// Weight configuration.
