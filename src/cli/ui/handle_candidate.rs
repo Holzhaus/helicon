@@ -295,7 +295,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                     print_extra_metadata(
                         lhs_track.musicbrainz_recording_id(),
                         rhs_track.musicbrainz_recording_id(),
-                        "<unknown artist>",
+                        "<unknown id>",
                         " (id)",
                         candidate_details_config,
                         max_width,
