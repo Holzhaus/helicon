@@ -191,8 +191,7 @@ impl ReleaseLike for MusicBrainzRelease {
     }
 
     fn asin(&self) -> Option<Cow<'_, str>> {
-        // TODO:: Implement this.
-        None
+        self.asin.as_ref().map(Cow::from)
     }
 
     fn barcode(&self) -> Option<Cow<'_, str>> {
