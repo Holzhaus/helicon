@@ -67,3 +67,6 @@ pub use self::config::Config;
 pub use self::error::{ErrorType as Error, Result};
 pub use self::taggedfile::TaggedFile;
 pub use self::taggedfilecollection::TaggedFileCollection;
+
+/// The User-Agent header that will be used for HTTP requests (i.e., for MusicBrainz).
+pub const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));

@@ -13,7 +13,7 @@ mod config;
 mod import;
 mod ui;
 
-use crate::{Cache, Config};
+use crate::{Cache, Config, USER_AGENT};
 use clap::{Parser, Subcommand};
 use log::LevelFilter;
 use simplelog::{Config as LogConfig, WriteLogger};
@@ -95,6 +95,13 @@ pub async fn main() -> crate::Result<()> {
 
     // Initialize cache
     let cache = Cache::new(base_dirs);
+
+    // Set User-Agent header for MusicBrainz requests. This is mandatory to comply with
+    // MusicBrainz's API application identification rules.
+    //
+    // See this for details:
+    // - <https://musicbrainz.org/doc/MusicBrainz_API#Application_rate_limiting_and_identification>
+    musicbrainz_rs_nova::config::set_user_agent(USER_AGENT);
 
     match args.command {
         Commands::Import(cmd_args) => import::run(&config, Some(&cache), cmd_args).await,
