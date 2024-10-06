@@ -46,6 +46,7 @@
 #![warn(dead_code)]
 #![warn(variant_size_differences)]
 
+mod analyzer;
 mod cache;
 mod cli;
 mod config;

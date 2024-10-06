@@ -8,6 +8,7 @@
 
 //! The [`TaggedFile`] struct represents a file that contains tags.
 
+use crate::analyzer::CompoundAnalyzerResult;
 use crate::release::ReleaseLike;
 use crate::tag::{read_tags_from_path, Tag, TagKey};
 use crate::track::TrackLike;
@@ -21,6 +22,8 @@ pub struct TaggedFile {
     path: PathBuf,
     /// Tags that are present in the file.
     content: Vec<Box<dyn Tag>>,
+    /// Analysis results.
+    analysis_results: Option<CompoundAnalyzerResult>,
 }
 
 impl fmt::Debug for TaggedFile {
@@ -41,6 +44,7 @@ impl TaggedFile {
         TaggedFile {
             path: PathBuf::new(),
             content,
+            analysis_results: None,
         }
     }
 
@@ -53,7 +57,18 @@ impl TaggedFile {
         read_tags_from_path(path.as_ref()).map(|content| Self {
             path: path.as_ref().to_path_buf(),
             content,
+            analysis_results: None,
         })
+    }
+
+    /// Set additional analysis results for this file.
+    #[must_use]
+    pub fn with_analysis_results(
+        mut self,
+        analysis_results: Option<CompoundAnalyzerResult>,
+    ) -> Self {
+        self.analysis_results = analysis_results;
+        self
     }
 
     /// Returns zero or more [`Tag`] objects.
@@ -475,8 +490,10 @@ impl TrackLike for TaggedFile {
     }
 
     fn track_length(&self) -> Option<chrono::TimeDelta> {
-        // TODO: Implement this.
-        None
+        self.analysis_results
+            .as_ref()
+            .and_then(|results| results.track_length.as_ref())
+            .and_then(|track_length| track_length.as_ref().ok().copied())
     }
 }
 

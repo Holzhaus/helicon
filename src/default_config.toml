@@ -1,3 +1,7 @@
+[analyzers]
+# The chromaprint_fingerprint analyzer is disabled by default.
+enabled = ["track_length"]
+
 [lookup]
 connection_limit = 10
 release_candidate_limit = 5
@@ -32,6 +36,8 @@ release_meta_style = { foreground_color = "grey" }
 disc_title_style = { attributes = ["underlined"] }
 track_number_style = {}
 track_number_style_default = { foreground_color = "grey" }
+track_length_changed_style = { foreground_color = "red", attributes = ["bold"] }
+track_length_missing_style = { foreground_color = "grey" }
 changed_value_style = { foreground_color = "yellow", attributes = ["bold"] }
 action_style = { foreground_color = "blue" }
 candidate_similarity_style = { attributes = ["bold"] }

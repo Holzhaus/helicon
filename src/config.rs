@@ -254,6 +254,10 @@ pub struct CandidateDetails {
     pub track_number_style: TextStyleConfig,
     /// Track number style for defaulted (missing) track numbers.
     pub track_number_style_default: TextStyleConfig,
+    /// Track length style for changed lengths.
+    pub track_length_changed_style: TextStyleConfig,
+    /// Track length style for missing lengths.
+    pub track_length_missing_style: TextStyleConfig,
     /// Changed value indicator style.
     pub changed_value_style: TextStyleConfig,
     /// Styles for residual tracks.
@@ -290,7 +294,26 @@ pub struct UiConfig {
 
 /// The main configuration struct.
 #[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct AnalyzerConfig {
+    /// Analyzers that are enabled and will be used.
+    pub enabled: Vec<AnalyzerType>,
+}
+
+/// Analyzer type.
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AnalyzerType {
+    /// Track Length analyzer.
+    TrackLength,
+    /// Chromaprint Fingerprint analyzer.
+    ChromaprintFingerprint,
+}
+
+/// The main configuration struct.
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
+    /// Analyzer configuration.
+    pub analyzers: AnalyzerConfig,
     /// Configuration for track/release lookup.
     pub lookup: LookupConfig,
     /// Weight configuration.

@@ -9,6 +9,7 @@
 //! Functions related to importing files.
 
 use super::ui;
+use crate::analyzer;
 use crate::musicbrainz::{MusicBrainzClient, MusicBrainzRelease};
 use crate::release::ReleaseLike;
 use crate::release_candidate::{ReleaseCandidate, ReleaseCandidateCollection};
@@ -28,7 +29,10 @@ pub struct Args {
 }
 
 /// Find track collections in the given path.
-fn find_track_collections(input_path: PathBuf) -> impl Iterator<Item = TaggedFileCollection> {
+fn find_track_collections(
+    config: &Config,
+    input_path: PathBuf,
+) -> impl Iterator<Item = TaggedFileCollection> + '_ {
     let supported_extensions = HashSet::from(["mp3", "flac"]);
     walk_dir(input_path)
         .filter_map(Result::ok)
@@ -46,7 +50,18 @@ fn find_track_collections(input_path: PathBuf) -> impl Iterator<Item = TaggedFil
                         .unwrap_or(false)
                 })
                 .filter_map(|path| match TaggedFile::read_from_path(path) {
-                    Ok(file) => Some(file),
+                    Ok(file) => Some(
+                        file.with_analysis_results(
+                            analyzer::analyze(config, path)
+                                .inspect_err(|err| {
+                                    log::warn!(
+                                        "Analysis of {path} failed: {err}",
+                                        path = path.display()
+                                    );
+                                })
+                                .ok(),
+                        ),
+                    ),
                     Err(err) => {
                         log::warn!("Failed to read {}: {}", path.display(), err);
                         None
@@ -164,7 +179,7 @@ pub async fn run(config: &Config, cache: Option<&Cache>, args: Args) -> crate::R
     let cloned_cache = cache.cloned();
     let _scanner_handle = tokio::task::spawn(async move {
         let musicbrainz = MusicBrainzClient::new(&cloned_config, cloned_cache.as_ref());
-        for track_collection in find_track_collections(input_path) {
+        for track_collection in find_track_collections(&cloned_config, input_path) {
             let candidates = match musicbrainz
                 .find_releases_by_similarity(&track_collection)
                 .await
