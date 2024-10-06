@@ -601,13 +601,17 @@ impl TrackLike for MusicBrainzReleaseTrack {
     }
 
     fn original_release_date(&self) -> Option<Cow<'_, str>> {
-        // TODO: Implement this.
-        None
+        self.recording
+            .as_ref()
+            .and_then(|recording| recording.first_release_date)
+            .map(|date| Cow::from(date.format("%Y-%m-%d").to_string()))
     }
 
     fn original_release_year(&self) -> Option<Cow<'_, str>> {
-        // TODO: Implement this.
-        None
+        self.recording
+            .as_ref()
+            .and_then(|recording| recording.first_release_date)
+            .map(|date| Cow::from(date.format("%Y").to_string()))
     }
 
     fn performer(&self) -> Option<Cow<'_, str>> {
