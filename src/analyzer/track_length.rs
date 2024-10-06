@@ -16,6 +16,8 @@ use float_eq::float_eq;
 use symphonia::core::codecs::CodecParameters;
 
 /// Track Length Analyzer.
+#[derive(Debug)]
+#[expect(missing_copy_implementations)]
 pub struct TrackLengthAnalyzer {
     /// The track length (already determined during initialization).
     track_length: TimeDelta,

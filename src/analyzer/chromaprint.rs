@@ -21,6 +21,7 @@ use symphonia::core::codecs::CodecParameters;
 use rusty_chromaprint::{Configuration, Fingerprinter};
 
 /// Chromaprint Analyzer.
+#[allow(missing_debug_implementations)]
 pub struct ChromaprintFingerprintAnalyzer {
     /// Fingerprinter code.
     fingerprinter: Fingerprinter,
