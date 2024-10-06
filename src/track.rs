@@ -337,13 +337,9 @@ impl TrackLike for MusicBrainzReleaseTrack {
     }
 
     fn track_artist(&self) -> Option<Cow<'_, str>> {
-        // TODO: Use the artist credit for the track, once
-        // https://github.com/RustyNova016/musicbrainz_rs_nova/issues/36
-        // has been fixed.
         Cow::from(
-            self.recording
+            self.artist_credit
                 .iter()
-                .flat_map(|recording| recording.artist_credit.iter())
                 .flat_map(|artists| artists.iter())
                 .fold(String::new(), |acc, artist| {
                     acc + &artist.name
@@ -358,13 +354,9 @@ impl TrackLike for MusicBrainzReleaseTrack {
     }
 
     fn track_artist_sort_order(&self) -> Option<Cow<'_, str>> {
-        // TODO: Use the artist credit for the track, once
-        // https://github.com/RustyNova016/musicbrainz_rs_nova/issues/36
-        // has been fixed.
         Cow::from(
-            self.recording
+            self.artist_credit
                 .iter()
-                .flat_map(|recording| recording.artist_credit.iter())
                 .flat_map(|artists| artists.iter())
                 .map(|artist| &artist.artist)
                 .fold(String::new(), |acc, artist| {

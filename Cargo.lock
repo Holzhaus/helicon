@@ -943,7 +943,7 @@ dependencies = [
 [[package]]
 name = "musicbrainz_rs_nova"
 version = "0.7.0"
-source = "git+https://github.com/Holzhaus/musicbrainz_rs_nova?rev=a6740c0c9dbdd9b63223f5284f43398c26266315#a6740c0c9dbdd9b63223f5284f43398c26266315"
+source = "git+https://github.com/RustyNova016/musicbrainz_rs_nova.git?rev=f160a40b225c0421d1b9d9477a50d6c64ad55ad3#f160a40b225c0421d1b9d9477a50d6c64ad55ad3"
 dependencies = [
  "chrono",
  "glob",

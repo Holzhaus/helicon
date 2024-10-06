@@ -475,7 +475,7 @@ mod tests {
         let track = release.release_tracks().skip(5).take(1).next().unwrap();
 
         assert_eq!(track.track_title().unwrap(), "Poinciana");
-        assert_eq!(track.track_artist().unwrap(), "Ahmad Jamal");
+        assert_eq!(track.track_artist().unwrap(), "The Ahmad Jamal Trio");
         assert_eq!(track.track_number().unwrap(), "6");
         assert_eq!(
             track.track_length().unwrap(),
