@@ -212,8 +212,8 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
             };
 
             let changes = [
+                (!track_similarity.is_track_number_equal()).then_some("#"),
                 (!track_similarity.is_track_title_equal()).then_some("title"),
-                (!track_similarity.is_track_number_equal()).then_some("number"),
                 (!track_similarity.is_track_length_equal()).then_some("length"),
             ]
             .into_iter()
