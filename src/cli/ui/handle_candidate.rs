@@ -278,7 +278,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                 lhs.content.push(lhs_track.track_length().map_or_else(
                     || {
                         candidate_details_config
-                            .track_length_changed_style
+                            .track_length_missing_style
                             .apply(Cow::from(" (?:??)"))
                     },
                     |length| {
@@ -291,7 +291,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                 rhs.content.push(rhs_track.track_length().map_or_else(
                     || {
                         candidate_details_config
-                            .track_length_changed_style
+                            .track_length_missing_style
                             .apply(Cow::from(" (?:??)"))
                     },
                     |length| {
