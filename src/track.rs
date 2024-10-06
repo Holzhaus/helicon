@@ -339,6 +339,11 @@ impl TrackLike for MusicBrainzReleaseTrack {
     fn track_artist(&self) -> Option<Cow<'_, str>> {
         Cow::from(
             self.artist_credit
+                .as_deref()
+                .or(self
+                    .recording
+                    .as_ref()
+                    .and_then(|recording| recording.artist_credit.as_deref()))
                 .iter()
                 .flat_map(|artists| artists.iter())
                 .fold(String::new(), |acc, artist| {
@@ -356,6 +361,11 @@ impl TrackLike for MusicBrainzReleaseTrack {
     fn track_artist_sort_order(&self) -> Option<Cow<'_, str>> {
         Cow::from(
             self.artist_credit
+                .as_deref()
+                .or(self
+                    .recording
+                    .as_ref()
+                    .and_then(|recording| recording.artist_credit.as_deref()))
                 .iter()
                 .flat_map(|artists| artists.iter())
                 .map(|artist| &artist.artist)
