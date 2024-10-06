@@ -254,6 +254,10 @@ pub struct CandidateDetails {
     pub track_number_style: TextStyleConfig,
     /// Track number style for defaulted (missing) track numbers.
     pub track_number_style_default: TextStyleConfig,
+    /// Track length style for changed lengths.
+    pub track_length_changed_style: TextStyleConfig,
+    /// Track length style for missing lengths.
+    pub track_length_missing_style: TextStyleConfig,
     /// Changed value indicator style.
     pub changed_value_style: TextStyleConfig,
     /// Styles for residual tracks.

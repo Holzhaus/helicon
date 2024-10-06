@@ -9,6 +9,7 @@
 //! Functions related to importing files.
 
 use crate::analyzer;
+use crate::util::FormattedDuration;
 use crate::Cache;
 use crate::Config;
 use base64::prelude::*;
@@ -33,15 +34,7 @@ pub fn run(config: &Config, _cache: Option<&Cache>, args: Args) -> crate::Result
     let result = analyzer::analyze(config, &path)?;
 
     if let Some(Ok(track_length)) = result.track_length {
-        let hours = track_length.num_hours();
-        let minutes = track_length.num_minutes() - hours * 60;
-        let seconds = track_length.num_seconds() - hours * 60 * 60 - minutes * 60;
-        print!("Track Length: ");
-        if hours > 0 {
-            println!("{hours}:{minutes:02}:{seconds:02}");
-        } else {
-            println!("{minutes}:{seconds:02}");
-        }
+        print!("Track Length: {}", track_length.formatted_duration());
     }
 
     if let Some(Ok((duration, fingerprint))) = result.chromaprint_fingerprint {

@@ -15,6 +15,7 @@ use crate::media::MediaLike;
 use crate::release::ReleaseLike;
 use crate::release_candidate::ReleaseCandidate;
 use crate::track::TrackLike;
+use crate::util::FormattedDuration;
 use crossterm::{
     style::{ContentStyle, Stylize},
     terminal,
@@ -213,6 +214,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
             let changes = [
                 (!track_similarity.is_track_title_equal()).then_some("title"),
                 (!track_similarity.is_track_number_equal()).then_some("number"),
+                (!track_similarity.is_track_length_equal()).then_some("length"),
             ]
             .into_iter()
             .flatten()
@@ -244,12 +246,13 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                 |number| candidate_details_config.track_number_style.apply(number),
             );
 
-            let lhs = LayoutItem::new(lhs_track_title).with_prefix(StyledContentList::new(vec![
-                lhs_track_number,
-                candidate_details_config
-                    .track_number_style_default
-                    .apply(Cow::from(". ")),
-            ]));
+            let mut lhs =
+                LayoutItem::new(lhs_track_title).with_prefix(StyledContentList::new(vec![
+                    lhs_track_number,
+                    candidate_details_config
+                        .track_number_style_default
+                        .apply(Cow::from(". ")),
+                ]));
 
             let rhs_track_number = rhs_track.track_number().map_or_else(
                 || {
@@ -260,7 +263,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                 |number| candidate_details_config.track_number_style.apply(number),
             );
 
-            let rhs = LayoutItem::new(rhs_track_title)
+            let mut rhs = LayoutItem::new(rhs_track_title)
                 .with_prefix(StyledContentList::new(vec![
                     rhs_track_number,
                     candidate_details_config
@@ -268,6 +271,34 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                         .apply(Cow::from(". ")),
                 ]))
                 .with_suffix(rhs_suffix);
+
+            if !track_similarity.is_track_length_equal() {
+                lhs.content.push(lhs_track.track_length().map_or_else(
+                    || {
+                        candidate_details_config
+                            .track_length_changed_style
+                            .apply(Cow::from(" (?:??)"))
+                    },
+                    |length| {
+                        candidate_details_config
+                            .track_length_changed_style
+                            .apply(Cow::from(format!(" ({})", length.formatted_duration())))
+                    },
+                ));
+
+                rhs.content.push(rhs_track.track_length().map_or_else(
+                    || {
+                        candidate_details_config
+                            .track_length_changed_style
+                            .apply(Cow::from(" (?:??)"))
+                    },
+                    |length| {
+                        candidate_details_config
+                            .track_length_changed_style
+                            .apply(Cow::from(format!(" ({})", length.formatted_duration())))
+                    },
+                ));
+            }
 
             util::print_column_layout(
                 lhs,

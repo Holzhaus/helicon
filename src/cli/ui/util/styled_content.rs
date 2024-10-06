@@ -204,6 +204,13 @@ pub fn convert_styled_content<'b, D: fmt::Display + Into<Cow<'b, str>> + Clone>(
 #[derive(Debug, Default, Clone)]
 pub struct StyledContentList<'a>(Vec<StyledContent<Cow<'a, str>>>);
 
+impl<'a> StyledContentList<'a> {
+    /// Add a new element to the styled content list.
+    pub fn push(&mut self, item: StyledContent<Cow<'a, str>>) {
+        self.0.push(item);
+    }
+}
+
 impl fmt::Display for StyledContentList<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for item in &self.0 {
