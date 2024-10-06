@@ -324,8 +324,10 @@ impl ReleaseLike for MusicBrainzRelease {
     }
 
     fn script(&self) -> Option<Cow<'_, str>> {
-        // TODO:: Implement this.
-        None
+        self.text_representation
+            .as_ref()
+            .and_then(|text_repr| text_repr.script.as_ref())
+            .map(|script| Cow::from(script.code()))
     }
 
     fn total_discs(&self) -> Option<Cow<'_, str>> {
