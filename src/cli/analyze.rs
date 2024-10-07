@@ -9,6 +9,7 @@
 //! Functions related to importing files.
 
 use crate::analyzer;
+use crate::config::AnalyzerType;
 use crate::util::FormattedDuration;
 use crate::Cache;
 use crate::Config;
@@ -21,6 +22,9 @@ use std::path::PathBuf;
 pub struct Args {
     /// Path of audio file to analyze.
     path: PathBuf,
+    /// Use all analyzers (regardless of configuration).
+    #[arg(short, long)]
+    all: bool,
 }
 
 /// Analyze a file.
@@ -31,18 +35,37 @@ pub struct Args {
 /// variant will be returned.
 pub fn run(config: &Config, _cache: Option<&Cache>, args: Args) -> crate::Result<()> {
     let path = args.path;
-    let result = analyzer::analyze(config, &path)?;
+    let result = if args.all {
+        let mut config = config.clone();
+        config.analyzers.enabled = vec![
+            AnalyzerType::TrackLength,
+            AnalyzerType::ChromaprintFingerprint,
+        ];
+        analyzer::analyze(&config, &path)?
+    } else {
+        analyzer::analyze(config, &path)?
+    };
 
-    if let Some(Ok(track_length)) = result.track_length {
-        print!("Track Length: {}", track_length.formatted_duration());
+    if let Some(result) = result.track_length {
+        match result {
+            Ok(track_length) => {
+                println!("Track Length: {}", track_length.formatted_duration());
+            }
+            Err(err) => eprintln!("Track Length analysis failed: {err}"),
+        }
     }
 
-    if let Some(Ok((duration, fingerprint))) = result.chromaprint_fingerprint {
-        println!("Duration: {duration}");
-        println!(
-            "Fingerprint: {}",
-            BASE64_URL_SAFE_NO_PAD.encode(fingerprint)
-        );
+    if let Some(result) = result.chromaprint_fingerprint {
+        match result {
+            Ok((duration, fingerprint)) => {
+                println!("Duration: {duration}");
+                println!(
+                    "Fingerprint: {}",
+                    BASE64_URL_SAFE_NO_PAD.encode(fingerprint)
+                );
+            }
+            Err(err) => eprintln!("Chromaprint fingerprint analysis failed: {err}"),
+        }
     }
 
     Ok(())
