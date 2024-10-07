@@ -307,6 +307,8 @@ pub enum AnalyzerType {
     TrackLength,
     /// Chromaprint Fingerprint analyzer.
     ChromaprintFingerprint,
+    /// EBU R 128 Loudness Analyzer
+    EbuR128,
 }
 
 /// The main configuration struct.

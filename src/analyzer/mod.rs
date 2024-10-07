@@ -22,9 +22,11 @@ use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
 
 mod chromaprint;
+mod ebur128;
 mod track_length;
 
 use chromaprint::ChromaprintFingerprintAnalyzer;
+use ebur128::EbuR128Analyzer;
 use track_length::TrackLengthAnalyzer;
 
 /// An error during analysis.
@@ -51,6 +53,9 @@ pub enum AnalyzerError {
     /// Custom, analyzer-specific error.
     #[error("analyzer error: {0}")]
     Custom(&'static str),
+    /// EBU R 128 analysis failed.
+    #[error("ebur128 failure: {0}")]
+    EbuR128Error(#[from] ::ebur128::Error),
 }
 
 /// Analyzer trait.
@@ -85,6 +90,8 @@ enum CompoundAnalyzerItem {
     TrackLength(Box<TrackLengthAnalyzer>),
     /// Chromaprint Fingerprint Analyzer.
     ChromaprintFingerprint(Box<ChromaprintFingerprintAnalyzer>),
+    /// EBU R 128 Analyzer.
+    EbuR128(Box<EbuR128Analyzer>),
 }
 
 impl CompoundAnalyzerItem {
@@ -114,6 +121,13 @@ impl CompoundAnalyzerItem {
                     }
                 }
             }
+            AnalyzerType::EbuR128 => match EbuR128Analyzer::initialize(config, codec_params) {
+                Ok(analyzer) => Some(Self::EbuR128(Box::from(analyzer))),
+                Err(err) => {
+                    result.ebur128 = Some(Err(err));
+                    None
+                }
+            },
         }
     }
 
@@ -122,6 +136,7 @@ impl CompoundAnalyzerItem {
         match self {
             Self::TrackLength(analyzer) => analyzer.is_complete(),
             Self::ChromaprintFingerprint(analyzer) => analyzer.is_complete(),
+            Self::EbuR128(analyzer) => analyzer.is_complete(),
         }
     }
 
@@ -147,6 +162,13 @@ impl CompoundAnalyzerItem {
                     false
                 }
             },
+            Self::EbuR128(analyzer) => match analyzer.feed(samples) {
+                Ok(()) => true,
+                Err(err) => {
+                    result.ebur128 = Some(Err(err));
+                    false
+                }
+            },
         }
     }
 
@@ -162,6 +184,9 @@ impl CompoundAnalyzerItem {
             Self::ChromaprintFingerprint(analyzer) => {
                 result.chromaprint_fingerprint = Some(analyzer.finalize());
             }
+            Self::EbuR128(analyzer) => {
+                result.ebur128 = Some(analyzer.finalize());
+            }
         }
         result
     }
@@ -175,6 +200,8 @@ pub struct CompoundAnalyzerResult {
     /// Result of the chromaprint fingerprint analysis.
     pub chromaprint_fingerprint:
         Option<Result<<ChromaprintFingerprintAnalyzer as Analyzer>::Result, AnalyzerError>>,
+    /// Result of the EBU R 128 analysis.
+    pub ebur128: Option<Result<<EbuR128Analyzer as Analyzer>::Result, AnalyzerError>>,
 }
 
 impl Analyzer for CompoundAnalyzer {

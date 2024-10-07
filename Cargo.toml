@@ -37,6 +37,7 @@ symphonia = "0.5.4"
 rusty-chromaprint = "0.2.0"
 base64 = "0.22.1"
 float_eq = "1"
+ebur128 = "0.1"
 
 [dev-dependencies]
 paste = "1"

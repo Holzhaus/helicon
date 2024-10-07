@@ -40,6 +40,7 @@ pub fn run(config: &Config, _cache: Option<&Cache>, args: Args) -> crate::Result
         config.analyzers.enabled = vec![
             AnalyzerType::TrackLength,
             AnalyzerType::ChromaprintFingerprint,
+            AnalyzerType::EbuR128,
         ];
         analyzer::analyze(&config, &path)?
     } else {
@@ -65,6 +66,16 @@ pub fn run(config: &Config, _cache: Option<&Cache>, args: Args) -> crate::Result
                 );
             }
             Err(err) => eprintln!("Chromaprint fingerprint analysis failed: {err}"),
+        }
+    }
+
+    if let Some(result) = result.ebur128 {
+        match result {
+            Ok(ebur128) => {
+                println!("Track Gain: {}", ebur128.replaygain_track_gain());
+                println!("Track Peak: {}", ebur128.peak);
+            }
+            Err(err) => eprintln!("EBU R 128 analysis failed: {err}"),
         }
     }
 
