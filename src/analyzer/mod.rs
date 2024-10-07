@@ -49,7 +49,7 @@ pub enum AnalyzerError {
     #[error("missing audio channels")]
     MissingAudioChannels,
     /// Custom, analyzer-specific error.
-    #[error("analyzer specific error")]
+    #[error("analyzer error: {0}")]
     Custom(&'static str),
 }
 
