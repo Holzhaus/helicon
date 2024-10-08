@@ -53,3 +53,6 @@ repos:
   rev: v0.19.1
   hooks:
   - id: gitlint
+
+ci:
+  skip: [fmt, clippy]
