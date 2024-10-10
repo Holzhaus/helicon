@@ -14,7 +14,7 @@ use crate::distance::UnmatchedTracksSource;
 use crate::media::MediaLike;
 use crate::release::ReleaseLike;
 use crate::release_candidate::ReleaseCandidate;
-use crate::track::TrackLike;
+use crate::track::{AnalyzedTrackMetadata, TrackLike};
 use crate::util::FormattedDuration;
 use crossterm::{
     style::{ContentStyle, Stylize},
@@ -339,6 +339,54 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                         candidate_details_config,
                         max_width,
                     );
+                }
+
+                if let Some(gain) = lhs_track.analyzed_metadata().replay_gain_track_gain() {
+                    if !lhs_track
+                        .replay_gain_track_gain()
+                        .is_some_and(|g| g == gain)
+                    {
+                        print_extra_metadata(
+                            lhs_track.replay_gain_track_gain(),
+                            Some(gain),
+                            "<unknown gain>",
+                            " (rg gain)",
+                            candidate_details_config,
+                            max_width,
+                        );
+                    }
+                }
+
+                if let Some(peak) = lhs_track.analyzed_metadata().replay_gain_track_peak() {
+                    if !lhs_track
+                        .replay_gain_track_peak()
+                        .is_some_and(|p| p == peak)
+                    {
+                        print_extra_metadata(
+                            lhs_track.replay_gain_track_peak(),
+                            Some(peak),
+                            "<unknown peak>",
+                            " (rg peak)",
+                            candidate_details_config,
+                            max_width,
+                        );
+                    }
+                }
+
+                if let Some(range) = lhs_track.analyzed_metadata().replay_gain_track_range() {
+                    if !lhs_track
+                        .replay_gain_track_range()
+                        .is_some_and(|l| l == range)
+                    {
+                        print_extra_metadata(
+                            lhs_track.replay_gain_track_range(),
+                            Some(range),
+                            "<unknown range>",
+                            " (rg range)",
+                            candidate_details_config,
+                            max_width,
+                        );
+                    }
                 }
             }
 

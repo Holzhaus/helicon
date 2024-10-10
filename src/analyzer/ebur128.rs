@@ -51,6 +51,22 @@ impl EbuR128Result {
     pub fn replaygain_track_gain(&self) -> f64 {
         REPLAYGAIN2_REFERENCE_LUFS - self.average_lufs
     }
+
+    /// ReplayGain 2.0 Track Gain, formatted according to "Table 3: Metadata keys and value
+    /// formatting" in the ["Metadata format" section in the ReplayGain 2.0 specification][rgmeta].
+    ///
+    /// [rgmeta]: https://wiki.hydrogenaud.io/index.php?title=ReplayGain_2.0_specification#Metadata_format
+    pub fn replaygain_track_gain_string(&self) -> String {
+        format!("{:.2} dB", self.replaygain_track_gain())
+    }
+
+    /// ReplayGain 2.0 Track Peak, formatted according to "Table 3: Metadata keys and value
+    /// formatting" in the ["Metadata format" section in the ReplayGain 2.0 specification][rgmeta].
+    ///
+    /// [rgmeta]: https://wiki.hydrogenaud.io/index.php?title=ReplayGain_2.0_specification#Metadata_format
+    pub fn replaygain_track_peak_string(&self) -> String {
+        format!("{:.6}", self.peak)
+    }
 }
 
 /// Convert a dBFS value to a LUFS value.

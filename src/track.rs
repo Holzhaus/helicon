@@ -218,6 +218,11 @@ pub trait TrackLike {
     /// Track length.
     fn track_length(&self) -> Option<chrono::TimeDelta>;
 
+    /// Analyzed metadata for this track.
+    fn analyzed_metadata(&self) -> impl AnalyzedTrackMetadata {
+        NoAnalyzedTrackMetadata
+    }
+
     /// Calculate the distance between this track and another one.
     fn similarity_to<T>(&self, other: &T, config: &Config) -> TrackSimilarity
     where
@@ -226,6 +231,21 @@ pub trait TrackLike {
     {
         TrackSimilarity::detect(config, self, other)
     }
+}
+
+/// Analyzed track metadata.
+pub trait AnalyzedTrackMetadata {
+    /// AcoustID Fingerprint for the track.
+    fn acoustid_fingerprint(&self) -> Option<Cow<'_, str>>;
+
+    /// ReplayGain Track Gain.
+    fn replay_gain_track_gain(&self) -> Option<Cow<'_, str>>;
+
+    /// ReplayGain Track Peak.
+    fn replay_gain_track_peak(&self) -> Option<Cow<'_, str>>;
+
+    /// ReplayGain Track Range.
+    fn replay_gain_track_range(&self) -> Option<Cow<'_, str>>;
 }
 
 /// Adds helper methods to the `MusicBrainzReleaseTrack` struct.
@@ -692,5 +712,30 @@ impl TrackLike for MusicBrainzReleaseTrack {
     fn track_length(&self) -> Option<chrono::TimeDelta> {
         self.length
             .map(|length| chrono::TimeDelta::milliseconds(length.into()))
+    }
+}
+
+/// Default struct when is no metadata is analyzed for this track.
+struct NoAnalyzedTrackMetadata;
+
+impl AnalyzedTrackMetadata for NoAnalyzedTrackMetadata {
+    /// AcoustID Fingerprint for the track.
+    fn acoustid_fingerprint(&self) -> Option<Cow<'_, str>> {
+        None
+    }
+
+    /// ReplayGain Track Gain.
+    fn replay_gain_track_gain(&self) -> Option<Cow<'_, str>> {
+        None
+    }
+
+    /// ReplayGain Track Peak.
+    fn replay_gain_track_peak(&self) -> Option<Cow<'_, str>> {
+        None
+    }
+
+    /// ReplayGain Track Range.
+    fn replay_gain_track_range(&self) -> Option<Cow<'_, str>> {
+        None
     }
 }

@@ -11,7 +11,7 @@
 use crate::analyzer::CompoundAnalyzerResult;
 use crate::release::ReleaseLike;
 use crate::tag::{read_tags_from_path, Tag, TagKey};
-use crate::track::TrackLike;
+use crate::track::{AnalyzedTrackMetadata, TrackLike};
 use std::borrow::Cow;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -534,6 +534,41 @@ impl TrackLike for TaggedFile {
             .as_ref()
             .and_then(|results| results.track_length.as_ref())
             .and_then(|track_length| track_length.as_ref().ok().copied())
+    }
+
+    fn analyzed_metadata(&self) -> impl AnalyzedTrackMetadata {
+        TaggedFileAnalyzedMetadata(self.analysis_results.as_ref())
+    }
+}
+
+/// Analyzed metadata for tagged file metadata.
+struct TaggedFileAnalyzedMetadata<'a>(Option<&'a CompoundAnalyzerResult>);
+
+impl AnalyzedTrackMetadata for TaggedFileAnalyzedMetadata<'_> {
+    /// AcoustID Fingerprint for the track.
+    fn acoustid_fingerprint(&self) -> Option<Cow<'_, str>> {
+        None
+    }
+
+    /// ReplayGain Track Gain.
+    fn replay_gain_track_gain(&self) -> Option<Cow<'_, str>> {
+        self.0
+            .and_then(|result| result.ebur128.as_ref())
+            .and_then(|res| res.as_ref().ok())
+            .map(|ebur128| Cow::from(ebur128.replaygain_track_gain_string()))
+    }
+
+    /// ReplayGain Track Peak.
+    fn replay_gain_track_peak(&self) -> Option<Cow<'_, str>> {
+        self.0
+            .and_then(|result| result.ebur128.as_ref())
+            .and_then(|res| res.as_ref().ok())
+            .map(|ebur128| Cow::from(ebur128.replaygain_track_peak_string()))
+    }
+
+    /// ReplayGain Track Range.
+    fn replay_gain_track_range(&self) -> Option<Cow<'_, str>> {
+        None
     }
 }
 
