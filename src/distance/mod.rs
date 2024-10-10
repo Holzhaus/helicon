@@ -249,8 +249,8 @@ mod tests {
             None
         }
 
-        fn arranger(&self) -> Option<Cow<'_, str>> {
-            None
+        fn arranger(&self) -> impl Iterator<Item = Cow<'_, str>> {
+            std::iter::empty()
         }
 
         fn track_artist(&self) -> Option<Cow<'_, str>> {
@@ -269,28 +269,28 @@ mod tests {
             None
         }
 
-        fn composer(&self) -> Option<Cow<'_, str>> {
-            None
+        fn composer(&self) -> impl Iterator<Item = Cow<'_, str>> {
+            std::iter::empty()
         }
 
         fn composer_sort_order(&self) -> Option<Cow<'_, str>> {
             None
         }
 
-        fn conductor(&self) -> Option<Cow<'_, str>> {
-            None
+        fn conductor(&self) -> impl Iterator<Item = Cow<'_, str>> {
+            std::iter::empty()
         }
 
         fn copyright(&self) -> Option<Cow<'_, str>> {
             None
         }
 
-        fn director(&self) -> Option<Cow<'_, str>> {
-            None
+        fn director(&self) -> impl Iterator<Item = Cow<'_, str>> {
+            std::iter::empty()
         }
 
-        fn dj_mixer(&self) -> Option<Cow<'_, str>> {
-            None
+        fn dj_mixer(&self) -> impl Iterator<Item = Cow<'_, str>> {
+            std::iter::empty()
         }
 
         fn encoded_by(&self) -> Option<Cow<'_, str>> {
@@ -301,20 +301,20 @@ mod tests {
             None
         }
 
-        fn engineer(&self) -> Option<Cow<'_, str>> {
-            None
+        fn engineer(&self) -> impl Iterator<Item = Cow<'_, str>> {
+            std::iter::empty()
         }
 
-        fn genre(&self) -> Option<Cow<'_, str>> {
-            None
+        fn genre(&self) -> impl Iterator<Item = Cow<'_, str>> {
+            std::iter::empty()
         }
 
         fn initial_key(&self) -> Option<Cow<'_, str>> {
             None
         }
 
-        fn isrc(&self) -> Option<Cow<'_, str>> {
-            None
+        fn isrc(&self) -> impl Iterator<Item = Cow<'_, str>> {
+            std::iter::empty()
         }
 
         fn language(&self) -> Option<Cow<'_, str>> {
@@ -325,16 +325,16 @@ mod tests {
             None
         }
 
-        fn lyricist(&self) -> Option<Cow<'_, str>> {
-            None
+        fn lyricist(&self) -> impl Iterator<Item = Cow<'_, str>> {
+            std::iter::empty()
         }
 
         fn lyrics(&self) -> Option<Cow<'_, str>> {
             None
         }
 
-        fn mixer(&self) -> Option<Cow<'_, str>> {
-            None
+        fn mixer(&self) -> impl Iterator<Item = Cow<'_, str>> {
+            std::iter::empty()
         }
 
         fn mood(&self) -> Option<Cow<'_, str>> {
@@ -409,20 +409,20 @@ mod tests {
             None
         }
 
-        fn performer(&self) -> Option<Cow<'_, str>> {
-            None
+        fn performer(&self) -> impl Iterator<Item = Cow<'_, str>> {
+            std::iter::empty()
         }
 
-        fn producer(&self) -> Option<Cow<'_, str>> {
-            None
+        fn producer(&self) -> impl Iterator<Item = Cow<'_, str>> {
+            std::iter::empty()
         }
 
         fn rating(&self) -> Option<Cow<'_, str>> {
             None
         }
 
-        fn remixer(&self) -> Option<Cow<'_, str>> {
-            None
+        fn remixer(&self) -> impl Iterator<Item = Cow<'_, str>> {
+            std::iter::empty()
         }
 
         fn replay_gain_album_gain(&self) -> Option<Cow<'_, str>> {
@@ -473,8 +473,8 @@ mod tests {
             None
         }
 
-        fn writer(&self) -> Option<Cow<'_, str>> {
-            None
+        fn writer(&self) -> impl Iterator<Item = Cow<'_, str>> {
+            std::iter::empty()
         }
 
         fn track_length(&self) -> Option<chrono::TimeDelta> {

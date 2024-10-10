@@ -328,6 +328,31 @@ impl Tag for ID3v2Tag {
         }
     }
 
+    fn set_multiple<'a>(&'a mut self, key: TagKey, values: &[Cow<'a, str>]) {
+        if values.is_empty() {
+            self.clear(key);
+            return;
+        }
+
+        let frame = self.tag_key_to_frame(key);
+        match frame {
+            Some(FrameId::MultiValuedText(id, desc)) => {
+                let new_value = self
+                    .get_multi_valued_texts(id)
+                    .filter(|(frame_desc, _)| frame_desc != &desc)
+                    .chain(values.iter().map(|value| (desc, value.borrow())))
+                    .fold(String::new(), |acc: String, (desc, text)| {
+                        let sep = if acc.is_empty() { "" } else { "\0" };
+                        acc + sep + desc + "\0" + text
+                    });
+                self.data.set_text(id, new_value);
+            }
+            _ => {
+                self.set(key, values.join(" / ").into());
+            }
+        }
+    }
+
     fn set(&mut self, key: TagKey, value: Cow<'_, str>) {
         let frame = self.tag_key_to_frame(key);
         if let Some(frame) = frame {

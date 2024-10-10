@@ -149,6 +149,12 @@ impl Tag for FlacTag {
         }
     }
 
+    fn set_multiple<'a>(&'a mut self, key: TagKey, values: &[Cow<'a, str>]) {
+        if let Some(frame) = Self::tag_key_to_frame(key) {
+            self.data.set_vorbis(frame, values.to_vec());
+        }
+    }
+
     fn clear(&mut self, key: TagKey) {
         if let Some(frame) = Self::tag_key_to_frame(key) {
             self.data.remove_vorbis(frame);

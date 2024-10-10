@@ -90,6 +90,13 @@ impl TaggedFile {
             .for_each(|tag| tag.set_or_clear(key, value.clone()));
     }
 
+    /// Yields all values for the given [`TagKey`].
+    pub fn set_tag_values(&mut self, key: TagKey, values: &[Cow<'_, str>]) {
+        self.content
+            .iter_mut()
+            .for_each(|tag| tag.set_multiple(key, values));
+    }
+
     /// Returns the first value for the given [`TagKey`].
     #[must_use]
     pub fn first_tag_value(&self, key: TagKey) -> Option<&str> {
@@ -136,29 +143,50 @@ impl TaggedFile {
     pub fn assign_tags_from_track(&mut self, track: &impl TrackLike) {
         self.set_tag_value(TagKey::AcoustId, track.acoustid());
         self.set_tag_value(TagKey::AcoustIdFingerprint, track.acoustid_fingerprint());
-        self.set_tag_value(TagKey::Arranger, track.arranger());
+        self.set_tag_values(
+            TagKey::Arranger,
+            track.arranger().collect::<Vec<_>>().as_slice(),
+        );
         self.set_tag_value(TagKey::Artist, track.track_artist());
         self.set_tag_value(TagKey::ArtistSortOrder, track.track_artist_sort_order());
         self.set_tag_value(TagKey::Artists, track.track_artist());
         self.set_tag_value(TagKey::Bpm, track.bpm());
         self.set_tag_value(TagKey::Comment, track.comment());
-        self.set_tag_value(TagKey::Composer, track.composer());
+        self.set_tag_values(
+            TagKey::Composer,
+            track.composer().collect::<Vec<_>>().as_slice(),
+        );
         self.set_tag_value(TagKey::ComposerSortOrder, track.composer_sort_order());
-        self.set_tag_value(TagKey::Conductor, track.conductor());
+        self.set_tag_values(
+            TagKey::Conductor,
+            track.conductor().collect::<Vec<_>>().as_slice(),
+        );
         self.set_tag_value(TagKey::Copyright, track.copyright());
-        self.set_tag_value(TagKey::Director, track.director());
-        self.set_tag_value(TagKey::DjMixer, track.dj_mixer());
+        self.set_tag_values(
+            TagKey::Director,
+            track.director().collect::<Vec<_>>().as_slice(),
+        );
+        self.set_tag_values(
+            TagKey::DjMixer,
+            track.dj_mixer().collect::<Vec<_>>().as_slice(),
+        );
         self.set_tag_value(TagKey::EncodedBy, track.encoded_by());
         self.set_tag_value(TagKey::EncoderSettings, track.encoder_settings());
-        self.set_tag_value(TagKey::Engineer, track.engineer());
-        self.set_tag_value(TagKey::Genre, track.genre());
+        self.set_tag_values(
+            TagKey::Engineer,
+            track.engineer().collect::<Vec<_>>().as_slice(),
+        );
+        self.set_tag_values(TagKey::Genre, track.genre().collect::<Vec<_>>().as_slice());
         self.set_tag_value(TagKey::InitialKey, track.initial_key());
-        self.set_tag_value(TagKey::Isrc, track.isrc());
+        self.set_tag_values(TagKey::Isrc, track.isrc().collect::<Vec<_>>().as_slice());
         self.set_tag_value(TagKey::Language, track.language());
         self.set_tag_value(TagKey::License, track.license());
-        self.set_tag_value(TagKey::Lyricist, track.lyricist());
+        self.set_tag_values(
+            TagKey::Lyricist,
+            track.lyricist().collect::<Vec<_>>().as_slice(),
+        );
         self.set_tag_value(TagKey::Lyrics, track.lyrics());
-        self.set_tag_value(TagKey::Mixer, track.mixer());
+        self.set_tag_values(TagKey::Mixer, track.mixer().collect::<Vec<_>>().as_slice());
         self.set_tag_value(TagKey::Mood, track.mood());
         self.set_tag_value(TagKey::Movement, track.movement());
         self.set_tag_value(TagKey::MovementCount, track.movement_count());
@@ -186,10 +214,19 @@ impl TaggedFile {
         self.set_tag_value(TagKey::OriginalFilename, track.original_filename());
         self.set_tag_value(TagKey::OriginalReleaseDate, track.original_release_date());
         self.set_tag_value(TagKey::OriginalReleaseYear, track.original_release_year());
-        self.set_tag_value(TagKey::Performer, track.performer());
-        self.set_tag_value(TagKey::Producer, track.producer());
+        self.set_tag_values(
+            TagKey::Performer,
+            track.performer().collect::<Vec<_>>().as_slice(),
+        );
+        self.set_tag_values(
+            TagKey::Producer,
+            track.producer().collect::<Vec<_>>().as_slice(),
+        );
         self.set_tag_value(TagKey::Rating, track.rating());
-        self.set_tag_value(TagKey::Remixer, track.remixer());
+        self.set_tag_values(
+            TagKey::Remixer,
+            track.remixer().collect::<Vec<_>>().as_slice(),
+        );
         self.set_tag_value(TagKey::ReplayGainAlbumGain, track.replay_gain_album_gain());
         self.set_tag_value(TagKey::ReplayGainAlbumPeak, track.replay_gain_album_peak());
         self.set_tag_value(
@@ -211,7 +248,10 @@ impl TaggedFile {
         self.set_tag_value(TagKey::TrackTitleSortOrder, track.track_title_sort_order());
         self.set_tag_value(TagKey::ArtistWebsite, track.artist_website());
         self.set_tag_value(TagKey::WorkTitle, track.work_title());
-        self.set_tag_value(TagKey::Writer, track.writer());
+        self.set_tag_values(
+            TagKey::Writer,
+            track.writer().collect::<Vec<_>>().as_slice(),
+        );
     }
 
     /// Write tags to file.
@@ -238,8 +278,8 @@ impl TrackLike for TaggedFile {
             .map(Cow::from)
     }
 
-    fn arranger(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::Arranger).map(Cow::from)
+    fn arranger(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        self.tag_values(TagKey::Arranger).map(Cow::from)
     }
 
     fn track_artist(&self) -> Option<Cow<'_, str>> {
@@ -261,8 +301,8 @@ impl TrackLike for TaggedFile {
         self.first_tag_value(TagKey::Comment).map(Cow::from)
     }
 
-    fn composer(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::Composer).map(Cow::from)
+    fn composer(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        self.tag_values(TagKey::Composer).map(Cow::from)
     }
 
     fn composer_sort_order(&self) -> Option<Cow<'_, str>> {
@@ -270,20 +310,20 @@ impl TrackLike for TaggedFile {
             .map(Cow::from)
     }
 
-    fn conductor(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::Conductor).map(Cow::from)
+    fn conductor(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        self.tag_values(TagKey::Conductor).map(Cow::from)
     }
 
     fn copyright(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(TagKey::Copyright).map(Cow::from)
     }
 
-    fn director(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::Director).map(Cow::from)
+    fn director(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        self.tag_values(TagKey::Director).map(Cow::from)
     }
 
-    fn dj_mixer(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::DjMixer).map(Cow::from)
+    fn dj_mixer(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        self.tag_values(TagKey::DjMixer).map(Cow::from)
     }
 
     fn encoded_by(&self) -> Option<Cow<'_, str>> {
@@ -294,20 +334,20 @@ impl TrackLike for TaggedFile {
         self.first_tag_value(TagKey::EncoderSettings).map(Cow::from)
     }
 
-    fn engineer(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::Engineer).map(Cow::from)
+    fn engineer(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        self.tag_values(TagKey::Engineer).map(Cow::from)
     }
 
-    fn genre(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::Genre).map(Cow::from)
+    fn genre(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        self.tag_values(TagKey::Genre).map(Cow::from)
     }
 
     fn initial_key(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(TagKey::InitialKey).map(Cow::from)
     }
 
-    fn isrc(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::Isrc).map(Cow::from)
+    fn isrc(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        self.tag_values(TagKey::Isrc).map(Cow::from)
     }
 
     fn language(&self) -> Option<Cow<'_, str>> {
@@ -318,16 +358,16 @@ impl TrackLike for TaggedFile {
         self.first_tag_value(TagKey::License).map(Cow::from)
     }
 
-    fn lyricist(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::Lyricist).map(Cow::from)
+    fn lyricist(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        self.tag_values(TagKey::Lyricist).map(Cow::from)
     }
 
     fn lyrics(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(TagKey::Lyrics).map(Cow::from)
     }
 
-    fn mixer(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::Mixer).map(Cow::from)
+    fn mixer(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        self.tag_values(TagKey::Mixer).map(Cow::from)
     }
 
     fn mood(&self) -> Option<Cow<'_, str>> {
@@ -413,20 +453,20 @@ impl TrackLike for TaggedFile {
             .map(Cow::from)
     }
 
-    fn performer(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::Performer).map(Cow::from)
+    fn performer(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        self.tag_values(TagKey::Performer).map(Cow::from)
     }
 
-    fn producer(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::Producer).map(Cow::from)
+    fn producer(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        self.tag_values(TagKey::Producer).map(Cow::from)
     }
 
     fn rating(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(TagKey::Rating).map(Cow::from)
     }
 
-    fn remixer(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::Remixer).map(Cow::from)
+    fn remixer(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        self.tag_values(TagKey::Remixer).map(Cow::from)
     }
 
     fn replay_gain_album_gain(&self) -> Option<Cow<'_, str>> {
@@ -485,8 +525,8 @@ impl TrackLike for TaggedFile {
         self.first_tag_value(TagKey::WorkTitle).map(Cow::from)
     }
 
-    fn writer(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::Writer).map(Cow::from)
+    fn writer(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        self.tag_values(TagKey::Writer).map(Cow::from)
     }
 
     fn track_length(&self) -> Option<chrono::TimeDelta> {

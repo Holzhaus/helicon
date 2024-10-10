@@ -258,8 +258,10 @@ pub trait Tag: Send + Sync {
     fn tag_type(&self) -> TagType;
     /// Get the string value for the tag key.
     fn get(&self, key: TagKey) -> Option<&str>;
-    /// Set the value for tag key to multiple values.
+    /// Set the value for tag key..
     fn set(&mut self, key: TagKey, value: Cow<'_, str>);
+    /// Set the value for tag key to multiple values.
+    fn set_multiple<'a>(&'a mut self, key: TagKey, value: &[Cow<'a, str>]);
     /// Unset the value for the tag key.
     fn clear(&mut self, key: TagKey);
     /// Set or clear the value for tag key.

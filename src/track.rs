@@ -27,7 +27,7 @@ pub trait TrackLike {
     fn acoustid_fingerprint(&self) -> Option<Cow<'_, str>>;
 
     /// Artist who arranged the tune for performance.
-    fn arranger(&self) -> Option<Cow<'_, str>>;
+    fn arranger(&self) -> impl Iterator<Item = Cow<'_, str>>;
 
     /// Track Artist Name(s).
     fn track_artist(&self) -> Option<Cow<'_, str>>;
@@ -42,24 +42,24 @@ pub trait TrackLike {
     fn comment(&self) -> Option<Cow<'_, str>>;
 
     /// Composer Name(s).
-    fn composer(&self) -> Option<Cow<'_, str>>;
+    fn composer(&self) -> impl Iterator<Item = Cow<'_, str>>;
 
     /// Composer Sort Name.
     fn composer_sort_order(&self) -> Option<Cow<'_, str>>;
 
     /// Conductor Name(s).
-    fn conductor(&self) -> Option<Cow<'_, str>>;
+    fn conductor(&self) -> impl Iterator<Item = Cow<'_, str>>;
 
     /// Contain copyright message for the copyright holder of the original sound, begin with a year and a space character.
     fn copyright(&self) -> Option<Cow<'_, str>>;
 
     /// The director of a video track as provided by the Video Director relationship in MusicBrainz.
-    fn director(&self) -> Option<Cow<'_, str>>;
+    fn director(&self) -> impl Iterator<Item = Cow<'_, str>>;
 
     /// DJ-Mix Artist Name(s).
     ///
     /// This only applies to DJ-Mixes.
-    fn dj_mixer(&self) -> Option<Cow<'_, str>>;
+    fn dj_mixer(&self) -> impl Iterator<Item = Cow<'_, str>>;
 
     /// Encoded by (person or organization).
     fn encoded_by(&self) -> Option<Cow<'_, str>>;
@@ -68,10 +68,10 @@ pub trait TrackLike {
     fn encoder_settings(&self) -> Option<Cow<'_, str>>;
 
     /// Recording Engineer Name(s).
-    fn engineer(&self) -> Option<Cow<'_, str>>;
+    fn engineer(&self) -> impl Iterator<Item = Cow<'_, str>>;
 
     /// Genre Name(s) of the track.
-    fn genre(&self) -> Option<Cow<'_, str>>;
+    fn genre(&self) -> impl Iterator<Item = Cow<'_, str>>;
 
     /// Initial key of the track.
     fn initial_key(&self) -> Option<Cow<'_, str>>;
@@ -80,7 +80,7 @@ pub trait TrackLike {
     ///
     /// An international standard code for uniquely identifying sound recordings and music video
     /// recordings.
-    fn isrc(&self) -> Option<Cow<'_, str>>;
+    fn isrc(&self) -> impl Iterator<Item = Cow<'_, str>>;
 
     /// Work lyric language as per ISO 639-3.
     fn language(&self) -> Option<Cow<'_, str>>;
@@ -89,13 +89,13 @@ pub trait TrackLike {
     fn license(&self) -> Option<Cow<'_, str>>;
 
     /// Lyricist Name(s).
-    fn lyricist(&self) -> Option<Cow<'_, str>>;
+    fn lyricist(&self) -> impl Iterator<Item = Cow<'_, str>>;
 
     /// Lyrics.
     fn lyrics(&self) -> Option<Cow<'_, str>>;
 
     /// Mixing Engineer Name(s).
-    fn mixer(&self) -> Option<Cow<'_, str>>;
+    fn mixer(&self) -> impl Iterator<Item = Cow<'_, str>>;
 
     /// Mood.
     fn mood(&self) -> Option<Cow<'_, str>>;
@@ -163,16 +163,16 @@ pub trait TrackLike {
     fn original_release_year(&self) -> Option<Cow<'_, str>>;
 
     /// Performer.
-    fn performer(&self) -> Option<Cow<'_, str>>;
+    fn performer(&self) -> impl Iterator<Item = Cow<'_, str>>;
 
     /// Producer Name(s).
-    fn producer(&self) -> Option<Cow<'_, str>>;
+    fn producer(&self) -> impl Iterator<Item = Cow<'_, str>>;
 
     /// Rating of the track.
     fn rating(&self) -> Option<Cow<'_, str>>;
 
     /// Remixer Name(s).
-    fn remixer(&self) -> Option<Cow<'_, str>>;
+    fn remixer(&self) -> impl Iterator<Item = Cow<'_, str>>;
 
     /// ReplayGain Album Gain.
     fn replay_gain_album_gain(&self) -> Option<Cow<'_, str>>;
@@ -213,7 +213,7 @@ pub trait TrackLike {
     /// Writer Name(s).
     ///
     /// This is used when uncertain whether the artist is the composer or the lyricist.
-    fn writer(&self) -> Option<Cow<'_, str>>;
+    fn writer(&self) -> impl Iterator<Item = Cow<'_, str>>;
 
     /// Track length.
     fn track_length(&self) -> Option<chrono::TimeDelta>;
@@ -245,9 +245,11 @@ trait MusicBrainzReleaseTrackHelper {
         relation_types: &[&str],
     ) -> impl Iterator<Item = &MusicBrainzRelation>;
 
-    /// Get release relation artists by relation types (joined to a single value).
-    fn find_release_relation_artists_joined(&self, relation_types: &[&str])
-        -> Option<Cow<'_, str>>;
+    /// Get release relation artists by relation types.
+    fn find_release_relation_artists(
+        &self,
+        relation_types: &[&str],
+    ) -> impl Iterator<Item = Cow<'_, str>>;
 }
 
 impl MusicBrainzReleaseTrackHelper for MusicBrainzReleaseTrack {
@@ -284,18 +286,14 @@ impl MusicBrainzReleaseTrackHelper for MusicBrainzReleaseTrack {
             .filter(|relation| relation_types.contains(&relation.relation_type.as_str()))
     }
 
-    fn find_release_relation_artists_joined(
+    fn find_release_relation_artists(
         &self,
         relation_types: &[&str],
-    ) -> Option<Cow<'_, str>> {
-        Some(
-            self.find_release_relations_by_type(relation_types)
-                .filter_map(relation_artist)
-                .map(|artist| &artist.name)
-                .join(";"),
-        )
-        .filter(|s| !s.is_empty())
-        .map(Cow::from)
+    ) -> impl Iterator<Item = Cow<'_, str>> {
+        self.find_release_relations_by_type(relation_types)
+            .filter_map(relation_artist)
+            .map(|artist| &artist.name)
+            .map(Cow::from)
     }
 }
 
@@ -319,20 +317,15 @@ impl TrackLike for MusicBrainzReleaseTrack {
         None
     }
 
-    fn arranger(&self) -> Option<Cow<'_, str>> {
-        // TODO: This should be multi-valued.
-        Some(
-            self.find_release_relations_by_type(&[
-                "arranger",
-                "instrument arranger",
-                "orchestrator",
-                "vocal arranger",
-            ])
-            .filter_map(relation_artist)
-            .map(|artist| &artist.name)
-            .join(";"),
-        )
-        .filter(|s| !s.is_empty())
+    fn arranger(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        self.find_release_relations_by_type(&[
+            "arranger",
+            "instrument arranger",
+            "orchestrator",
+            "vocal arranger",
+        ])
+        .filter_map(relation_artist)
+        .map(|artist| &artist.name)
         .map(Cow::from)
     }
 
@@ -390,17 +383,12 @@ impl TrackLike for MusicBrainzReleaseTrack {
         None
     }
 
-    fn composer(&self) -> Option<Cow<'_, str>> {
-        // TODO: This should be multi-valued.
-        Some(
-            self.find_release_relations_by_type(&["composition", "composer"])
-                .chain(self.find_work_relations_by_type(&["composition", "composer"]))
-                .filter_map(relation_artist)
-                .map(|artist| &artist.name)
-                .join(";"),
-        )
-        .filter(|s| !s.is_empty())
-        .map(Cow::from)
+    fn composer(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        self.find_release_relations_by_type(&["composition", "composer"])
+            .chain(self.find_work_relations_by_type(&["composition", "composer"]))
+            .filter_map(relation_artist)
+            .map(|artist| &artist.name)
+            .map(Cow::from)
     }
 
     fn composer_sort_order(&self) -> Option<Cow<'_, str>> {
@@ -415,9 +403,8 @@ impl TrackLike for MusicBrainzReleaseTrack {
         .map(Cow::from)
     }
 
-    fn conductor(&self) -> Option<Cow<'_, str>> {
-        // TODO: This should be multi-valued.
-        self.find_release_relation_artists_joined(&["conductor"])
+    fn conductor(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        self.find_release_relation_artists(&["conductor"])
     }
 
     fn copyright(&self) -> Option<Cow<'_, str>> {
@@ -425,9 +412,8 @@ impl TrackLike for MusicBrainzReleaseTrack {
         None
     }
 
-    fn director(&self) -> Option<Cow<'_, str>> {
-        // TODO: This should be multi-valued.
-        self.find_release_relation_artists_joined(&[
+    fn director(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        self.find_release_relation_artists(&[
             "audio director",
             "video director",
             "creative direction",
@@ -435,9 +421,8 @@ impl TrackLike for MusicBrainzReleaseTrack {
         ])
     }
 
-    fn dj_mixer(&self) -> Option<Cow<'_, str>> {
-        // TODO: This should be multi-valued.
-        self.find_release_relation_artists_joined(&["mix-DJ"])
+    fn dj_mixer(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        self.find_release_relation_artists(&["mix-DJ"])
     }
 
     fn encoded_by(&self) -> Option<Cow<'_, str>> {
@@ -448,10 +433,8 @@ impl TrackLike for MusicBrainzReleaseTrack {
         None
     }
 
-    fn engineer(&self) -> Option<Cow<'_, str>> {
-        // TODO: Implement this.
-        // TODO: This should be multi-valued.
-        self.find_release_relation_artists_joined(&[
+    fn engineer(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        self.find_release_relation_artists(&[
             "engineer",
             "audio",
             "mastering",
@@ -465,13 +448,12 @@ impl TrackLike for MusicBrainzReleaseTrack {
         ])
     }
 
-    fn genre(&self) -> Option<Cow<'_, str>> {
+    fn genre(&self) -> impl Iterator<Item = Cow<'_, str>> {
         self.recording
             .iter()
             .flat_map(|recording| recording.genres.iter())
             .flat_map(|genres| genres.iter())
             .map(|genre| Cow::from(&genre.name))
-            .next()
     }
 
     fn initial_key(&self) -> Option<Cow<'_, str>> {
@@ -479,12 +461,11 @@ impl TrackLike for MusicBrainzReleaseTrack {
         None
     }
 
-    fn isrc(&self) -> Option<Cow<'_, str>> {
+    fn isrc(&self) -> impl Iterator<Item = Cow<'_, str>> {
         self.recording
             .iter()
             .flat_map(|recording| recording.isrcs.iter())
             .flat_map(|isrcs| isrcs.iter())
-            .next()
             .map(Cow::from)
     }
 
@@ -498,17 +479,12 @@ impl TrackLike for MusicBrainzReleaseTrack {
         None
     }
 
-    fn lyricist(&self) -> Option<Cow<'_, str>> {
-        // TODO: This should be multi-valued.
-        Some(
-            self.find_release_relations_by_type(&["lyricist"])
-                .chain(self.find_work_relations_by_type(&["lyricist"]))
-                .filter_map(relation_artist)
-                .map(|artist| &artist.name)
-                .join(";"),
-        )
-        .filter(|s| !s.is_empty())
-        .map(Cow::from)
+    fn lyricist(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        self.find_release_relations_by_type(&["lyricist"])
+            .chain(self.find_work_relations_by_type(&["lyricist"]))
+            .filter_map(relation_artist)
+            .map(|artist| &artist.name)
+            .map(Cow::from)
     }
 
     fn lyrics(&self) -> Option<Cow<'_, str>> {
@@ -516,9 +492,8 @@ impl TrackLike for MusicBrainzReleaseTrack {
         None
     }
 
-    fn mixer(&self) -> Option<Cow<'_, str>> {
-        // TODO: This should be multi-valued.
-        self.find_release_relation_artists_joined(&["mix"])
+    fn mixer(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        self.find_release_relation_artists(&["mix"])
     }
 
     fn mood(&self) -> Option<Cow<'_, str>> {
@@ -614,34 +589,27 @@ impl TrackLike for MusicBrainzReleaseTrack {
             .map(|date| Cow::from(date.format("%Y").to_string()))
     }
 
-    fn performer(&self) -> Option<Cow<'_, str>> {
-        // TODO: This should be multi-valued.
-        Some(
-            self.find_release_relations_by_type(&["performer", "instrument", "vocal"])
-                .filter_map(|relation| {
-                    if let MusicBrainzRelationContent::Artist(artist) = &relation.content {
-                        Some((&artist.name, &relation.attributes))
-                    } else {
-                        None
-                    }
-                })
-                .map(|(artist, attributes)| {
-                    let attrs = attributes.iter().flat_map(|vec| vec.iter()).join(", ");
-                    if attrs.is_empty() {
-                        Cow::from(artist)
-                    } else {
-                        Cow::from(format!("{artist} ({attrs})"))
-                    }
-                })
-                .join("; "),
-        )
-        .filter(|s| !s.is_empty())
-        .map(Cow::from)
+    fn performer(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        self.find_release_relations_by_type(&["performer", "instrument", "vocal"])
+            .filter_map(|relation| {
+                if let MusicBrainzRelationContent::Artist(artist) = &relation.content {
+                    Some((&artist.name, &relation.attributes))
+                } else {
+                    None
+                }
+            })
+            .map(|(artist, attributes)| {
+                let attrs = attributes.iter().flat_map(|vec| vec.iter()).join(", ");
+                if attrs.is_empty() {
+                    Cow::from(artist)
+                } else {
+                    Cow::from(format!("{artist} ({attrs})"))
+                }
+            })
     }
 
-    fn producer(&self) -> Option<Cow<'_, str>> {
-        // TODO: This should be multi-valued.
-        self.find_release_relation_artists_joined(&["producer"])
+    fn producer(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        self.find_release_relation_artists(&["producer"])
     }
 
     fn rating(&self) -> Option<Cow<'_, str>> {
@@ -649,9 +617,8 @@ impl TrackLike for MusicBrainzReleaseTrack {
         None
     }
 
-    fn remixer(&self) -> Option<Cow<'_, str>> {
-        // TODO: This should be multi-valued.
-        self.find_release_relation_artists_joined(&["remixer"])
+    fn remixer(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        self.find_release_relation_artists(&["remixer"])
     }
 
     fn replay_gain_album_gain(&self) -> Option<Cow<'_, str>> {
@@ -714,17 +681,12 @@ impl TrackLike for MusicBrainzReleaseTrack {
             .next()
     }
 
-    fn writer(&self) -> Option<Cow<'_, str>> {
-        // TODO: This should be multi-valued.
-        Some(
-            self.find_release_relations_by_type(&["writer"])
-                .chain(self.find_work_relations_by_type(&["writer"]))
-                .filter_map(relation_artist)
-                .map(|artist| &artist.name)
-                .join(";"),
-        )
-        .filter(|s| !s.is_empty())
-        .map(Cow::from)
+    fn writer(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        self.find_release_relations_by_type(&["writer"])
+            .chain(self.find_work_relations_by_type(&["writer"]))
+            .filter_map(relation_artist)
+            .map(|artist| &artist.name)
+            .map(Cow::from)
     }
 
     fn track_length(&self) -> Option<chrono::TimeDelta> {
