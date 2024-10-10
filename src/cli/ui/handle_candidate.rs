@@ -341,6 +341,22 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                     );
                 }
 
+                if let Some(fingerprint) = lhs_track.analyzed_metadata().acoustid_fingerprint() {
+                    if !lhs_track
+                        .acoustid_fingerprint()
+                        .is_some_and(|f| f == fingerprint)
+                    {
+                        print_extra_metadata(
+                            lhs_track.acoustid_fingerprint(),
+                            Some(fingerprint),
+                            "<unknown fingerprint>",
+                            " (fprint)",
+                            candidate_details_config,
+                            max_width,
+                        );
+                    }
+                }
+
                 if let Some(gain) = lhs_track.analyzed_metadata().replay_gain_track_gain() {
                     if !lhs_track
                         .replay_gain_track_gain()

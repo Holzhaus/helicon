@@ -547,7 +547,10 @@ struct TaggedFileAnalyzedMetadata<'a>(Option<&'a CompoundAnalyzerResult>);
 impl AnalyzedTrackMetadata for TaggedFileAnalyzedMetadata<'_> {
     /// AcoustID Fingerprint for the track.
     fn acoustid_fingerprint(&self) -> Option<Cow<'_, str>> {
-        None
+        self.0
+            .and_then(|result| result.chromaprint_fingerprint.as_ref())
+            .and_then(|res| res.as_ref().ok())
+            .map(|fp| Cow::from(fp.fingerprint_string()))
     }
 
     /// ReplayGain Track Gain.
