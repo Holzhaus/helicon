@@ -101,7 +101,13 @@ fn print_extra_metadata(
             .apply(suffix.as_ref())
             .into(),
     );
-    util::print_column_layout(lhs, rhs, "   ", " -> ", max_width);
+    util::print_column_layout(
+        lhs,
+        rhs,
+        &candidate_details_config.tracklist_extra_indent,
+        &candidate_details_config.tracklist_extra_separator,
+        max_width,
+    );
 }
 
 /// Display details about the candidate.
