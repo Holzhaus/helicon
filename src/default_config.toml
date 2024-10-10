@@ -30,7 +30,7 @@ default_terminal_width = 80
 tracklist_indent = " * "
 tracklist_separator = " -> "
 tracklist_extra_indent = "   "
-tracklist_extra_separator = " -> "
+tracklist_extra_separator = "    "
 release_artist_and_title_style = { attributes = ["bold"] }
 release_meta_style = { foreground_color = "grey" }
 disc_title_style = { attributes = ["underlined"] }
