@@ -14,6 +14,7 @@
 
 use super::{Analyzer, AnalyzerError};
 use crate::config::Config;
+use base64::prelude::{Engine, BASE64_URL_SAFE_NO_PAD};
 
 use symphonia::core::audio::Channels;
 use symphonia::core::codecs::CodecParameters;
@@ -31,11 +32,27 @@ pub struct ChromaprintFingerprintAnalyzer {
     stream_size: usize,
 }
 
+/// Analysis result of the Chromaprint analyzer.
+#[derive(Debug, Clone)]
+pub struct ChromaprintFingerprintResult {
+    /// Analyzed duration.
+    pub duration: usize,
+    /// AcoudID fingerprint.
+    pub fingerprint: Vec<u8>,
+}
+
+impl ChromaprintFingerprintResult {
+    /// Return the chromaprint fingerprint as base64-encoded string (URL-style, no padding).
+    pub fn fingerprint_string(&self) -> String {
+        BASE64_URL_SAFE_NO_PAD.encode(&self.fingerprint)
+    }
+}
+
 /// Maximum duration that will be analyzed.
 const MAX_DURATION: usize = 120;
 
 impl Analyzer for ChromaprintFingerprintAnalyzer {
-    type Result = (usize, Vec<u8>);
+    type Result = ChromaprintFingerprintResult;
 
     fn initialize(_config: &Config, codec_params: &CodecParameters) -> Result<Self, AnalyzerError> {
         let sample_rate = codec_params
@@ -72,10 +89,13 @@ impl Analyzer for ChromaprintFingerprintAnalyzer {
         self.stream_size >= self.stream_size_max
     }
 
-    fn finalize(mut self) -> Result<(usize, Vec<u8>), AnalyzerError> {
+    fn finalize(mut self) -> Result<Self::Result, AnalyzerError> {
         self.fingerprinter.finish();
         let fingerprint = compressor::compress(self.fingerprinter.fingerprint(), 1);
-        Ok((self.stream_size, fingerprint))
+        Ok(Self::Result {
+            duration: self.stream_size,
+            fingerprint,
+        })
     }
 }
 

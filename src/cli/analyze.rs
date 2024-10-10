@@ -13,7 +13,6 @@ use crate::config::AnalyzerType;
 use crate::util::FormattedDuration;
 use crate::Cache;
 use crate::Config;
-use base64::prelude::*;
 use clap::Parser;
 use std::path::PathBuf;
 
@@ -58,12 +57,9 @@ pub fn run(config: &Config, _cache: Option<&Cache>, args: Args) -> crate::Result
 
     if let Some(result) = result.chromaprint_fingerprint {
         match result {
-            Ok((duration, fingerprint)) => {
-                println!("Duration: {duration}");
-                println!(
-                    "Fingerprint: {}",
-                    BASE64_URL_SAFE_NO_PAD.encode(fingerprint)
-                );
+            Ok(result) => {
+                println!("Duration: {}", result.duration);
+                println!("Fingerprint: {}", result.fingerprint_string(),);
             }
             Err(err) => eprintln!("Chromaprint fingerprint analysis failed: {err}"),
         }
