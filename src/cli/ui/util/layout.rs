@@ -73,7 +73,11 @@ impl<'a> LayoutItem<'a> {
         debug_assert!(self.content.char_width() <= first_line_content_width);
         debug_assert_eq!(self.char_width(), max_width);
         let first: StyledContentList<'a> = self.into();
-        [first].into_iter().chain([second].into_iter().flatten())
+        [first].into_iter().chain(
+            second
+                .into_iter()
+                .flat_map(move |remaining| remaining.into_split_lines(max_width)),
+        )
     }
 }
 

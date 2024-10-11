@@ -352,6 +352,18 @@ impl<'a> StyledContentList<'a> {
         Some(Self::new(second_vec))
     }
 
+    /// Split this styled content list into multiple lines, each line not longer than `max_width`.
+    pub fn into_split_lines(mut self, max_width: usize) -> Box<dyn Iterator<Item = Self> + 'a> {
+        let next_line = self.split_off(max_width);
+        Box::from(
+            [self].into_iter().chain(
+                next_line
+                    .into_iter()
+                    .flat_map(move |line| line.into_split_lines(max_width)),
+            ),
+        )
+    }
+
     /// Append an item consisting of fill [`char`] to this list so that the length of its contents
     /// equals `desired_width`.
     pub fn fill_right(mut self, fill_char: char, desired_width: usize) -> Self {
