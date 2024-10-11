@@ -238,6 +238,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                 )
             };
 
+            // Format track title difference.
             let (lhs_track_title, rhs_track_title) = util::string_diff_opt(
                 lhs_track.track_title(),
                 rhs_track.track_title(),
@@ -245,6 +246,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                 &candidate_details_config.string_diff_style,
             );
 
+            // Format track number.
             let lhs_track_number = lhs_track.track_number().map_or_else(
                 || {
                     candidate_details_config
@@ -253,15 +255,6 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                 },
                 |number| candidate_details_config.track_number_style.apply(number),
             );
-
-            let mut lhs =
-                LayoutItem::new(lhs_track_title).with_prefix(StyledContentList::new(vec![
-                    lhs_track_number,
-                    candidate_details_config
-                        .track_number_style_default
-                        .apply(Cow::from(". ")),
-                ]));
-
             let rhs_track_number = rhs_track.track_number().map_or_else(
                 || {
                     candidate_details_config
@@ -270,6 +263,15 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                 },
                 |number| candidate_details_config.track_number_style.apply(number),
             );
+
+            // Build the main layout item for the tracks.
+            let mut lhs =
+                LayoutItem::new(lhs_track_title).with_prefix(StyledContentList::new(vec![
+                    lhs_track_number,
+                    candidate_details_config
+                        .track_number_style_default
+                        .apply(Cow::from(". ")),
+                ]));
 
             let mut rhs = LayoutItem::new(rhs_track_title)
                 .with_prefix(StyledContentList::new(vec![
@@ -280,6 +282,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                 ]))
                 .with_suffix(rhs_suffix);
 
+            // Add the track length to the layout item (if different).
             if !track_similarity.is_track_length_equal() {
                 lhs.content.push(lhs_track.track_length().map_or_else(
                     || {
@@ -308,6 +311,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                 ));
             }
 
+            // Finally, print the track title/number/length layout item.
             util::print_column_layout(
                 lhs,
                 rhs,
@@ -316,6 +320,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                 max_width,
             );
 
+            // Print the track artist (if different)
             if !track_similarity.is_track_artist_equal() {
                 print_extra_metadata(
                     lhs_track.track_artist(),
@@ -330,6 +335,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
             if show_details {
                 // TODO: Add more metadata here.
 
+                // Print the MusicBrain Recording ID (if different)
                 if !track_similarity.is_musicbrainz_recording_id_equal() {
                     print_extra_metadata(
                         lhs_track.musicbrainz_recording_id(),
@@ -341,6 +347,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                     );
                 }
 
+                // Print the AcoustID Fingerprint (if available/different)
                 if let Some(fingerprint) = lhs_track.analyzed_metadata().acoustid_fingerprint() {
                     if !lhs_track
                         .acoustid_fingerprint()
@@ -357,6 +364,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                     }
                 }
 
+                // Print the ReplayGain 2.0 Track Gain (if available/different)
                 if let Some(gain) = lhs_track.analyzed_metadata().replay_gain_track_gain() {
                     if !lhs_track
                         .replay_gain_track_gain()
@@ -373,6 +381,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                     }
                 }
 
+                // Print the ReplayGain 2.0 Track Peak (if available/different)
                 if let Some(peak) = lhs_track.analyzed_metadata().replay_gain_track_peak() {
                     if !lhs_track
                         .replay_gain_track_peak()
@@ -389,6 +398,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                     }
                 }
 
+                // Print the ReplayGain 2.0 Track Range (if available/different)
                 if let Some(range) = lhs_track.analyzed_metadata().replay_gain_track_range() {
                     if !lhs_track
                         .replay_gain_track_range()
