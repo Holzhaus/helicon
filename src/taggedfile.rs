@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 /// A tagged file that contains zero or more tags.
 pub struct TaggedFile {
     /// Path of the file.
-    path: PathBuf,
+    pub path: PathBuf,
     /// Tags that are present in the file.
     content: Vec<Box<dyn Tag>>,
     /// Analysis results.

@@ -297,6 +297,8 @@ pub struct UiConfig {
 pub struct AnalyzerConfig {
     /// Analyzers that are enabled and will be used.
     pub enabled: Vec<AnalyzerType>,
+    /// Number of parallel analyzer jobs (use 0 for the number of CPUs)
+    pub num_parallel_jobs: usize,
 }
 
 /// Analyzer type.

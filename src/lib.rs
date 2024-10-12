@@ -56,6 +56,7 @@ mod media;
 mod musicbrainz;
 mod release;
 mod release_candidate;
+mod scanner;
 mod tag;
 mod taggedfile;
 mod taggedfilecollection;

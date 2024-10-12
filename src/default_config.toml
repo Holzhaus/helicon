@@ -1,4 +1,5 @@
 [analyzers]
+num_parallel_jobs = 0
 # The chromaprint_fingerprint analyzer is disabled by default.
 enabled = ["track_length"]
 

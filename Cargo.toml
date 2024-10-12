@@ -38,6 +38,8 @@ rusty-chromaprint = "0.2.0"
 base64 = "0.22.1"
 float_eq = "1"
 ebur128 = "0.1"
+async-channel = "2.3.1"
+num_cpus = "1.16.0"
 
 [dev-dependencies]
 paste = "1"
