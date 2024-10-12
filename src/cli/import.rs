@@ -135,6 +135,9 @@ async fn select_release<'a>(
                         })
                         .await;
                 }
+                ui::ReleaseCandidateSelectionResult::Skipped => {
+                    return Ok(SelectionResult::Skipped)
+                }
             };
         };
         allow_autoselection = false;

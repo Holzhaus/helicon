@@ -25,6 +25,8 @@ pub enum ReleaseCandidateSelectionResult<'a, T: ReleaseLike> {
     FetchCandidateRelease(String),
     /// Fetch a new MusicBrainz release group ID and add its releases as a candidates.
     FetchCandidateReleaseGroup(String),
+    /// The item was skipped.
+    Skipped,
 }
 
 /// An option presented when selecting a release.
@@ -169,15 +171,14 @@ pub fn select_candidate<'a, T: ReleaseLike>(
             0 | 1 => "Select release candidate:".to_string(),
             candidate_count => format!("Select one of {candidate_count} release candidates:"),
         };
-        let selection = Select::new(&prompt, options.clone()).prompt()?;
-        match selection.into() {
-            ReleaseCandidateSelectionOption::Candidate(candidate) => {
+        match Select::new(&prompt, options.clone())
+            .prompt()
+            .map(ReleaseCandidateSelectionOption::from)
+        {
+            Ok(ReleaseCandidateSelectionOption::Candidate(candidate)) => {
                 break Ok(ReleaseCandidateSelectionResult::Candidate(candidate))
             }
-            ReleaseCandidateSelectionOption::SkipItem => {
-                break Err(InquireError::OperationCanceled)
-            }
-            ReleaseCandidateSelectionOption::EnterMusicBrainzId => {
+            Ok(ReleaseCandidateSelectionOption::EnterMusicBrainzId) => {
                 let result = Text::new("Enter MusicBrainz ID or URL: ")
                     .with_validator(|input: &str| {
                         if input.is_empty() {
@@ -214,6 +215,11 @@ pub fn select_candidate<'a, T: ReleaseLike>(
                     }
                 }
             }
+            Ok(ReleaseCandidateSelectionOption::SkipItem)
+            | Err(InquireError::OperationCanceled) => {
+                break Ok(ReleaseCandidateSelectionResult::Skipped)
+            }
+            Err(err) => Err(err)?,
         }
     }
 }
