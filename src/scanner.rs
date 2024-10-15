@@ -19,7 +19,8 @@ use crate::Cache;
 use crate::{Config, TaggedFile, TaggedFileCollection};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use tokio::sync::mpsc::Receiver;
+use std::time::Duration;
+use tokio::sync::mpsc::{error::TryRecvError, Receiver};
 
 /// Scanner struct.
 pub struct Scanner {
@@ -36,7 +37,7 @@ impl Scanner {
         let (analyzer_input_tx, analyzer_input_rx) = async_channel::bounded(20);
         let (analyzer_group_tx, mut analyzer_group_rx) = tokio::sync::mpsc::channel(5);
 
-        let _unused = tokio::task::spawn(async move {
+        let _fsscanner = tokio::task::spawn(async move {
             let mut group_id: usize = 0;
             for (_path, tracks) in find_track_paths(path) {
                 let mut num_tracks: usize = 0;
@@ -57,8 +58,6 @@ impl Scanner {
 
                 group_id += 1;
             }
-
-            drop(analyzer_input_tx);
         });
 
         let (analyzer_output_tx, mut analyzer_output_rx) = tokio::sync::mpsc::channel(20);
@@ -69,7 +68,7 @@ impl Scanner {
             let analyzer_input_rx = analyzer_input_rx.clone();
             let analyzer_output_tx = analyzer_output_tx.clone();
             let cloned_config = config.clone();
-            let _unusued = tokio::task::spawn(async move {
+            let _analysisworker = tokio::task::spawn(async move {
                 while let Ok((group_id, track)) = analyzer_input_rx.recv().await {
                     let track = analyze_tagged_file(&cloned_config, track);
                     if let Err(err) = analyzer_output_tx.send((group_id, track)).await {
@@ -80,21 +79,46 @@ impl Scanner {
         }
 
         let (post_analysis_tx, mut post_analysis_rx) = tokio::sync::mpsc::channel(20);
-        let _unusued = tokio::task::spawn(async move {
+        let _analysiscollector = tokio::task::spawn(async move {
             let mut group_track_counts = HashMap::new();
             let mut group_tracks = HashMap::new();
 
+            let mut analyzer_group_rx_connected = true;
+            let mut analyzer_output_rx_connected = true;
+
             #[allow(unused_results)]
-            while !(analyzer_output_rx.is_closed() && analyzer_output_rx.is_closed()) {
-                while let Ok((group_id, num_tracks)) = analyzer_group_rx.try_recv() {
+            while analyzer_group_rx_connected || analyzer_output_rx_connected {
+                while analyzer_group_rx_connected {
+                    let (group_id, num_tracks) = match analyzer_group_rx.try_recv() {
+                        Ok(result) => result,
+                        Err(TryRecvError::Empty) => {
+                            break;
+                        }
+                        Err(TryRecvError::Disconnected) => {
+                            analyzer_group_rx_connected = false;
+                            break;
+                        }
+                    };
+
                     group_track_counts.insert(group_id, num_tracks);
                     group_tracks.insert(group_id, Vec::with_capacity(num_tracks));
                 }
 
-                while let Ok((group_id, track)) = analyzer_output_rx.try_recv() {
+                while analyzer_output_rx_connected {
+                    let (group_id, track) = match analyzer_output_rx.try_recv() {
+                        Ok(result) => result,
+                        Err(TryRecvError::Empty) => {
+                            break;
+                        }
+                        Err(TryRecvError::Disconnected) => {
+                            analyzer_output_rx_connected = false;
+                            break;
+                        }
+                    };
+
                     let is_group_finished = if let Some(tracks) = group_tracks.get_mut(&group_id) {
                         tracks.push(track);
-                        if let Some(&mut counts) = group_track_counts.get_mut(&group_id) {
+                        if let Some(&counts) = group_track_counts.get(&group_id) {
                             tracks.len() >= counts
                         } else {
                             log::error!("Missing track count for group {group_id}");
@@ -120,13 +144,28 @@ impl Scanner {
                         continue;
                     }
                 }
+
+                tokio::time::sleep(Duration::from_millis(10)).await;
             }
 
-            drop(post_analysis_tx);
+            for (group_id, tracks) in group_tracks.drain() {
+                if let Some(&expected_track_count) = group_track_counts.get(&group_id) {
+                    if expected_track_count != tracks.len() {
+                        log::error!("Missing tracks for group {group_id}");
+                    }
+                } else {
+                    log::error!("Missing track count for group {group_id}");
+                }
+
+                let collection = TaggedFileCollection::new(tracks);
+                if let Err(err) = post_analysis_tx.send(collection).await {
+                    log::error!("Receiver dropped on sending collection: {err}");
+                }
+            }
         });
 
         let (results_tx, results_rx) = tokio::sync::mpsc::channel(20);
-        let _unusued = tokio::task::spawn(async move {
+        let _matcher = tokio::task::spawn(async move {
             let config = config;
             let musicbrainz = MusicBrainzClient::new(&config, cache.as_ref());
             while let Some(track_collection) = post_analysis_rx.recv().await {
@@ -147,8 +186,6 @@ impl Scanner {
                     continue;
                 }
             }
-
-            drop(results_tx);
         });
 
         Scanner { results_rx }
