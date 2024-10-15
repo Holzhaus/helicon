@@ -244,6 +244,12 @@ pub struct CandidateDetails {
     pub tracklist_extra_indent: String,
     /// Separator between the left and the right side for additional tags.
     pub tracklist_extra_separator: String,
+    /// Maximum number of lines for the track title of a tracklist item.
+    pub tracklist_title_line_limit: usize,
+    /// Maximum number of lines for the track artist of a tracklist item.
+    pub tracklist_artist_line_limit: usize,
+    /// Maximum number of lines for each extra metadata entry of a tracklist item.
+    pub tracklist_extra_line_limit: usize,
     /// Release artist and title style.
     pub release_artist_and_title_style: TextStyleConfig,
     /// Release metadata style.

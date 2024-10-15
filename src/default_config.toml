@@ -32,6 +32,9 @@ tracklist_indent = " * "
 tracklist_separator = " -> "
 tracklist_extra_indent = "   "
 tracklist_extra_separator = "    "
+tracklist_title_line_limit = 0
+tracklist_artist_line_limit = 0
+tracklist_extra_line_limit = 2
 release_artist_and_title_style = { attributes = ["bold"] }
 release_meta_style = { foreground_color = "grey" }
 disc_title_style = { attributes = ["underlined"] }
