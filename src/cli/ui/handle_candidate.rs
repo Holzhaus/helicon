@@ -87,6 +87,7 @@ fn print_extra_metadata(
     suffix: &'static str,
     candidate_details_config: &CandidateDetails,
     max_width: usize,
+    max_height: usize,
 ) {
     let (lhs_value, rhs_value) = util::string_diff_opt(
         lhs,
@@ -107,6 +108,7 @@ fn print_extra_metadata(
         &candidate_details_config.tracklist_extra_indent,
         &candidate_details_config.tracklist_extra_separator,
         max_width,
+        max_height,
     );
 }
 
@@ -318,6 +320,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                 &candidate_details_config.tracklist_indent,
                 &candidate_details_config.tracklist_separator,
                 max_width,
+                candidate_details_config.tracklist_title_line_limit,
             );
 
             // Print the track artist (if different)
@@ -329,6 +332,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                     " (artist)",
                     candidate_details_config,
                     max_width,
+                    candidate_details_config.tracklist_artist_line_limit,
                 );
             }
 
@@ -344,6 +348,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                         " (id)",
                         candidate_details_config,
                         max_width,
+                        candidate_details_config.tracklist_extra_line_limit,
                     );
                 }
 
@@ -360,6 +365,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                             " (fprint)",
                             candidate_details_config,
                             max_width,
+                            candidate_details_config.tracklist_extra_line_limit,
                         );
                     }
                 }
@@ -377,6 +383,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                             " (rg gain)",
                             candidate_details_config,
                             max_width,
+                            candidate_details_config.tracklist_extra_line_limit,
                         );
                     }
                 }
@@ -394,6 +401,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                             " (rg peak)",
                             candidate_details_config,
                             max_width,
+                            candidate_details_config.tracklist_extra_line_limit,
                         );
                     }
                 }
@@ -411,6 +419,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                             " (rg range)",
                             candidate_details_config,
                             max_width,
+                            candidate_details_config.tracklist_extra_line_limit,
                         );
                     }
                 }
