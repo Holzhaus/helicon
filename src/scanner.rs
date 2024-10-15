@@ -246,7 +246,3 @@ fn analyze_tagged_file(config: &Config, tagged_file: TaggedFile) -> TaggedFile {
         .ok();
     tagged_file.with_analysis_results(analysis_result)
 }
-
-//
-//            log::info!("Found {} tracks in {}", tagged_files.len(), path.display(),);
-//            Some(TaggedFileCollection::new(tagged_files))
