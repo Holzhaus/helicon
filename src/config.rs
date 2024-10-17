@@ -319,11 +319,24 @@ pub enum AnalyzerType {
     EbuR128,
 }
 
+/// The path configuration struct.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct PathConfig {
+    /// Location of the music library that files will be imported to.
+    pub library_path: String,
+    /// Format for album file paths.
+    pub album_format: String,
+    /// Format for compilation file paths.
+    pub compilation_format: String,
+}
+
 /// The main configuration struct.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
     /// Analyzer configuration.
     pub analyzers: AnalyzerConfig,
+    /// Filesystem path configuration.
+    pub paths: PathConfig,
     /// Configuration for track/release lookup.
     pub lookup: LookupConfig,
     /// Weight configuration.

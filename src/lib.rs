@@ -54,6 +54,7 @@ mod distance;
 mod error;
 mod media;
 mod musicbrainz;
+mod pathformat;
 mod release;
 mod release_candidate;
 mod scanner;
