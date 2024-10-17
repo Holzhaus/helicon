@@ -3,6 +3,11 @@ num_parallel_jobs = 0
 # The chromaprint_fingerprint analyzer is disabled by default.
 enabled = ["track_length"]
 
+[paths]
+library_path = "~/Music"
+album_format = "{{album_artist}}/{{#if year}}{{year - }}{{/if}}{{album_title}}/{{#if disc_number}}{{disc_number}}-{{/if}}{{track_number}} - {{track_title}}"
+compilation_format = "{{album_artist}}/{{album_title}}/{{#if disc_number}}{{disc_number}}-{{/if}}{{track_number}} - {{artist_credit}} - {{track_title}}"
+
 [lookup]
 connection_limit = 10
 release_candidate_limit = 5
