@@ -13,6 +13,7 @@ use crate::release::ReleaseLike;
 use crate::tag::{read_tags_from_path, Tag, TagKey};
 use crate::track::{AnalyzedTrackMetadata, TrackLike};
 use std::borrow::Cow;
+use std::ffi::OsStr;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
@@ -538,6 +539,14 @@ impl TrackLike for TaggedFile {
 
     fn track_path(&self) -> Option<&Path> {
         self.path.as_path().into()
+    }
+
+    fn track_file_extension(&self) -> Option<Cow<'_, str>> {
+        self.path
+            .as_path()
+            .extension()
+            .and_then(OsStr::to_str)
+            .map(Cow::from)
     }
 
     fn analyzed_metadata(&self) -> impl AnalyzedTrackMetadata {

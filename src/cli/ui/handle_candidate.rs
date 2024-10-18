@@ -434,7 +434,11 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                         .with_media(media)
                         .with_track(*lhs_track)
                         .with_track(rhs_track);
-                    let new_path = path_formatter.format(&values).ok().map(Cow::from);
+                    let new_path = path_formatter
+                        .format(&values)
+                        .ok()
+                        .zip(lhs_track.track_file_extension())
+                        .map(|(path, ext)| Cow::from(format!("{path}.{ext}")));
                     if old_path != new_path {
                         print_extra_metadata(
                             old_path,
