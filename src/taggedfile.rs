@@ -536,6 +536,10 @@ impl TrackLike for TaggedFile {
             .and_then(|track_length| track_length.as_ref().ok().copied())
     }
 
+    fn track_path(&self) -> Option<&Path> {
+        self.path.as_path().into()
+    }
+
     fn analyzed_metadata(&self) -> impl AnalyzedTrackMetadata {
         TaggedFileAnalyzedMetadata(self.analysis_results.as_ref())
     }

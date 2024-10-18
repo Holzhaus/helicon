@@ -17,6 +17,7 @@ use musicbrainz_rs_nova::entity::release::Track as MusicBrainzReleaseTrack;
 use musicbrainz_rs_nova::entity::work::Work as MusicBrainzWork;
 use std::borrow::Cow;
 use std::iter::Iterator;
+use std::path::Path;
 
 /// Represent a generic release, independent of the underlying source.
 pub trait TrackLike {
@@ -221,6 +222,11 @@ pub trait TrackLike {
     /// Analyzed metadata for this track.
     fn analyzed_metadata(&self) -> impl AnalyzedTrackMetadata {
         NoAnalyzedTrackMetadata
+    }
+
+    /// Path to the track in the filesystem.
+    fn track_path(&self) -> Option<&Path> {
+        None
     }
 
     /// Calculate the distance between this track and another one.
