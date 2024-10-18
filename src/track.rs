@@ -229,6 +229,11 @@ pub trait TrackLike {
         None
     }
 
+    /// File extension for this track.
+    fn track_file_extension(&self) -> Option<Cow<'_, str>> {
+        None
+    }
+
     /// Calculate the distance between this track and another one.
     fn similarity_to<T>(&self, other: &T, config: &Config) -> TrackSimilarity
     where
