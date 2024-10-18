@@ -9,11 +9,11 @@
 //! Path formatting and templating.
 #![allow(dead_code)]
 
+use crate::config::PathTemplateConfig;
 use crate::media::MediaLike;
 use crate::release::ReleaseLike;
 use crate::track::TrackLike;
-use crate::Config;
-use handlebars::{Handlebars, RenderError, TemplateError};
+use handlebars::{Handlebars, RenderError, Template, TemplateError};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 
@@ -40,20 +40,62 @@ fn escape_path_chars(data: &str) -> String {
         .collect::<String>()
 }
 
-/// Formatter for paths.
-pub struct PathFormatter<'a>(Handlebars<'a>);
+/// Configuration for the [`PathFormatter`] object.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(try_from = "PathTemplateConfig")]
+#[serde(into = "PathTemplateConfig")]
+pub struct PathTemplate {
+    /// The original config (for serialization).
+    config: PathTemplateConfig,
+    /// Format for album file paths.
+    pub album_format: Template,
+    /// Format for compilation file paths.
+    pub compilation_format: Template,
+}
 
-impl PathFormatter<'_> {
-    /// Create a new path formatter.
-    pub fn new(config: &Config) -> Result<Self, TemplateError> {
+impl PathTemplate {
+    /// Get the [`PathFormatter`] from this configuration.
+    pub fn formatter(&self) -> PathFormatter {
+        PathFormatter::from(self)
+    }
+}
+
+impl TryFrom<PathTemplateConfig> for PathTemplate {
+    type Error = TemplateError;
+
+    fn try_from(config: PathTemplateConfig) -> Result<Self, Self::Error> {
+        let album_format = Template::compile(&config.album_format)?;
+        let compilation_format = Template::compile(&config.album_format)?;
+        Ok(Self {
+            config,
+            album_format,
+            compilation_format,
+        })
+    }
+}
+
+impl From<PathTemplate> for PathTemplateConfig {
+    fn from(template: PathTemplate) -> Self {
+        template.config
+    }
+}
+
+/// Formatter for paths.
+#[derive(Debug, Clone)]
+pub struct PathFormatter(Handlebars<'static>);
+
+impl From<&PathTemplate> for PathFormatter {
+    fn from(template: &PathTemplate) -> Self {
         let mut handlebars = Handlebars::new();
         handlebars.set_strict_mode(true);
         handlebars.register_escape_fn(escape_path_chars);
-        handlebars.register_template_string("album", &config.paths.album_format)?;
-        handlebars.register_template_string("compilation", &config.paths.compilation_format)?;
-        Ok(Self(handlebars))
+        handlebars.register_template("album", template.album_format.clone());
+        handlebars.register_template("compilation", template.compilation_format.clone());
+        Self(handlebars)
     }
+}
 
+impl PathFormatter {
     /// Format a path with the given values.
     pub fn format(&self, values: &PathFormatterValues<'_>) -> Result<String, RenderError> {
         self.0.render("album", values)
@@ -109,6 +151,7 @@ impl<'a> PathFormatterValues<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Config;
 
     use musicbrainz_rs_nova::entity::release::Release as MusicBrainzRelease;
 
@@ -124,7 +167,7 @@ mod tests {
         let track = media.media_tracks().next().unwrap();
 
         let config = Config::default();
-        let formatter = PathFormatter::new(&config).unwrap();
+        let formatter = config.paths.format.formatter();
         let values = PathFormatterValues::default()
             .with_release(&release)
             .with_media(media)

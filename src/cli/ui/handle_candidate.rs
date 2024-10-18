@@ -12,6 +12,7 @@ use super::util::{self, LayoutItem, StyledContentList};
 use crate::config::{CandidateDetails, Config, UnmatchedTrackStyleConfig};
 use crate::distance::UnmatchedTracksSource;
 use crate::media::MediaLike;
+use crate::pathformat::PathFormatterValues;
 use crate::release::ReleaseLike;
 use crate::release_candidate::ReleaseCandidate;
 use crate::track::{AnalyzedTrackMetadata, TrackLike};
@@ -120,6 +121,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
     show_details: bool,
 ) {
     let candidate_details_config = &config.user_interface.candidate_details;
+    let path_formatter = config.paths.format.formatter();
 
     let distance_color = util::distance_color(&candidate.distance());
 
@@ -417,6 +419,28 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                             Some(range),
                             "<unknown range>",
                             " (rg range)",
+                            candidate_details_config,
+                            max_width,
+                            candidate_details_config.tracklist_extra_line_limit,
+                        );
+                    }
+                }
+
+                if let Some(path) = lhs_track.track_path() {
+                    let old_path = path.to_str().map(Cow::from);
+                    let values = PathFormatterValues::default()
+                        .with_release(base_release)
+                        .with_release(release)
+                        .with_media(media)
+                        .with_track(*lhs_track)
+                        .with_track(rhs_track);
+                    let new_path = path_formatter.format(&values).ok().map(Cow::from);
+                    if old_path != new_path {
+                        print_extra_metadata(
+                            old_path,
+                            new_path,
+                            "<unknown path>",
+                            " (path)",
                             candidate_details_config,
                             max_width,
                             candidate_details_config.tracklist_extra_line_limit,

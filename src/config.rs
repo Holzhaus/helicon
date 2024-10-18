@@ -8,6 +8,7 @@
 
 //! Configuration utils.
 
+use crate::pathformat::PathTemplate;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -324,6 +325,14 @@ pub enum AnalyzerType {
 pub struct PathConfig {
     /// Location of the music library that files will be imported to.
     pub library_path: String,
+    /// Formats for file paths.
+    #[serde(flatten)]
+    pub format: PathTemplate,
+}
+
+/// Configuration for the [`PathFormatter`] object.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct PathTemplateConfig {
     /// Format for album file paths.
     pub album_format: String,
     /// Format for compilation file paths.
