@@ -12,6 +12,7 @@ use super::util::{self, LayoutItem, StyledContentList};
 use crate::config::{CandidateDetails, Config, UnmatchedTrackStyleConfig};
 use crate::distance::UnmatchedTracksSource;
 use crate::media::MediaLike;
+use crate::pathformat::PathFormatterValues;
 use crate::release::ReleaseLike;
 use crate::release_candidate::ReleaseCandidate;
 use crate::track::{AnalyzedTrackMetadata, TrackLike};
@@ -87,6 +88,7 @@ fn print_extra_metadata(
     suffix: &'static str,
     candidate_details_config: &CandidateDetails,
     max_width: usize,
+    max_height: usize,
 ) {
     let (lhs_value, rhs_value) = util::string_diff_opt(
         lhs,
@@ -107,6 +109,7 @@ fn print_extra_metadata(
         &candidate_details_config.tracklist_extra_indent,
         &candidate_details_config.tracklist_extra_separator,
         max_width,
+        max_height,
     );
 }
 
@@ -118,6 +121,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
     show_details: bool,
 ) {
     let candidate_details_config = &config.user_interface.candidate_details;
+    let path_formatter = config.paths.format.formatter();
 
     let distance_color = util::distance_color(&candidate.distance());
 
@@ -318,6 +322,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                 &candidate_details_config.tracklist_indent,
                 &candidate_details_config.tracklist_separator,
                 max_width,
+                candidate_details_config.tracklist_title_line_limit,
             );
 
             // Print the track artist (if different)
@@ -329,6 +334,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                     " (artist)",
                     candidate_details_config,
                     max_width,
+                    candidate_details_config.tracklist_artist_line_limit,
                 );
             }
 
@@ -344,6 +350,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                         " (id)",
                         candidate_details_config,
                         max_width,
+                        candidate_details_config.tracklist_extra_line_limit,
                     );
                 }
 
@@ -360,6 +367,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                             " (fprint)",
                             candidate_details_config,
                             max_width,
+                            candidate_details_config.tracklist_extra_line_limit,
                         );
                     }
                 }
@@ -377,6 +385,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                             " (rg gain)",
                             candidate_details_config,
                             max_width,
+                            candidate_details_config.tracklist_extra_line_limit,
                         );
                     }
                 }
@@ -394,6 +403,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                             " (rg peak)",
                             candidate_details_config,
                             max_width,
+                            candidate_details_config.tracklist_extra_line_limit,
                         );
                     }
                 }
@@ -411,6 +421,33 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                             " (rg range)",
                             candidate_details_config,
                             max_width,
+                            candidate_details_config.tracklist_extra_line_limit,
+                        );
+                    }
+                }
+
+                if let Some(path) = lhs_track.track_path() {
+                    let old_path = path.to_str().map(Cow::from);
+                    let values = PathFormatterValues::default()
+                        .with_release(base_release)
+                        .with_release(release)
+                        .with_media(media)
+                        .with_track(*lhs_track)
+                        .with_track(rhs_track);
+                    let new_path = path_formatter
+                        .format(&values)
+                        .ok()
+                        .zip(lhs_track.track_file_extension())
+                        .map(|(path, ext)| Cow::from(format!("{path}.{ext}")));
+                    if old_path != new_path {
+                        print_extra_metadata(
+                            old_path,
+                            new_path,
+                            "<unknown path>",
+                            " (path)",
+                            candidate_details_config,
+                            max_width,
+                            candidate_details_config.tracklist_extra_line_limit,
                         );
                     }
                 }
