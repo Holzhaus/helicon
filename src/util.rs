@@ -48,12 +48,17 @@ pub fn copy_file<S: AsRef<Path>, D: AsRef<Path>>(source: S, destination: D) -> i
         .prefix(format!(".helicon.{dest_filename}").as_str())
         .suffix(".tmp")
         .tempfile_in(dest_dir)?;
-    let mut source_file = fs::File::open(source)?;
+    let mut source_file = fs::File::open(&source)?;
     let _ = io::copy(&mut source_file, &mut temp_destination_file)?;
 
     // When copying succeeded, persist the temporary file at the actual destination.
     let temp_destination = temp_destination_file.into_temp_path();
-    temp_destination.persist(destination)?;
+    temp_destination.persist(&destination)?;
+    log::info!(
+        "Copied file {} to {}",
+        source.as_ref().display(),
+        destination.as_ref().display()
+    );
 
     Ok(())
 }
@@ -62,6 +67,11 @@ pub fn copy_file<S: AsRef<Path>, D: AsRef<Path>>(source: S, destination: D) -> i
 pub fn move_file<S: AsRef<Path>, D: AsRef<Path>>(source: S, destination: D) -> crate::Result<()> {
     // First, try renaming.
     if let Ok(()) = fs::rename(&source, &destination) {
+        log::info!(
+            "Renamed file {} to {}",
+            source.as_ref().display(),
+            destination.as_ref().display()
+        );
         return Ok(());
     }
 
@@ -71,7 +81,8 @@ pub fn move_file<S: AsRef<Path>, D: AsRef<Path>>(source: S, destination: D) -> c
     copy_file(&source, destination)?;
 
     // Then remove the source file.
-    fs::remove_file(source)?;
+    fs::remove_file(&source)?;
+    log::info!("Removed file {}", source.as_ref().display());
 
     Ok(())
 }

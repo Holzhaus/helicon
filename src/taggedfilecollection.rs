@@ -20,6 +20,7 @@ use crate::TaggedFile;
 use expanduser::expanduser;
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 /// Represents the the count of a specific item and the first index at which that item was found.
 ///
@@ -189,11 +190,17 @@ impl TaggedFileCollection {
                     .formatter()
                     .format(&values)
                     .map(|path| library_path.join(path))
-                    .map(move |mut path| {
-                        if let Some(ext) = file_extension {
-                            let _ = path.set_extension(ext);
+                    .map(|path| match file_extension {
+                        Some(ext) => {
+                            // We cannot use `PathBuf::set_extension(ext)` here, because if there
+                            // already is an extension (e.g., if the track title contains a dot),
+                            // that extension would be replaced instead of appended.
+                            let mut path_with_ext = path.into_os_string();
+                            path_with_ext.push(".");
+                            path_with_ext.push(ext);
+                            PathBuf::from(path_with_ext)
                         }
-                        path
+                        None => path,
                     })
                     .map_err(crate::Error::TemplateFormattingFailed)
             })
