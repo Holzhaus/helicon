@@ -9,11 +9,15 @@
 //! Utilities for matching and lookup up albums and tracks.
 
 use crate::media::MediaLike;
+use crate::pathformat::PathFormatterValues;
 use crate::release::ReleaseLike;
 use crate::release_candidate::ReleaseCandidate;
 use crate::tag::TagKey;
 use crate::track::TrackLike;
+use crate::util;
+use crate::Config;
 use crate::TaggedFile;
+use expanduser::expanduser;
 use std::borrow::Cow;
 use std::collections::HashMap;
 
@@ -161,6 +165,46 @@ impl TaggedFileCollection {
             })
             .collect();
         self
+    }
+
+    /// Move files for all tracks in this collection.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if moving any of the files fails.
+    pub fn move_files(&mut self, config: &Config) -> crate::Result<()> {
+        let library_path = expanduser(&config.paths.library_path).map_err(crate::Error::Io)?;
+        let paths = self
+            .0
+            .iter()
+            .map(|track| {
+                let values = PathFormatterValues::default()
+                    .with_release(self)
+                    .with_media(self)
+                    .with_track(track);
+                let file_extension = track.path.extension();
+                config
+                    .paths
+                    .format
+                    .formatter()
+                    .format(&values)
+                    .map(|path| library_path.join(path))
+                    .map(move |mut path| {
+                        if let Some(ext) = file_extension {
+                            let _ = path.set_extension(ext);
+                        }
+                        path
+                    })
+                    .map_err(crate::Error::TemplateFormattingFailed)
+            })
+            .collect::<crate::Result<Vec<_>>>()?;
+
+        for (track, dest_path) in self.0.iter_mut().zip(paths) {
+            util::move_file(&track.path, &dest_path)?;
+            track.path = dest_path;
+        }
+
+        Ok(())
     }
 
     /// Write tags for all tracks in this collection.

@@ -52,6 +52,9 @@ pub enum ErrorType {
     /// An error occurred while analyzing the audio track.
     #[error("Audio analysis failed: {0}")]
     AnalyzerError(#[from] crate::analyzer::AnalyzerError),
+    /// An error occurred while formatting a template string.
+    #[error("Template formatting failed: {0}")]
+    TemplateFormattingFailed(#[from] handlebars::RenderError),
 }
 
 /// Convenience type.

@@ -63,7 +63,11 @@ impl<'a> LayoutItem<'a> {
 
     /// Split this layout item into multiple lines, each line not longer than `max_width`.
     /// Prefix and suffix will be placed on the first line.
-    fn into_split_lines(mut self, max_width: usize) -> impl Iterator<Item = StyledContentList<'a>> {
+    fn into_split_lines(
+        mut self,
+        max_width: usize,
+        max_height: usize,
+    ) -> impl Iterator<Item = StyledContentList<'a>> {
         let first_line_content_width =
             max_width - self.prefix.char_width() - self.suffix.char_width();
         let second = self.content.split_off(first_line_content_width);
@@ -73,11 +77,22 @@ impl<'a> LayoutItem<'a> {
         debug_assert!(self.content.char_width() <= first_line_content_width);
         debug_assert_eq!(self.char_width(), max_width);
         let first: StyledContentList<'a> = self.into();
-        [first].into_iter().chain(
-            second
-                .into_iter()
-                .flat_map(move |remaining| remaining.into_split_lines(max_width)),
-        )
+        [first]
+            .into_iter()
+            .chain(
+                second
+                    .into_iter()
+                    .flat_map(move |remaining| remaining.into_split_lines(max_width)),
+            )
+            .enumerate()
+            .take_while(move |(i, _)| max_height == 0 || *i < max_height)
+            .map(move |(i, line)| {
+                if max_height != 0 && i == max_height - 1 && line.char_width() == max_width {
+                    line.ellipsize()
+                } else {
+                    line
+                }
+            })
     }
 }
 
@@ -112,10 +127,11 @@ pub fn print_column_layout(
     indent: &str,
     separator: &str,
     max_width: usize,
+    max_height: usize,
 ) {
     let column_width = (max_width - indent.len() - separator.len()) / 2;
-    let mut lhs_lines = lhs.into_split_lines(column_width);
-    let mut rhs_lines = rhs.into_split_lines(column_width);
+    let mut lhs_lines = lhs.into_split_lines(column_width, max_height);
+    let mut rhs_lines = rhs.into_split_lines(column_width, max_height);
 
     let lhs_line: Option<StyledContentList<'_>> = lhs_lines.next();
     let rhs_line: Option<StyledContentList<'_>> = rhs_lines.next();

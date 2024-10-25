@@ -383,6 +383,47 @@ impl<'a> StyledContentList<'a> {
         debug_assert_eq!(self.char_width(), desired_width);
         self
     }
+
+    /// Remove the last visible character and add an ellipsis symbol at the end.
+    pub fn ellipsize(mut self) -> Self {
+        if self.char_width() == 0 {
+            // Not sure what to do here.
+            return self;
+        }
+
+        if self.char_width() == 1 {
+            return StyledContentList::from(ContentStyle::new().apply(Cow::from("…")));
+        }
+
+        if let Some(item) = self.0.pop() {
+            if item.char_width() == 0 {
+                // FIXME: Look into handling this case.
+                return self;
+            }
+
+            let item = if item.char_width() == 1 {
+                Cow::from("…")
+            } else {
+                let new_width = item.char_width() - 1;
+                Cow::from(
+                    item.content()
+                        .graphemes(true)
+                        .scan(0usize, |char_width, grapheme| {
+                            *char_width += grapheme.char_width();
+                            Some((grapheme, *char_width))
+                        })
+                        .take_while(|(_grapheme, char_width)| *char_width < new_width)
+                        .map(|(grapheme, _char_width)| grapheme)
+                        .chain(std::iter::once("…"))
+                        .collect::<String>(),
+                )
+            };
+            self.0.push(ContentStyle::new().apply(item));
+            self
+        } else {
+            self
+        }
+    }
 }
 
 #[cfg(test)]

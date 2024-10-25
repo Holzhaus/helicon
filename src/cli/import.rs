@@ -130,9 +130,15 @@ pub async fn run(config: &Config, cache: Option<&Cache>, args: Args) -> crate::R
         TaggedFileCollection,
         ReleaseCandidate<MusicBrainzRelease>,
     )>(20);
+    let cloned_config = config.clone();
     let importer_handle = tokio::task::spawn(async move {
         while let Some((track_collection, selected_candidate)) = importer_rx.recv().await {
             let mut track_collection = track_collection.assign_tags(&selected_candidate);
+            if let Err(err) = track_collection.move_files(&cloned_config) {
+                log::error!("Failed to move files: {err}");
+                continue;
+            };
+
             if let Err(err) = track_collection.write_tags() {
                 log::error!("Failed to write tags: {err}");
             };

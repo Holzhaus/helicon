@@ -8,6 +8,7 @@
 
 //! Configuration utils.
 
+use crate::pathformat::PathTemplate;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -244,6 +245,12 @@ pub struct CandidateDetails {
     pub tracklist_extra_indent: String,
     /// Separator between the left and the right side for additional tags.
     pub tracklist_extra_separator: String,
+    /// Maximum number of lines for the track title of a tracklist item.
+    pub tracklist_title_line_limit: usize,
+    /// Maximum number of lines for the track artist of a tracklist item.
+    pub tracklist_artist_line_limit: usize,
+    /// Maximum number of lines for each extra metadata entry of a tracklist item.
+    pub tracklist_extra_line_limit: usize,
     /// Release artist and title style.
     pub release_artist_and_title_style: TextStyleConfig,
     /// Release metadata style.
@@ -313,11 +320,32 @@ pub enum AnalyzerType {
     EbuR128,
 }
 
+/// The path configuration struct.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct PathConfig {
+    /// Location of the music library that files will be imported to.
+    pub library_path: String,
+    /// Formats for file paths.
+    #[serde(flatten)]
+    pub format: PathTemplate,
+}
+
+/// Configuration for the [`PathFormatter`] object.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct PathTemplateConfig {
+    /// Format for album file paths.
+    pub album_format: String,
+    /// Format for compilation file paths.
+    pub compilation_format: String,
+}
+
 /// The main configuration struct.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
     /// Analyzer configuration.
     pub analyzers: AnalyzerConfig,
+    /// Filesystem path configuration.
+    pub paths: PathConfig,
     /// Configuration for track/release lookup.
     pub lookup: LookupConfig,
     /// Weight configuration.
