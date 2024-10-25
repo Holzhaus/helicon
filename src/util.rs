@@ -10,9 +10,10 @@
 
 use chrono::TimeDelta;
 use std::collections::VecDeque;
-use std::fs::read_dir;
+use std::ffi::OsStr;
+use std::fs;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// An iterator that recursively walks through a directory structure and yields a tuple `(path,
 /// dirs, files)` for each directory it visits.
@@ -31,6 +32,50 @@ pub fn walk_dir(path: PathBuf) -> DirWalk {
     DirWalk { queue }
 }
 
+/// Copy the file
+pub fn copy_file<S: AsRef<Path>, D: AsRef<Path>>(source: S, destination: D) -> io::Result<()> {
+    let dest_filename = destination
+        .as_ref()
+        .file_name()
+        .and_then(OsStr::to_str)
+        .ok_or(io::Error::other("cannot determine destination file name"))?;
+    let dest_dir = destination
+        .as_ref()
+        .parent()
+        .ok_or(io::Error::other("cannot determine destination directory"))?;
+    fs::create_dir_all(dest_dir)?;
+    let mut temp_destination_file = tempfile::Builder::new()
+        .prefix(format!(".helicon.{dest_filename}").as_str())
+        .suffix(".tmp")
+        .tempfile_in(dest_dir)?;
+    let mut source_file = fs::File::open(source)?;
+    let _ = io::copy(&mut source_file, &mut temp_destination_file)?;
+
+    // When copying succeeded, persist the temporary file at the actual destination.
+    let temp_destination = temp_destination_file.into_temp_path();
+    temp_destination.persist(destination)?;
+
+    Ok(())
+}
+
+/// Move the file.
+pub fn move_file<S: AsRef<Path>, D: AsRef<Path>>(source: S, destination: D) -> crate::Result<()> {
+    // First, try renaming.
+    if let Ok(()) = fs::rename(&source, &destination) {
+        return Ok(());
+    }
+
+    // If that didn't work, try to copy the source file to a temporary file on the destination
+    // filesystem and persist the temporary file under the actual destination path if this
+    // succeeds.
+    copy_file(&source, destination)?;
+
+    // Then remove the source file.
+    fs::remove_file(source)?;
+
+    Ok(())
+}
+
 impl Iterator for DirWalk {
     type Item = io::Result<(PathBuf, Vec<PathBuf>, Vec<PathBuf>)>;
 
@@ -38,7 +83,7 @@ impl Iterator for DirWalk {
         let queued_path = self.queue.pop_front();
 
         queued_path.map(move |path| {
-            read_dir(&path).and_then(move |entries| {
+            fs::read_dir(&path).and_then(move |entries| {
                 let mut files = vec![];
                 let mut dirs = vec![];
                 for entry in entries {
