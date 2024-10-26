@@ -27,6 +27,7 @@ pub struct Args {
 }
 
 /// Result returned from the [`select_release()`] function.
+#[allow(clippy::large_enum_variant)]
 enum SelectionResult {
     /// A candidate was selected and should be assigned to the track collection.
     Selected(TaggedFileCollection, ReleaseCandidate<MusicBrainzRelease>),
