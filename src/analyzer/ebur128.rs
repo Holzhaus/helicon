@@ -16,7 +16,7 @@ use crate::config::Config;
 use symphonia::core::audio::Channels;
 use symphonia::core::codecs::CodecParameters;
 
-use ebur128::{EbuR128, Mode};
+use ebur128::{energy_to_loudness, EbuR128, Mode};
 
 /// ReplayGain 2.0 Reference Gain
 ///
@@ -44,6 +44,10 @@ pub struct EbuR128Result {
     pub average_lufs: f64,
     /// Peak amplitude of the audio file.
     pub peak: f64,
+    /// Number of gating blocks (for album gain calculation).
+    pub gating_block_count: u64,
+    /// Energy of the track (for album gain calculation).
+    pub energy: f64,
 }
 
 impl EbuR128Result {
@@ -52,12 +56,30 @@ impl EbuR128Result {
         REPLAYGAIN2_REFERENCE_LUFS - self.average_lufs
     }
 
+    /// Format an [`f64`] as a ReplayGain 2.0 Gain Value according to "Table 3: Metadata keys and
+    /// value formatting" in the ["Metadata format" section in the ReplayGain 2.0
+    /// specification][rgmeta].
+    ///
+    /// [rgmeta]: https://wiki.hydrogenaud.io/index.php?title=ReplayGain_2.0_specification#Metadata_format
+    pub fn replaygain_gain_string(gain: f64) -> String {
+        format!("{gain:.2} dB")
+    }
+
+    /// Format an [`f64`] as a ReplayGain 2.0 Peak Value according to "Table 3: Metadata keys and
+    /// value formatting" in the ["Metadata format" section in the ReplayGain 2.0
+    /// specification][rgmeta].
+    ///
+    /// [rgmeta]: https://wiki.hydrogenaud.io/index.php?title=ReplayGain_2.0_specification#Metadata_format
+    pub fn replaygain_peak_string(peak: f64) -> String {
+        format!("{peak:.6}")
+    }
+
     /// ReplayGain 2.0 Track Gain, formatted according to "Table 3: Metadata keys and value
     /// formatting" in the ["Metadata format" section in the ReplayGain 2.0 specification][rgmeta].
     ///
     /// [rgmeta]: https://wiki.hydrogenaud.io/index.php?title=ReplayGain_2.0_specification#Metadata_format
     pub fn replaygain_track_gain_string(&self) -> String {
-        format!("{:.2} dB", self.replaygain_track_gain())
+        Self::replaygain_gain_string(self.replaygain_track_gain())
     }
 
     /// ReplayGain 2.0 Track Peak, formatted according to "Table 3: Metadata keys and value
@@ -65,7 +87,51 @@ impl EbuR128Result {
     ///
     /// [rgmeta]: https://wiki.hydrogenaud.io/index.php?title=ReplayGain_2.0_specification#Metadata_format
     pub fn replaygain_track_peak_string(&self) -> String {
-        format!("{:.6}", self.peak)
+        Self::replaygain_peak_string(self.peak)
+    }
+
+    /// Calculate the ReplayGain 2.0 Album Peak and Album Gain from an iterator of `EbuR128Result`
+    /// values.
+    // FIXME: Remove this when anonymous lifetimes in `impl Trait` become stable.
+    #[expect(single_use_lifetimes)]
+    pub fn replaygain_album_peak_and_gain<'a>(
+        results: impl Iterator<Item = &'a Self>,
+    ) -> Option<(f64, f64)> {
+        let (album_peak, album_gating_block_count, album_energy) = results.fold(
+            (0f64, 0u64, 0f64),
+            |(album_peak, album_gating_block_count, album_energy), result| {
+                (
+                    album_peak.max(result.peak),
+                    album_gating_block_count + result.gating_block_count,
+                    album_energy + result.energy,
+                )
+            },
+        );
+
+        if album_gating_block_count == 0 {
+            return None;
+        }
+
+        #[expect(clippy::cast_precision_loss)]
+        let album_gain = REPLAYGAIN2_REFERENCE_LUFS
+            - energy_to_loudness(album_energy / (album_gating_block_count as f64));
+
+        Some((album_peak, album_gain))
+    }
+
+    /// Calculate the ReplayGain 2.0 Album Peak and Album Gain from an iterator of `EbuR128Result`
+    /// values and return them as a formatted string value.
+    // FIXME: Remove this when anonymous lifetimes in `impl Trait` become stable.
+    #[expect(single_use_lifetimes)]
+    pub fn replaygain_album_peak_and_gain_string<'a>(
+        results: impl Iterator<Item = &'a Self>,
+    ) -> Option<(String, String)> {
+        Self::replaygain_album_peak_and_gain(results).map(|(album_peak, album_gain)| {
+            (
+                Self::replaygain_peak_string(album_peak),
+                Self::replaygain_gain_string(album_gain),
+            )
+        })
     }
 }
 
@@ -136,6 +202,17 @@ impl Analyzer for EbuR128Analyzer {
         let peak = (0..self.channels)
             .map(|channel_index| self.ebur128.sample_peak(channel_index))
             .try_fold(0.0f64, |a, b| b.map(|b| a.max(b)))?;
-        Ok(EbuR128Result { average_lufs, peak })
+        let (gating_block_count, energy) =
+            self.ebur128
+                .gating_block_count_and_energy()
+                .ok_or(AnalyzerError::Custom(
+                    "gating block count and energy not available",
+                ))?;
+        Ok(EbuR128Result {
+            average_lufs,
+            peak,
+            gating_block_count,
+            energy,
+        })
     }
 }

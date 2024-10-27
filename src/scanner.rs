@@ -34,6 +34,8 @@ pub struct Scanner {
 impl Scanner {
     /// Create a scanner for the given path.
     pub fn scan(config: Config, cache: Option<Cache>, path: PathBuf) -> Scanner {
+        log::info!("Starting scan of {}", path.display());
+
         let (analyzer_input_tx, analyzer_input_rx) = async_channel::bounded(20);
         let (analyzer_group_tx, mut analyzer_group_rx) = tokio::sync::mpsc::channel(5);
 
@@ -228,9 +230,12 @@ fn find_track_paths(input_path: PathBuf) -> impl Iterator<Item = (PathBuf, Vec<T
                     }
                 })
                 .collect();
+
             if tagged_files.is_empty() {
                 return None;
             }
+
+            log::info!("Found {} tracks in {}", tagged_files.len(), path.display());
 
             Some((path, tagged_files))
         })
