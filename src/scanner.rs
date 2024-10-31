@@ -17,7 +17,7 @@ use crate::release_candidate::ReleaseCandidateCollection;
 use crate::util::walk_dir;
 use crate::Cache;
 use crate::{Config, TaggedFile, TaggedFileCollection};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio::sync::mpsc::{error::TryRecvError, Receiver};
@@ -103,7 +103,7 @@ impl Scanner {
                     };
 
                     group_track_counts.insert(group_id, num_tracks);
-                    group_tracks.insert(group_id, Vec::with_capacity(num_tracks));
+                    group_tracks.insert(group_id, BinaryHeap::with_capacity(num_tracks));
                 }
 
                 while analyzer_output_rx_connected {
@@ -140,7 +140,7 @@ impl Scanner {
                         continue;
                     };
 
-                    let collection = TaggedFileCollection::new(tracks);
+                    let collection = TaggedFileCollection::new(tracks.into_sorted_vec());
                     if let Err(err) = post_analysis_tx.send(collection).await {
                         log::error!("Receiver dropped on sending collection: {err}");
                         continue;
@@ -159,7 +159,7 @@ impl Scanner {
                     log::error!("Missing track count for group {group_id}");
                 }
 
-                let collection = TaggedFileCollection::new(tracks);
+                let collection = TaggedFileCollection::new(tracks.into_sorted_vec());
                 if let Err(err) = post_analysis_tx.send(collection).await {
                     log::error!("Receiver dropped on sending collection: {err}");
                 }

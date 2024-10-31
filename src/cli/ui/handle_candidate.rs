@@ -194,7 +194,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
     //
     // First, show the matched tracks.
     let track_assignment = candidate.similarity().track_assignment();
-    let matched_track_map = track_assignment.matched_tracks_map();
+    let matched_track_map = track_assignment.map_rhs_indices_to_lhs();
     let mut rhs_track_index: usize = 0;
     for (media_index, media) in release.media().enumerate() {
         let format = media.media_format().unwrap_or_else(|| "Medium".into());

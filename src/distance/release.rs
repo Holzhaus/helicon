@@ -233,9 +233,17 @@ impl TrackAssignment {
         self.matched_tracks.iter()
     }
 
-    /// Returns a [`HashMap`] that maps the matched tracks from the left hand side side to the
-    /// corresponding track on the right hand side.
-    pub fn matched_tracks_map(&self) -> HashMap<usize, (usize, &TrackSimilarity)> {
+    /// Returns a [`HashMap`] that allows retrieving the matched tracks from the right hand side
+    /// by the corresponding track index from the left hand side.
+    pub fn map_lhs_indices_to_rhs(&self) -> HashMap<usize, (usize, &TrackSimilarity)> {
+        self.matched_tracks()
+            .map(|pair| (pair.lhs, (pair.rhs, &pair.similarity)))
+            .collect()
+    }
+
+    /// Returns a [`HashMap`] that allows retrieving the matched tracks from the left hand side
+    /// by the corresponding track index from the right hand side.
+    pub fn map_rhs_indices_to_lhs(&self) -> HashMap<usize, (usize, &TrackSimilarity)> {
         self.matched_tracks()
             .map(|pair| (pair.rhs, (pair.lhs, &pair.similarity)))
             .collect()

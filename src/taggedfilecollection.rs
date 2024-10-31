@@ -150,7 +150,7 @@ impl TaggedFileCollection {
         let matched_track_map = release_candidate
             .similarity()
             .track_assignment()
-            .matched_tracks_map();
+            .map_lhs_indices_to_rhs();
         self = self
             .into_iter()
             .enumerate()

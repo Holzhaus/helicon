@@ -13,6 +13,7 @@ use crate::release::ReleaseLike;
 use crate::tag::{read_tags_from_path, Tag, TagKey};
 use crate::track::{AnalyzedTrackMetadata, TrackLike};
 use std::borrow::Cow;
+use std::cmp::Ordering;
 use std::ffi::OsStr;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -266,6 +267,26 @@ impl TaggedFile {
         }
 
         Ok(())
+    }
+}
+
+impl PartialEq for TaggedFile {
+    fn eq(&self, other: &Self) -> bool {
+        self.path.as_path().eq(other.path.as_path())
+    }
+}
+
+impl Eq for TaggedFile {}
+
+impl Ord for TaggedFile {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.path.as_path().cmp(other.path.as_path())
+    }
+}
+
+impl PartialOrd for TaggedFile {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
