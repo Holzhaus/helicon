@@ -137,18 +137,6 @@ impl TaggedFile {
         self.set_tag_value(TagKey::ReleaseYear, release.release_year());
         self.set_tag_value(TagKey::ReleaseStatus, release.release_status());
         self.set_tag_value(TagKey::ReleaseType, release.release_type());
-        self.set_tag_value(
-            TagKey::ReplayGainAlbumGain,
-            release.replay_gain_album_gain_analyzed(),
-        );
-        self.set_tag_value(
-            TagKey::ReplayGainAlbumPeak,
-            release.replay_gain_album_peak_analyzed(),
-        );
-        self.set_tag_value(
-            TagKey::ReplayGainAlbumRange,
-            release.replay_gain_album_range_analyzed(),
-        );
         self.set_tag_value(TagKey::Script, release.script());
         self.set_tag_value(TagKey::TotalDiscs, release.total_discs());
     }
@@ -156,7 +144,11 @@ impl TaggedFile {
     /// Assign metadata from another `TrackLike` struct (e.g. a MusicBrainz track).
     pub fn assign_tags_from_track(&mut self, track: &impl TrackLike) {
         self.set_tag_value(TagKey::AcoustId, track.acoustid());
-        self.set_tag_value(TagKey::AcoustIdFingerprint, track.acoustid_fingerprint());
+        let acoustid_fingerprint = self
+            .analyzed_metadata()
+            .acoustid_fingerprint()
+            .map(|value| Cow::from(value.to_string()));
+        self.set_tag_value(TagKey::AcoustIdFingerprint, acoustid_fingerprint);
         self.set_tag_values(
             TagKey::Arranger,
             track.arranger().collect::<Vec<_>>().as_slice(),
@@ -245,12 +237,21 @@ impl TaggedFile {
             TagKey::ReplayGainReferenceLoudness,
             track.replay_gain_reference_loudness(),
         );
-        self.set_tag_value(TagKey::ReplayGainTrackGain, track.replay_gain_track_gain());
-        self.set_tag_value(TagKey::ReplayGainTrackPeak, track.replay_gain_track_peak());
-        self.set_tag_value(
-            TagKey::ReplayGainTrackRange,
-            track.replay_gain_track_range(),
-        );
+        let replay_gain_track_gain = self
+            .analyzed_metadata()
+            .replay_gain_track_gain()
+            .map(|value| Cow::from(value.to_string()));
+        self.set_tag_value(TagKey::ReplayGainTrackGain, replay_gain_track_gain);
+        let replay_gain_track_peak = self
+            .analyzed_metadata()
+            .replay_gain_track_peak()
+            .map(|value| Cow::from(value.to_string()));
+        self.set_tag_value(TagKey::ReplayGainTrackPeak, replay_gain_track_peak);
+        let replay_gain_track_range = self
+            .analyzed_metadata()
+            .replay_gain_track_range()
+            .map(|value| Cow::from(value.to_string()));
+        self.set_tag_value(TagKey::ReplayGainTrackRange, replay_gain_track_range);
         self.set_tag_value(TagKey::TrackNumber, track.track_number());
         self.set_tag_value(TagKey::TrackTitle, track.track_title());
         self.set_tag_value(TagKey::TrackTitleSortOrder, track.track_title_sort_order());
