@@ -118,19 +118,22 @@ fn is_va_artist(value: &str) -> bool {
 
 /// A collection of tracks on the local disk.
 #[derive(Debug)]
-pub struct TaggedFileCollection(Vec<TaggedFile>);
+pub struct TaggedFileCollection {
+    /// Listo of tracks in this collection.
+    tracks: Vec<TaggedFile>,
+}
 
 impl TaggedFileCollection {
     /// Creates a new collection from a `Vec` of `TaggedFile` instances.
     #[must_use]
     pub fn new(tracks: Vec<TaggedFile>) -> Self {
-        Self(tracks)
+        Self { tracks }
     }
 
     /// Finds the most common value for a certain tag in an iterator of tagged files.
     fn find_most_common_tag_value(&self, key: TagKey) -> Option<MostCommonItem<&str>> {
         MostCommonItem::find(
-            self.0
+            self.tracks
                 .iter()
                 .filter_map(|tagged_file| tagged_file.first_tag_value(key)),
         )
@@ -176,7 +179,7 @@ impl TaggedFileCollection {
     pub fn move_files(&mut self, config: &Config) -> crate::Result<()> {
         let library_path = expanduser(&config.paths.library_path).map_err(crate::Error::Io)?;
         let paths = self
-            .0
+            .tracks
             .iter()
             .map(|track| {
                 let values = PathFormatterValues::default()
@@ -206,7 +209,7 @@ impl TaggedFileCollection {
             })
             .collect::<crate::Result<Vec<_>>>()?;
 
-        for (track, dest_path) in self.0.iter_mut().zip(paths) {
+        for (track, dest_path) in self.tracks.iter_mut().zip(paths) {
             util::move_file(&track.path, &dest_path)?;
             track.path = dest_path;
         }
@@ -220,7 +223,7 @@ impl TaggedFileCollection {
     ///
     /// Returns an error if any of the underlying tags fail to write.
     pub fn write_tags(&mut self) -> crate::Result<()> {
-        for track in &mut self.0 {
+        for track in &mut self.tracks {
             track.write_tags()?;
         }
 
@@ -233,13 +236,13 @@ impl IntoIterator for TaggedFileCollection {
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
+        self.tracks.into_iter()
     }
 }
 
 impl FromIterator<TaggedFile> for TaggedFileCollection {
     fn from_iter<I: IntoIterator<Item = TaggedFile>>(iter: I) -> Self {
-        Self(iter.into_iter().collect::<Vec<TaggedFile>>())
+        Self::new(iter.into_iter().collect::<Vec<TaggedFile>>())
     }
 }
 
@@ -264,7 +267,7 @@ impl MediaLike for TaggedFileCollection {
     }
 
     fn media_track_count(&self) -> Option<usize> {
-        self.0.len().into()
+        self.tracks.len().into()
     }
 
     fn gapless_playback(&self) -> Option<bool> {
@@ -277,7 +280,7 @@ impl MediaLike for TaggedFileCollection {
     }
 
     fn media_tracks(&self) -> impl Iterator<Item = &(impl TrackLike + '_)> {
-        self.0.iter()
+        self.tracks.iter()
     }
 }
 
