@@ -56,30 +56,12 @@ impl EbuR128Result {
         REPLAYGAIN2_REFERENCE_LUFS - self.average_lufs
     }
 
-    /// Format an [`f64`] as a ReplayGain 2.0 Gain Value according to "Table 3: Metadata keys and
-    /// value formatting" in the ["Metadata format" section in the ReplayGain 2.0
-    /// specification][rgmeta].
-    ///
-    /// [rgmeta]: https://wiki.hydrogenaud.io/index.php?title=ReplayGain_2.0_specification#Metadata_format
-    pub fn replaygain_gain_string(gain: f64) -> String {
-        format!("{gain:.2} dB")
-    }
-
-    /// Format an [`f64`] as a ReplayGain 2.0 Peak Value according to "Table 3: Metadata keys and
-    /// value formatting" in the ["Metadata format" section in the ReplayGain 2.0
-    /// specification][rgmeta].
-    ///
-    /// [rgmeta]: https://wiki.hydrogenaud.io/index.php?title=ReplayGain_2.0_specification#Metadata_format
-    pub fn replaygain_peak_string(peak: f64) -> String {
-        format!("{peak:.6}")
-    }
-
     /// ReplayGain 2.0 Track Gain, formatted according to "Table 3: Metadata keys and value
     /// formatting" in the ["Metadata format" section in the ReplayGain 2.0 specification][rgmeta].
     ///
     /// [rgmeta]: https://wiki.hydrogenaud.io/index.php?title=ReplayGain_2.0_specification#Metadata_format
     pub fn replaygain_track_gain_string(&self) -> String {
-        Self::replaygain_gain_string(self.replaygain_track_gain())
+        replaygain_gain_string(self.replaygain_track_gain())
     }
 
     /// ReplayGain 2.0 Track Peak, formatted according to "Table 3: Metadata keys and value
@@ -87,16 +69,27 @@ impl EbuR128Result {
     ///
     /// [rgmeta]: https://wiki.hydrogenaud.io/index.php?title=ReplayGain_2.0_specification#Metadata_format
     pub fn replaygain_track_peak_string(&self) -> String {
-        Self::replaygain_peak_string(self.peak)
+        replaygain_peak_string(self.peak)
     }
+}
 
+/// Result of the EBU R 128 album analysis.
+#[derive(Debug, Clone)]
+pub struct EbuR128AlbumResult {
+    /// Measured loudness level of the audio files on the album.
+    pub average_lufs: f64,
+    /// Peak amplitude of the audio files on the album.
+    pub peak: f64,
+}
+
+impl EbuR128AlbumResult {
     /// Calculate the ReplayGain 2.0 Album Peak and Album Gain from an iterator of `EbuR128Result`
     /// values.
     // FIXME: Remove this when anonymous lifetimes in `impl Trait` become stable.
     #[expect(single_use_lifetimes)]
-    pub fn replaygain_album_peak_and_gain<'a>(
-        results: impl Iterator<Item = &'a Self>,
-    ) -> Option<(f64, f64)> {
+    pub fn from_iter<'a>(
+        results: impl Iterator<Item = &'a EbuR128Result>,
+    ) -> Option<EbuR128AlbumResult> {
         let (album_peak, album_gating_block_count, album_energy) = results.fold(
             (0f64, 0u64, 0f64),
             |(album_peak, album_gating_block_count, album_energy), result| {
@@ -113,26 +106,53 @@ impl EbuR128Result {
         }
 
         #[expect(clippy::cast_precision_loss)]
-        let album_gain = REPLAYGAIN2_REFERENCE_LUFS
-            - energy_to_loudness(album_energy / (album_gating_block_count as f64));
+        let album_average_lufs =
+            energy_to_loudness(album_energy / (album_gating_block_count as f64));
 
-        Some((album_peak, album_gain))
-    }
-
-    /// Calculate the ReplayGain 2.0 Album Peak and Album Gain from an iterator of `EbuR128Result`
-    /// values and return them as a formatted string value.
-    // FIXME: Remove this when anonymous lifetimes in `impl Trait` become stable.
-    #[expect(single_use_lifetimes)]
-    pub fn replaygain_album_peak_and_gain_string<'a>(
-        results: impl Iterator<Item = &'a Self>,
-    ) -> Option<(String, String)> {
-        Self::replaygain_album_peak_and_gain(results).map(|(album_peak, album_gain)| {
-            (
-                Self::replaygain_peak_string(album_peak),
-                Self::replaygain_gain_string(album_gain),
-            )
+        Some(EbuR128AlbumResult {
+            average_lufs: album_average_lufs,
+            peak: album_peak,
         })
     }
+
+    /// Calculate ReplayGain 2.0 Album Gain.
+    pub fn replaygain_album_gain(&self) -> f64 {
+        REPLAYGAIN2_REFERENCE_LUFS - self.average_lufs
+    }
+
+    /// ReplayGain 2.0 Album Gain, formatted according to "Table 3: Metadata keys and value
+    /// formatting" in the ["Metadata format" section in the ReplayGain 2.0 specification][rgmeta].
+    ///
+    /// [rgmeta]: https://wiki.hydrogenaud.io/index.php?title=ReplayGain_2.0_specification#Metadata_format
+    pub fn replaygain_album_gain_string(&self) -> String {
+        replaygain_gain_string(self.replaygain_album_gain())
+    }
+
+    /// ReplayGain 2.0 Album Peak, formatted according to "Table 3: Metadata keys and value
+    /// formatting" in the ["Metadata format" section in the ReplayGain 2.0 specification][rgmeta].
+    ///
+    /// [rgmeta]: https://wiki.hydrogenaud.io/index.php?title=ReplayGain_2.0_specification#Metadata_format
+    pub fn replaygain_album_peak_string(&self) -> String {
+        replaygain_peak_string(self.peak)
+    }
+}
+
+/// Format an [`f64`] as a ReplayGain 2.0 Gain Value according to "Table 3: Metadata keys and
+/// value formatting" in the ["Metadata format" section in the ReplayGain 2.0
+/// specification][rgmeta].
+///
+/// [rgmeta]: https://wiki.hydrogenaud.io/index.php?title=ReplayGain_2.0_specification#Metadata_format
+pub fn replaygain_gain_string(gain: f64) -> String {
+    format!("{gain:.2} dB")
+}
+
+/// Format an [`f64`] as a ReplayGain 2.0 Peak Value according to "Table 3: Metadata keys and
+/// value formatting" in the ["Metadata format" section in the ReplayGain 2.0
+/// specification][rgmeta].
+///
+/// [rgmeta]: https://wiki.hydrogenaud.io/index.php?title=ReplayGain_2.0_specification#Metadata_format
+pub fn replaygain_peak_string(peak: f64) -> String {
+    format!("{peak:.6}")
 }
 
 /// Convert a dBFS value to a LUFS value.

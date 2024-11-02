@@ -25,7 +25,7 @@ pub struct TaggedFile {
     /// Tags that are present in the file.
     content: Vec<Box<dyn Tag>>,
     /// Analysis results.
-    analysis_results: Option<CompoundAnalyzerResult>,
+    pub analysis_results: Option<CompoundAnalyzerResult>,
 }
 
 impl fmt::Debug for TaggedFile {
@@ -137,6 +137,18 @@ impl TaggedFile {
         self.set_tag_value(TagKey::ReleaseYear, release.release_year());
         self.set_tag_value(TagKey::ReleaseStatus, release.release_status());
         self.set_tag_value(TagKey::ReleaseType, release.release_type());
+        self.set_tag_value(
+            TagKey::ReplayGainAlbumGain,
+            release.replay_gain_album_gain_analyzed(),
+        );
+        self.set_tag_value(
+            TagKey::ReplayGainAlbumPeak,
+            release.replay_gain_album_peak_analyzed(),
+        );
+        self.set_tag_value(
+            TagKey::ReplayGainAlbumRange,
+            release.replay_gain_album_range_analyzed(),
+        );
         self.set_tag_value(TagKey::Script, release.script());
         self.set_tag_value(TagKey::TotalDiscs, release.total_discs());
     }
@@ -228,12 +240,6 @@ impl TaggedFile {
         self.set_tag_values(
             TagKey::Remixer,
             track.remixer().collect::<Vec<_>>().as_slice(),
-        );
-        self.set_tag_value(TagKey::ReplayGainAlbumGain, track.replay_gain_album_gain());
-        self.set_tag_value(TagKey::ReplayGainAlbumPeak, track.replay_gain_album_peak());
-        self.set_tag_value(
-            TagKey::ReplayGainAlbumRange,
-            track.replay_gain_album_range(),
         );
         self.set_tag_value(
             TagKey::ReplayGainReferenceLoudness,

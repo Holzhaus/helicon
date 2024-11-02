@@ -382,7 +382,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                             lhs_track.replay_gain_track_gain(),
                             Some(gain),
                             "<unknown gain>",
-                            " (rg gain)",
+                            " (gain)",
                             candidate_details_config,
                             max_width,
                             candidate_details_config.tracklist_extra_line_limit,
@@ -400,7 +400,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                             lhs_track.replay_gain_track_peak(),
                             Some(peak),
                             "<unknown peak>",
-                            " (rg peak)",
+                            " (peak)",
                             candidate_details_config,
                             max_width,
                             candidate_details_config.tracklist_extra_line_limit,
@@ -418,7 +418,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                             lhs_track.replay_gain_track_range(),
                             Some(range),
                             "<unknown range>",
-                            " (rg range)",
+                            " (range)",
                             candidate_details_config,
                             max_width,
                             candidate_details_config.tracklist_extra_line_limit,
@@ -426,6 +426,59 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                     }
                 }
 
+                // Print the ReplayGain 2.0 Album Gain (if available/different)
+                if let Some(gain) = base_release.replay_gain_album_gain_analyzed() {
+                    if !lhs_track
+                        .replay_gain_album_gain()
+                        .is_some_and(|g| g == gain)
+                    {
+                        print_extra_metadata(
+                            lhs_track.replay_gain_track_gain(),
+                            Some(gain),
+                            "<unknown gain>",
+                            " (album gain)",
+                            candidate_details_config,
+                            max_width,
+                            candidate_details_config.tracklist_extra_line_limit,
+                        );
+                    }
+                }
+
+                // Print the ReplayGain 2.0 Album Peak (if available/different)
+                if let Some(peak) = base_release.replay_gain_album_peak_analyzed() {
+                    if !lhs_track
+                        .replay_gain_album_peak()
+                        .is_some_and(|p| p == peak)
+                    {
+                        print_extra_metadata(
+                            lhs_track.replay_gain_track_peak(),
+                            Some(peak),
+                            "<unknown peak>",
+                            " (album peak)",
+                            candidate_details_config,
+                            max_width,
+                            candidate_details_config.tracklist_extra_line_limit,
+                        );
+                    }
+                }
+
+                // Print the ReplayGain 2.0 Album Range (if available/different)
+                if let Some(range) = base_release.replay_gain_album_range_analyzed() {
+                    if !lhs_track
+                        .replay_gain_album_range()
+                        .is_some_and(|l| l == range)
+                    {
+                        print_extra_metadata(
+                            lhs_track.replay_gain_track_range(),
+                            Some(range),
+                            "<unknown range>",
+                            " (album range)",
+                            candidate_details_config,
+                            max_width,
+                            candidate_details_config.tracklist_extra_line_limit,
+                        );
+                    }
+                }
                 if let Some(path) = lhs_track.track_path() {
                     let old_path = path.to_str().map(Cow::from);
                     let values = PathFormatterValues::default()

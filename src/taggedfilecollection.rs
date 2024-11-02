@@ -8,6 +8,7 @@
 
 //! Utilities for matching and lookup up albums and tracks.
 
+use crate::analyzer::EbuR128AlbumResult;
 use crate::media::MediaLike;
 use crate::pathformat::PathFormatterValues;
 use crate::release::ReleaseLike;
@@ -119,15 +120,31 @@ fn is_va_artist(value: &str) -> bool {
 /// A collection of tracks on the local disk.
 #[derive(Debug)]
 pub struct TaggedFileCollection {
-    /// Listo of tracks in this collection.
+    /// List of tracks in this collection.
     tracks: Vec<TaggedFile>,
+    /// EBU R128 Album Result
+    ebur128_album_result: Option<EbuR128AlbumResult>,
 }
 
 impl TaggedFileCollection {
     /// Creates a new collection from a `Vec` of `TaggedFile` instances.
     #[must_use]
     pub fn new(tracks: Vec<TaggedFile>) -> Self {
-        Self { tracks }
+        let ebur128_album_result = tracks
+            .iter()
+            .map(|track| {
+                track
+                    .analysis_results
+                    .as_ref()
+                    .and_then(|analysis_result| analysis_result.ebur128.as_ref())
+            })
+            .map(|opt| opt.and_then(|res| res.as_ref().ok()))
+            .collect::<Option<Vec<_>>>()
+            .and_then(|ebur128_results| EbuR128AlbumResult::from_iter(ebur128_results.into_iter()));
+        Self {
+            tracks,
+            ebur128_album_result,
+        }
     }
 
     /// Finds the most common value for a certain tag in an iterator of tagged files.
@@ -397,6 +414,18 @@ impl ReleaseLike for TaggedFileCollection {
 
     fn media(&self) -> impl Iterator<Item = &(impl MediaLike + '_)> {
         std::iter::once(self)
+    }
+
+    fn replay_gain_album_gain_analyzed(&self) -> Option<Cow<'_, str>> {
+        self.ebur128_album_result
+            .as_ref()
+            .map(|result| Cow::from(result.replaygain_album_gain_string()))
+    }
+
+    fn replay_gain_album_peak_analyzed(&self) -> Option<Cow<'_, str>> {
+        self.ebur128_album_result
+            .as_ref()
+            .map(|result| Cow::from(result.replaygain_album_peak_string()))
     }
 }
 
