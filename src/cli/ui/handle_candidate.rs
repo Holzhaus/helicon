@@ -21,6 +21,7 @@ use crossterm::{
     style::{ContentStyle, Stylize},
     terminal,
 };
+use expanduser::expanduser;
 use inquire::{InquireError, Select};
 use std::borrow::Cow;
 use std::collections::HashSet;
@@ -487,11 +488,14 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                         .with_media(media)
                         .with_track(*lhs_track)
                         .with_track(rhs_track);
-                    let new_path = path_formatter
-                        .format(&values)
+                    let new_path = expanduser(&config.paths.library_path)
                         .ok()
+                        .zip(path_formatter.format(&values).ok())
+                        .map(|(library_path, path)| library_path.join(path))
                         .zip(lhs_track.track_file_extension())
-                        .map(|(path, ext)| Cow::from(format!("{path}.{ext}")));
+                        .map(|(path, ext)| {
+                            Cow::from(format!("{path}.{ext}", path = path.display()))
+                        });
                     if old_path != new_path {
                         print_extra_metadata(
                             old_path,
