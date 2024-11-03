@@ -27,6 +27,10 @@ repos:
       --ignore-words=.codespellignore
     ]
     exclude_types: [tsv, json]
+- repo: https://github.com/psf/black
+  rev: 22.3.0
+  hooks:
+  - id: black
 - repo: https://github.com/doublify/pre-commit-rust
   rev: v1.0
   hooks:
