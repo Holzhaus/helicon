@@ -1,58 +1,54 @@
+---
 default_language_version:
-  python: python3
+    python: python3
 repos:
-- repo: https://github.com/pre-commit/pre-commit-hooks
-  rev: v5.0.0
-  hooks:
-  - id: check-case-conflict
-  - id: check-json
-  - id: check-merge-conflict
-  - id: check-symlinks
-  - id: check-toml
-  - id: check-xml
-  - id: check-yaml
-  - id: destroyed-symlinks
-  - id: detect-private-key
-  - id: end-of-file-fixer
-  - id: fix-byte-order-marker
-  - id: forbid-new-submodules
-  - id: mixed-line-ending
-  - id: trailing-whitespace
-    exclude: ".tsv$"
-- repo: https://github.com/codespell-project/codespell
-  rev: v2.3.0
-  hooks:
-  - id: codespell
-    args: [
-      --ignore-words=.codespellignore
-    ]
-    exclude_types: [tsv, json]
-- repo: https://github.com/doublify/pre-commit-rust
-  rev: v1.0
-  hooks:
-  - id: fmt
-    args: [
-      --all,
-      --,
-    ]
-  - id: clippy
-    args: [
-      --locked,
-      --workspace,
-      --all-features,
-      --all-targets,
-      --,
-      -D,
-      warnings,
-    ]
-- repo: https://github.com/Holzhaus/sourceheaders
-  rev: v0.0.4
-  hooks:
-  - id: sourceheaders
-- repo: https://github.com/jorisroovers/gitlint
-  rev: v0.19.1
-  hooks:
-  - id: gitlint
+    - repo: https://github.com/pre-commit/pre-commit-hooks
+      rev: v5.0.0
+      hooks:
+          - id: check-case-conflict
+          - id: check-json
+          - id: check-merge-conflict
+          - id: check-symlinks
+          - id: check-toml
+          - id: check-xml
+          - id: check-yaml
+          - id: destroyed-symlinks
+          - id: detect-private-key
+          - id: end-of-file-fixer
+          - id: fix-byte-order-marker
+          - id: forbid-new-submodules
+          - id: mixed-line-ending
+          - id: trailing-whitespace
+            exclude: .tsv$
+    - repo: https://github.com/codespell-project/codespell
+      rev: v2.3.0
+      hooks:
+          - id: codespell
+            args: [--ignore-words=.codespellignore]
+            exclude_types: [tsv, json]
+    - repo: https://github.com/psf/black
+      rev: 22.3.0
+      hooks:
+          - id: black
+    - repo: https://github.com/jumanjihouse/pre-commit-hook-yamlfmt
+      rev: 0.2.1
+      hooks:
+          - id: yamlfmt
+    - repo: https://github.com/doublify/pre-commit-rust
+      rev: v1.0
+      hooks:
+          - id: fmt
+            args: [--all, --]
+          - id: clippy
+            args: [--locked, --workspace, --all-features, --all-targets, --, -D, warnings]
+    - repo: https://github.com/Holzhaus/sourceheaders
+      rev: v0.0.4
+      hooks:
+          - id: sourceheaders
+    - repo: https://github.com/jorisroovers/gitlint
+      rev: v0.19.1
+      hooks:
+          - id: gitlint
 
 ci:
-  skip: [fmt, clippy]
+    skip: [fmt, clippy]
