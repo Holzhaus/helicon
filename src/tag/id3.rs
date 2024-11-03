@@ -41,13 +41,6 @@ pub struct ID3v2Tag {
 
 impl ID3v2Tag {
     #[cfg(test)]
-    pub fn new() -> Self {
-        ID3v2Tag {
-            data: id3::Tag::new(),
-        }
-    }
-
-    #[cfg(test)]
     pub fn with_version(version: id3::Version) -> Self {
         ID3v2Tag {
             data: id3::Tag::with_version(version),
@@ -260,6 +253,14 @@ impl ID3v2Tag {
     }
 }
 
+impl Default for ID3v2Tag {
+    fn default() -> Self {
+        ID3v2Tag {
+            data: id3::Tag::with_version(id3::Version::Id3v23),
+        }
+    }
+}
+
 impl Tag for ID3v2Tag {
     fn tag_type(&self) -> TagType {
         match self.data.version() {
@@ -430,7 +431,7 @@ mod tests {
 
     #[test]
     fn test_get_set_clear_multivalued_text() {
-        let mut tag = ID3v2Tag::new();
+        let mut tag = ID3v2Tag::default();
         assert!(tag.get(TagKey::Arranger).is_none());
         assert!(tag.get(TagKey::Engineer).is_none());
         assert!(tag.get(TagKey::DjMixer).is_none());

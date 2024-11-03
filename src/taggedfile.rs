@@ -631,7 +631,7 @@ mod tests {
         let track: &MusicBrainzTrack =
             &release.media.as_ref().unwrap()[0].tracks.as_ref().unwrap()[0];
 
-        let mut tagged_file = TaggedFile::new(vec![Box::new(ID3v2Tag::new())]);
+        let mut tagged_file = TaggedFile::new(vec![Box::new(ID3v2Tag::default())]);
         assert!(tagged_file.track_title().is_none());
         assert!(tagged_file.track_artist().is_none());
         assert!(tagged_file.track_number().is_none());
@@ -652,7 +652,7 @@ mod tests {
 
         let release: MusicBrainzRelease = serde_json::from_str(MUSICBRAINZ_RELEASE_JSON).unwrap();
 
-        let tagged_file = TaggedFile::new(vec![Box::new(ID3v2Tag::new())]);
+        let tagged_file = TaggedFile::new(vec![Box::new(ID3v2Tag::default())]);
         let tagged_file_collection = TaggedFileCollection::new(vec![tagged_file]);
         assert!(tagged_file_collection.release_title().is_none());
         assert!(tagged_file_collection.release_artist().is_none());
