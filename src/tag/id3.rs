@@ -15,6 +15,7 @@ use id3::{
 };
 use std::borrow::{Borrow, Cow};
 use std::iter;
+use std::mem;
 use std::path::Path;
 
 /// ID3 frame ID.
@@ -251,6 +252,39 @@ impl ID3v2Tag {
             })
             .map(|unique_file_identifier| unique_file_identifier.identifier.as_slice())
     }
+
+    /// Migrate this tag to the given ID3 version.
+    pub fn migrate_to(&mut self, new_version: id3::Version) {
+        let version = self.data.version();
+        if version == new_version {
+            return;
+        }
+
+        // FIXME: Converting to ID3v2.2 is not supported.
+        if new_version == id3::Version::Id3v22 {
+            return;
+        }
+
+        log::info!("Converting ID3 tag version {version} to {new_version}");
+
+        let old_data = mem::replace(&mut self.data, id3::Tag::with_version(new_version));
+        for frame in old_data.frames() {
+            let id = frame.id();
+            let new_frame = match frame.id_for_version(new_version) {
+                Some(new_id) if new_id == id => frame.clone(),
+                Some(new_id) => {
+                    log::info!("Converting ID3 frame {id} to {new_id}");
+                    let content = frame.content().to_owned();
+                    id3::Frame::with_content(new_id, content)
+                }
+                None => {
+                    log::info!("Removing unsupported ID3 frame {id}");
+                    continue;
+                }
+            };
+            let _unused = self.data.add_frame(new_frame);
+        }
+    }
 }
 
 impl Default for ID3v2Tag {
@@ -401,6 +435,10 @@ impl Tag for ID3v2Tag {
     fn write(&mut self, path: &Path) -> crate::Result<()> {
         self.data.write_to_path(path, self.data.version())?;
         Ok(())
+    }
+
+    fn maybe_as_id3v2_mut(&mut self) -> Option<&mut ID3v2Tag> {
+        Some(self)
     }
 }
 
