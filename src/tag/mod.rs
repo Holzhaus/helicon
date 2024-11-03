@@ -274,6 +274,12 @@ pub trait Tag: Send + Sync {
     }
     /// Write the tags to the path.
     fn write(&mut self, path: &Path) -> crate::Result<()>;
+
+    /// Get mutable reference to the underlying [`id3::ID3v2Tag`] (is this is an ID3v2 tag).
+    #[cfg(feature = "id3")]
+    fn maybe_as_id3v2_mut(&mut self) -> Option<&mut id3::ID3v2Tag> {
+        None
+    }
 }
 
 /// Return a vector of tags from the file at the given path.

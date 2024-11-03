@@ -10,12 +10,13 @@
 
 use crate::analyzer::CompoundAnalyzerResult;
 use crate::release::ReleaseLike;
-use crate::tag::{read_tags_from_path, Tag, TagKey};
+use crate::tag::{read_tags_from_path, Tag, TagKey, TagType};
 use crate::track::{AnalyzedTrackMetadata, TrackLike};
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::ffi::OsStr;
 use std::fmt;
+use std::mem;
 use std::path::{Path, PathBuf};
 
 /// A tagged file that contains zero or more tags.
@@ -47,6 +48,75 @@ impl TaggedFile {
             path: PathBuf::new(),
             content,
             analysis_results: None,
+        }
+    }
+
+    /// Convert tags in this file.
+    ///
+    /// Currently, this always converts all ID3v2.x tags to ID3v2.3.
+    ///
+    /// # Panics
+    ///
+    /// This function may panic with the tag type indicates an ID3v2.x tag but the
+    /// `Tag::maybe_as_id3v2_mut()` function returns `None`, which constitutes a programming error.
+    pub fn convert_tags(&mut self) {
+        #[cfg(feature = "id3")]
+        {
+            let (has_id3v22, has_id3v23, has_id3v24) = self.content.iter().fold(
+                (false, false, false),
+                |(mut has_id3v22, mut has_id3v23, mut has_id3v24), tag| {
+                    #[allow(clippy::match_wildcard_for_single_variants)]
+                    match tag.tag_type() {
+                        TagType::ID3v22 => has_id3v22 = true,
+                        TagType::ID3v23 => has_id3v23 = true,
+                        TagType::ID3v24 => has_id3v24 = true,
+                        _ => (),
+                    }
+                    (has_id3v22, has_id3v23, has_id3v24)
+                },
+            );
+            let capacity = self.content.len();
+            let old_content = mem::replace(&mut self.content, Vec::with_capacity(capacity));
+            if has_id3v23 {
+                old_content
+                    .into_iter()
+                    .filter(|tag| {
+                        tag.tag_type() != TagType::ID3v22 && tag.tag_type() != TagType::ID3v24
+                    })
+                    .for_each(|tag| self.content.push(tag));
+            } else if has_id3v24 {
+                old_content
+                    .into_iter()
+                    .filter_map(|mut tag| {
+                        if tag.tag_type() == TagType::ID3v24 {
+                            tag.maybe_as_id3v2_mut()
+                                .expect(
+                                    "ID3 tags should always return `Some()` for `maybe_as_id3()`",
+                                )
+                                .migrate_to(id3::Version::Id3v23);
+                            Some(tag)
+                        } else if tag.tag_type() == TagType::ID3v22 {
+                            None
+                        } else {
+                            Some(tag)
+                        }
+                    })
+                    .for_each(|tag| self.content.push(tag));
+            } else if has_id3v22 {
+                old_content
+                    .into_iter()
+                    .map(|mut tag| {
+                        if tag.tag_type() == TagType::ID3v22 {
+                            tag.maybe_as_id3v2_mut()
+                                .expect(
+                                    "ID3 tags should always return `Some()` for `maybe_as_id3()`",
+                                )
+                                .migrate_to(id3::Version::Id3v23);
+                        }
+                        tag
+                    })
+                    .for_each(|tag| self.content.push(tag));
+            }
         }
     }
 
@@ -638,7 +708,7 @@ mod tests {
         let track: &MusicBrainzTrack =
             &release.media.as_ref().unwrap()[0].tracks.as_ref().unwrap()[0];
 
-        let mut tagged_file = TaggedFile::new(vec![Box::new(ID3v2Tag::new())]);
+        let mut tagged_file = TaggedFile::new(vec![Box::new(ID3v2Tag::default())]);
         assert!(tagged_file.track_title().is_none());
         assert!(tagged_file.track_artist().is_none());
         assert!(tagged_file.track_number().is_none());
@@ -659,7 +729,7 @@ mod tests {
 
         let release: MusicBrainzRelease = serde_json::from_str(MUSICBRAINZ_RELEASE_JSON).unwrap();
 
-        let tagged_file = TaggedFile::new(vec![Box::new(ID3v2Tag::new())]);
+        let tagged_file = TaggedFile::new(vec![Box::new(ID3v2Tag::default())]);
         let tagged_file_collection = TaggedFileCollection::new(vec![tagged_file]);
         assert!(tagged_file_collection.release_title().is_none());
         assert!(tagged_file_collection.release_artist().is_none());
