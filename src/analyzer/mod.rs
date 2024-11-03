@@ -29,6 +29,8 @@ use chromaprint::ChromaprintFingerprintAnalyzer;
 use ebur128::EbuR128Analyzer;
 use track_length::TrackLengthAnalyzer;
 
+pub use ebur128::EbuR128AlbumResult;
+
 /// An error during analysis.
 #[derive(Error, Debug)]
 pub enum AnalyzerError {

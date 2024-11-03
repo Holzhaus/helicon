@@ -8,6 +8,7 @@
 
 //! Utilities for matching and lookup up albums and tracks.
 
+use crate::analyzer::EbuR128AlbumResult;
 use crate::media::MediaLike;
 use crate::pathformat::PathFormatterValues;
 use crate::release::ReleaseLike;
@@ -118,19 +119,38 @@ fn is_va_artist(value: &str) -> bool {
 
 /// A collection of tracks on the local disk.
 #[derive(Debug)]
-pub struct TaggedFileCollection(Vec<TaggedFile>);
+pub struct TaggedFileCollection {
+    /// List of tracks in this collection.
+    tracks: Vec<TaggedFile>,
+    /// EBU R128 Album Result
+    ebur128_album_result: Option<EbuR128AlbumResult>,
+}
 
 impl TaggedFileCollection {
     /// Creates a new collection from a `Vec` of `TaggedFile` instances.
     #[must_use]
     pub fn new(tracks: Vec<TaggedFile>) -> Self {
-        Self(tracks)
+        let ebur128_album_result = tracks
+            .iter()
+            .map(|track| {
+                track
+                    .analysis_results
+                    .as_ref()
+                    .and_then(|analysis_result| analysis_result.ebur128.as_ref())
+            })
+            .map(|opt| opt.and_then(|res| res.as_ref().ok()))
+            .collect::<Option<Vec<_>>>()
+            .and_then(|ebur128_results| EbuR128AlbumResult::from_iter(ebur128_results.into_iter()));
+        Self {
+            tracks,
+            ebur128_album_result,
+        }
     }
 
     /// Finds the most common value for a certain tag in an iterator of tagged files.
     fn find_most_common_tag_value(&self, key: TagKey) -> Option<MostCommonItem<&str>> {
         MostCommonItem::find(
-            self.0
+            self.tracks
                 .iter()
                 .filter_map(|tagged_file| tagged_file.first_tag_value(key)),
         )
@@ -151,7 +171,17 @@ impl TaggedFileCollection {
             .similarity()
             .track_assignment()
             .map_lhs_indices_to_rhs();
-        self = self
+        let album_gain_analyzed = self
+            .replay_gain_album_gain_analyzed()
+            .map(|value| value.to_string());
+        let album_peak_analyzed = self
+            .replay_gain_album_peak_analyzed()
+            .map(|value| value.to_string());
+        let album_range_analyzed = self
+            .replay_gain_album_range_analyzed()
+            .map(|value| value.to_string());
+        self.tracks = self
+            .tracks
             .into_iter()
             .enumerate()
             .filter_map(|(i, track)| {
@@ -159,9 +189,21 @@ impl TaggedFileCollection {
                     Some(track).zip(release_candidate.release().release_tracks().nth(*j))
                 })
             })
-            .map(|(mut track, other_track)| {
+            .map(move |(mut track, other_track)| {
                 track.assign_tags_from_release(release_candidate.release());
                 track.assign_tags_from_track(other_track);
+                track.set_tag_value(
+                    TagKey::ReplayGainAlbumGain,
+                    album_gain_analyzed.as_ref().map(Cow::from),
+                );
+                track.set_tag_value(
+                    TagKey::ReplayGainAlbumPeak,
+                    album_peak_analyzed.as_ref().map(Cow::from),
+                );
+                track.set_tag_value(
+                    TagKey::ReplayGainAlbumRange,
+                    album_range_analyzed.as_ref().map(Cow::from),
+                );
                 track
             })
             .collect();
@@ -176,7 +218,7 @@ impl TaggedFileCollection {
     pub fn move_files(&mut self, config: &Config) -> crate::Result<()> {
         let library_path = expanduser(&config.paths.library_path).map_err(crate::Error::Io)?;
         let paths = self
-            .0
+            .tracks
             .iter()
             .map(|track| {
                 let values = PathFormatterValues::default()
@@ -206,7 +248,7 @@ impl TaggedFileCollection {
             })
             .collect::<crate::Result<Vec<_>>>()?;
 
-        for (track, dest_path) in self.0.iter_mut().zip(paths) {
+        for (track, dest_path) in self.tracks.iter_mut().zip(paths) {
             util::move_file(&track.path, &dest_path)?;
             track.path = dest_path;
         }
@@ -220,7 +262,7 @@ impl TaggedFileCollection {
     ///
     /// Returns an error if any of the underlying tags fail to write.
     pub fn write_tags(&mut self) -> crate::Result<()> {
-        for track in &mut self.0 {
+        for track in &mut self.tracks {
             track.write_tags()?;
         }
 
@@ -233,13 +275,13 @@ impl IntoIterator for TaggedFileCollection {
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
+        self.tracks.into_iter()
     }
 }
 
 impl FromIterator<TaggedFile> for TaggedFileCollection {
     fn from_iter<I: IntoIterator<Item = TaggedFile>>(iter: I) -> Self {
-        Self(iter.into_iter().collect::<Vec<TaggedFile>>())
+        Self::new(iter.into_iter().collect::<Vec<TaggedFile>>())
     }
 }
 
@@ -264,7 +306,7 @@ impl MediaLike for TaggedFileCollection {
     }
 
     fn media_track_count(&self) -> Option<usize> {
-        self.0.len().into()
+        self.tracks.len().into()
     }
 
     fn gapless_playback(&self) -> Option<bool> {
@@ -277,7 +319,7 @@ impl MediaLike for TaggedFileCollection {
     }
 
     fn media_tracks(&self) -> impl Iterator<Item = &(impl TrackLike + '_)> {
-        self.0.iter()
+        self.tracks.iter()
     }
 }
 
@@ -394,6 +436,18 @@ impl ReleaseLike for TaggedFileCollection {
 
     fn media(&self) -> impl Iterator<Item = &(impl MediaLike + '_)> {
         std::iter::once(self)
+    }
+
+    fn replay_gain_album_gain_analyzed(&self) -> Option<Cow<'_, str>> {
+        self.ebur128_album_result
+            .as_ref()
+            .map(|result| Cow::from(result.replaygain_album_gain_string()))
+    }
+
+    fn replay_gain_album_peak_analyzed(&self) -> Option<Cow<'_, str>> {
+        self.ebur128_album_result
+            .as_ref()
+            .map(|result| Cow::from(result.replaygain_album_peak_string()))
     }
 }
 

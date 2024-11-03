@@ -98,6 +98,21 @@ pub trait ReleaseLike {
             .map(|id| format!("https://musicbrainz.org/release/{id}").into())
     }
 
+    /// ReplayGain 2.0 Album Gain (analyzed, not read from metadata).
+    fn replay_gain_album_gain_analyzed(&self) -> Option<Cow<'_, str>> {
+        None
+    }
+
+    /// ReplayGain 2.0 Album Peak (analyzed, not read from metadata).
+    fn replay_gain_album_peak_analyzed(&self) -> Option<Cow<'_, str>> {
+        None
+    }
+
+    /// ReplayGain 2.0 Album Range (analyzed, not read from metadata).
+    fn replay_gain_album_range_analyzed(&self) -> Option<Cow<'_, str>> {
+        None
+    }
+
     /// Yields the media contained in the release.
     fn media(&self) -> impl Iterator<Item = &(impl MediaLike + '_)>;
 
