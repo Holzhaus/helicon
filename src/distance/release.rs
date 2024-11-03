@@ -114,7 +114,7 @@ impl TrackAssignment {
         let track_similarity_matrix: Vec<TrackSimilarity> = lhs_tracks
             .iter()
             .flat_map(|lhs_track| iter::repeat(lhs_track).zip(rhs_tracks.iter()))
-            .map(|(lhs_track, rhs_track)| TrackSimilarity::detect(config, *lhs_track, *rhs_track))
+            .map(|(lhs_track, rhs_track)| TrackSimilarity::detect(*lhs_track, *rhs_track))
             .collect();
         let track_distance_matrix_height = lhs_tracks.len(); // number of rows
         let track_distance_matrix_width = rhs_tracks.len(); // number of columns
@@ -122,7 +122,7 @@ impl TrackAssignment {
             .iter()
             .map(|distance| {
                 f64_to_u64(
-                    (distance.total_distance().weighted_distance()
+                    (distance.total_distance(config).weighted_distance()
                         * TRACK_DISTANCE_PRECISION_FACTOR)
                         .trunc(),
                 )

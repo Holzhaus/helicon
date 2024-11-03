@@ -13,11 +13,13 @@ use std::borrow::{Borrow, Cow};
 use std::cmp;
 use std::iter::Sum;
 
+mod difference;
 mod release;
 mod string;
 mod time;
 mod track;
 
+pub use difference::Difference;
 pub use release::{ReleaseSimilarity, UnmatchedTracksSource};
 pub use track::TrackSimilarity;
 
@@ -32,8 +34,20 @@ pub struct Distance {
 }
 
 impl Distance {
+    /// Minimum distance (representing equality).
+    const MIN: Distance = Distance {
+        base_distance: 0.0,
+        weight: 1.0,
+    };
+
+    /// Maximum distance.
+    const MAX: Distance = Distance {
+        base_distance: 1.0,
+        weight: 1.0,
+    };
+
     /// Return `true` if the distance is zero.
-    pub fn is_equality(&self) -> bool {
+    pub const fn is_equality(&self) -> bool {
         self.base_distance == 0.0
     }
 
