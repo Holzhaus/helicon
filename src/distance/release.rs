@@ -9,11 +9,10 @@
 //! Functions for distance calculation between [`ReleaseLike`] objects.
 
 use super::TrackSimilarity;
-use super::{string, Distance};
+use super::{string, Difference, Distance};
 use crate::release::ReleaseLike;
 use crate::track::TrackLike;
 use crate::Config;
-use std::cmp;
 use std::collections::HashMap;
 use std::iter;
 
@@ -265,41 +264,21 @@ impl TrackAssignment {
 #[derive(Debug, Clone)]
 pub struct ReleaseSimilarity {
     /// The distance between the two release titles.
-    release_title_distance: Distance,
+    release_title: Difference,
     /// The distance between the two release artists.
-    release_artist_distance: Option<Distance>,
+    release_artist: Difference,
     /// The distance between the two MusicBrainz Release IDs.
-    musicbrainz_release_id_distance: Option<Distance>,
+    musicbrainz_release_id: Difference,
     /// The distance between the two media formats.
-    media_format_distance: Option<Distance>,
+    media_format: Difference,
     /// The distance between the two record labels.
-    record_label_distance: Option<Distance>,
+    record_label: Difference,
     /// The distance between the two catalog numbers.
-    catalog_number_distance: Option<Distance>,
+    catalog_number: Difference,
     /// The distance between the two barcodes.
-    barcode_distance: Option<Distance>,
+    barcode: Difference,
     /// The minimum distance mapping of tracks from the two releases.
     track_assignment: TrackAssignment,
-}
-
-impl PartialEq for ReleaseSimilarity {
-    fn eq(&self, other: &Self) -> bool {
-        self.total_distance().eq(&other.total_distance())
-    }
-}
-
-impl Eq for ReleaseSimilarity {}
-
-impl PartialOrd for ReleaseSimilarity {
-    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for ReleaseSimilarity {
-    fn cmp(&self, other: &Self) -> cmp::Ordering {
-        self.total_distance().cmp(&other.total_distance())
-    }
 }
 
 impl ReleaseSimilarity {
@@ -309,72 +288,78 @@ impl ReleaseSimilarity {
         T1: ReleaseLike + ?Sized,
         T2: ReleaseLike + ?Sized,
     {
-        let weights = &config.weights.release;
-
-        let release_title_distance =
-            Distance::between_options_or_minmax(lhs.release_title(), rhs.release_title())
-                .with_weight(weights.release_title);
-        let release_artist_distance = lhs
-            .release_artist()
-            .zip(rhs.release_artist())
-            .map(Distance::between_tuple_items)
-            .map(|distance| distance.with_weight(weights.release_artist));
-        let musicbrainz_release_id_distance = lhs
-            .musicbrainz_release_id()
-            .zip(rhs.musicbrainz_release_id())
-            .map(|(a, b)| string::is_nonempty_and_equal_trimmed(a, b))
-            .map(Distance::from)
-            .map(|distance| distance.with_weight(weights.musicbrainz_release_id));
-        let media_format_distance = lhs
-            .release_media_format()
-            .zip(rhs.release_media_format())
-            .map(Distance::between_tuple_items)
-            .map(|distance| distance.with_weight(weights.media_format));
-        let record_label_distance = lhs
-            .record_label()
-            .zip(rhs.record_label())
-            .map(Distance::between_tuple_items)
-            .map(|distance| distance.with_weight(weights.record_label));
-        let catalog_number_distance = lhs
-            .catalog_number()
-            .zip(rhs.catalog_number())
-            .map(Distance::between_tuple_items)
-            .map(|distance| distance.with_weight(weights.catalog_number));
-        let barcode_distance = lhs
-            .barcode()
-            .zip(rhs.barcode())
-            .map(Distance::between_tuple_items)
-            .map(|distance| distance.with_weight(weights.barcode));
+        let release_title = Difference::between_options(lhs.release_title(), rhs.release_title());
+        let release_artist =
+            Difference::between_options(lhs.release_artist(), rhs.release_artist());
+        let musicbrainz_release_id = Difference::between_options_fn(
+            lhs.musicbrainz_release_id(),
+            rhs.musicbrainz_release_id(),
+            |lhs, rhs| {
+                if string::is_nonempty_and_equal_trimmed(lhs, rhs) {
+                    Distance::MIN
+                } else {
+                    Distance::MAX
+                }
+            },
+        );
+        let media_format =
+            Difference::between_options(lhs.release_media_format(), rhs.release_media_format());
+        let record_label = Difference::between_options(lhs.record_label(), rhs.record_label());
+        let catalog_number =
+            Difference::between_options(lhs.catalog_number(), rhs.catalog_number());
+        let barcode = Difference::between_options(lhs.barcode(), rhs.barcode());
 
         let track_assignment =
             TrackAssignment::compute_from(config, lhs.release_tracks(), rhs.release_tracks());
         Self {
-            release_title_distance,
-            release_artist_distance,
-            musicbrainz_release_id_distance,
-            media_format_distance,
-            record_label_distance,
-            catalog_number_distance,
-            barcode_distance,
+            release_title,
+            release_artist,
+            musicbrainz_release_id,
+            media_format,
+            record_label,
+            catalog_number,
+            barcode,
             track_assignment,
         }
     }
 
     /// Returns the overall distance of the two releases.
-    pub fn total_distance(&self) -> Distance {
+    pub fn total_distance(&self, config: &Config) -> Distance {
+        let weights = &config.weights.release;
+
         let track_assignment_distance = self.track_assignment.as_distance();
         [
-            Some(&self.release_title_distance),
-            self.release_artist_distance.as_ref(),
-            self.musicbrainz_release_id_distance.as_ref(),
-            self.media_format_distance.as_ref(),
-            self.record_label_distance.as_ref(),
-            self.catalog_number_distance.as_ref(),
-            self.barcode_distance.as_ref(),
-            Some(&track_assignment_distance),
+            self.release_title
+                .to_distance()
+                .clone()
+                .with_weight(weights.release_title),
+            self.release_artist
+                .to_distance()
+                .clone()
+                .with_weight(weights.release_artist),
+            self.musicbrainz_release_id
+                .to_distance()
+                .clone()
+                .with_weight(weights.musicbrainz_release_id),
+            self.media_format
+                .to_distance()
+                .clone()
+                .with_weight(weights.media_format),
+            self.record_label
+                .to_distance()
+                .clone()
+                .with_weight(weights.record_label),
+            self.catalog_number
+                .to_distance()
+                .clone()
+                .with_weight(weights.catalog_number),
+            self.barcode
+                .to_distance()
+                .clone()
+                .with_weight(weights.barcode),
+            track_assignment_distance,
         ]
         .into_iter()
-        .flatten()
         .sum()
     }
 

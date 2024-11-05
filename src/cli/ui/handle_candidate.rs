@@ -124,7 +124,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
     let candidate_details_config = &config.user_interface.candidate_details;
     let path_formatter = config.paths.format.formatter();
 
-    let distance_color = util::distance_color(&candidate.distance());
+    let distance_color = util::distance_color(&candidate.distance(config));
 
     let release = candidate.release();
     let release_artist_and_title = util::format_release_artist_and_title(release);
@@ -138,7 +138,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
     );
     println!(
         "Similarity: {similarity}",
-        similarity = util::format_similarity(&candidate.distance())
+        similarity = util::format_similarity(&candidate.distance(config))
     );
 
     // Calculate maximum width of the terminal.

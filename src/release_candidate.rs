@@ -11,7 +11,6 @@
 use crate::distance::{Distance, ReleaseSimilarity};
 use crate::release::ReleaseLike;
 use crate::Config;
-use std::cmp;
 
 /// A candidate release that potentially matches the base release.
 #[derive(Debug, Clone)]
@@ -54,28 +53,8 @@ impl<T: ReleaseLike> ReleaseCandidate<T> {
     }
 
     /// Get the distance to the base release.
-    pub fn distance(&self) -> Distance {
-        self.similarity.total_distance()
-    }
-}
-
-impl<T: ReleaseLike> PartialEq for ReleaseCandidate<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.similarity().eq(other.similarity())
-    }
-}
-
-impl<T: ReleaseLike> Eq for ReleaseCandidate<T> {}
-
-impl<T: ReleaseLike> PartialOrd for ReleaseCandidate<T> {
-    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl<T: ReleaseLike> Ord for ReleaseCandidate<T> {
-    fn cmp(&self, other: &Self) -> cmp::Ordering {
-        self.similarity().cmp(other.similarity())
+    pub fn distance(&self, config: &Config) -> Distance {
+        self.similarity.total_distance(config)
     }
 }
 
@@ -114,14 +93,16 @@ impl<T: ReleaseLike> ReleaseCandidateCollection<T> {
     }
 
     /// Add a new candidate to this collection.
-    pub fn add_candidate(&mut self, candidate: ReleaseCandidate<T>) {
-        match self.candidates.binary_search(&candidate) {
+    pub fn add_candidate(&mut self, candidate: ReleaseCandidate<T>, config: &Config) {
+        match self
+            .candidates
+            .binary_search_by(|cand| cand.distance(config).cmp(&candidate.distance(config)))
+        {
             Ok(pos) => {
                 // There already is a candidate with the same distance in the candidate list.
                 if !self.candidates.iter().skip(pos).any(|c| {
-                    c == &candidate
-                        && c.release().musicbrainz_release_id()
-                            == candidate.release().musicbrainz_release_id()
+                    c.release().musicbrainz_release_id()
+                        == candidate.release().musicbrainz_release_id()
                 }) {
                     self.candidates.insert(pos, candidate);
                 }
@@ -139,7 +120,7 @@ impl<T: ReleaseLike> ReleaseCandidateCollection<T> {
     /// Add a new release to this collection. Create a new candidate internally.
     pub fn add_release<R: ReleaseLike>(&mut self, release: T, base_release: &R, config: &Config) {
         let candidate = ReleaseCandidate::new_with_base_release(release, base_release, config);
-        self.add_candidate(candidate);
+        self.add_candidate(candidate, config);
     }
 
     /// Iterate over the candidates in this collection.

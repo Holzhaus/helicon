@@ -72,7 +72,7 @@ impl<'a> MusicBrainzClient<'a> {
 
                 let candidate =
                     ReleaseCandidate::new_with_base_release(release, base_release, self.config);
-                let candidate_distance = candidate.distance();
+                let candidate_distance = candidate.distance(self.config);
 
                 log::debug!(
                     "Release '{}' has distance to track collection: {}",
