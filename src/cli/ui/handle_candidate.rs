@@ -488,8 +488,8 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                         .with_release(base_release)
                         .with_release(release)
                         .with_media(media)
-                        .with_track(*lhs_track)
-                        .with_track(rhs_track);
+                        .with_track(*lhs_track_index + 1, *lhs_track)
+                        .with_track(rhs_track_index + 1, rhs_track);
                     let new_path = expanduser(&config.paths.library_path)
                         .ok()
                         .zip(path_formatter.format(&values).ok())

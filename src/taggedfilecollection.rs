@@ -220,11 +220,12 @@ impl TaggedFileCollection {
         let paths = self
             .tracks
             .iter()
-            .map(|track| {
+            .enumerate()
+            .map(|(i, track)| {
                 let values = PathFormatterValues::default()
                     .with_release(self)
                     .with_media(self)
-                    .with_track(track);
+                    .with_track(i + 1, track);
                 let file_extension = track.path.extension();
                 config
                     .paths
