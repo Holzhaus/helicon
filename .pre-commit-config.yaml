@@ -27,11 +27,11 @@ repos:
             args: [--ignore-words=.codespellignore]
             exclude_types: [tsv, json]
     - repo: https://github.com/psf/black
-      rev: 22.3.0
+      rev: 24.10.0
       hooks:
           - id: black
     - repo: https://github.com/jumanjihouse/pre-commit-hook-yamlfmt
-      rev: 0.2.1
+      rev: 0.2.3
       hooks:
           - id: yamlfmt
     - repo: https://github.com/doublify/pre-commit-rust
