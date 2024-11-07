@@ -22,12 +22,12 @@ pub use styled_content::{string_diff_opt, StyledContentList};
 /// Format a distance as a similarity in percent, were 0% the the maximum distance and 100% the
 /// minimum distance.
 pub fn as_similarity_percentage(distance: &Distance) -> f64 {
-    (1.0 - distance.weighted_distance()) * 100.0
+    (1.0 - distance.as_f64()) * 100.0
 }
 
 /// Get the color associate with the distance value.
 pub fn distance_color(distance: &Distance) -> Color {
-    let d = distance.weighted_distance();
+    let d = distance.as_f64();
     if d <= 0.1 {
         Color::Green
     } else if d <= 0.5 {

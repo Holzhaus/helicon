@@ -11,6 +11,7 @@ use num::rational::Ratio;
 use num::ToPrimitive;
 use std::borrow::{Borrow, Cow};
 use std::cmp;
+use std::fmt;
 use std::iter::Sum;
 
 mod difference;
@@ -26,32 +27,62 @@ pub use track::TrackSimilarity;
 /// A distance in the range (0.0, 1.0) between two items.
 #[expect(missing_copy_implementations)]
 #[derive(Debug, Clone, PartialEq)]
-pub struct Distance {
-    /// The unweighted base distance.
-    base_distance: f64,
-    /// The weight.
-    weight: f64,
-}
+pub struct Distance(f64);
 
 impl Distance {
     /// Minimum distance (representing equality).
-    const MIN: Distance = Distance {
-        base_distance: 0.0,
-        weight: 1.0,
-    };
+    const MIN: Distance = Distance(0.0);
 
     /// Maximum distance.
-    const MAX: Distance = Distance {
-        base_distance: 1.0,
-        weight: 1.0,
-    };
+    const MAX: Distance = Distance(1.0);
 
     /// Return `true` if the distance is zero.
     pub const fn is_equality(&self) -> bool {
-        self.base_distance == 0.0
+        self.0 == 0.0
     }
 
     /// Assigns a weight to the distance.
+    pub fn into_weighted<'a>(self, weight: f64) -> WeightedDistance<'a> {
+        debug_assert!(weight.is_finite());
+        debug_assert!(weight >= 0.0);
+        WeightedDistance {
+            base_distance: Cow::Owned(self),
+            weight,
+        }
+    }
+    /// Assigns a weight to the distance.
+    pub fn to_weighted(&self, weight: f64) -> WeightedDistance<'_> {
+        debug_assert!(weight.is_finite());
+        debug_assert!(weight >= 0.0);
+        WeightedDistance {
+            base_distance: Cow::Borrowed(self),
+            weight,
+        }
+    }
+
+    /// Returns the distance between the items as floating point number in the range 0 to 1.
+    pub fn as_f64(&self) -> f64 {
+        self.0
+    }
+}
+
+impl fmt::Display for Distance {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_f64().fmt(f)
+    }
+}
+
+/// A weighted version of the distance, that is used in calculations.
+#[derive(Debug, Clone)]
+pub struct WeightedDistance<'a> {
+    /// The base distance.
+    base_distance: Cow<'a, Distance>,
+    /// The weight of the distance.
+    weight: f64,
+}
+
+impl WeightedDistance<'_> {
+    /// Changes the weight of the distance.
     pub fn with_weight(mut self, weight: f64) -> Self {
         debug_assert!(weight.is_finite());
         debug_assert!(weight >= 0.0);
@@ -59,24 +90,17 @@ impl Distance {
         self
     }
 
-    /// Returns the distance between the items.
-    pub fn weighted_distance(&self) -> f64 {
-        let weighted_distance = self.base_distance * self.weight;
-        debug_assert!(weighted_distance.is_finite());
-        weighted_distance
-    }
-
     /// Returns the weight of the distance
     pub fn weight(&self) -> f64 {
         self.weight
     }
 
-    /// Calculate distance between two tuple items.
-    pub fn between_tuple_items<T, S>((lhs, rhs): (T, S)) -> Self
-    where
-        Self: DistanceBetween<T, S>,
-    {
-        Distance::between(lhs, rhs)
+    /// Returns the distance between the items as floating point number in the range 0 to 1,
+    /// multiplied with the weight.
+    pub fn as_f64(&self) -> f64 {
+        let value = self.base_distance.as_f64() * self.weight;
+        debug_assert!(value.is_finite());
+        value
     }
 }
 
@@ -85,10 +109,7 @@ impl From<f64> for Distance {
         debug_assert!(value.is_finite());
         debug_assert!(value <= 1.0);
         debug_assert!(value >= 0.0);
-        Self {
-            base_distance: value,
-            weight: 1.0,
-        }
+        Self(value)
     }
 }
 
@@ -107,39 +128,22 @@ where
     }
 }
 
-impl<'a> Sum<&'a Distance> for Distance {
-    // Required method
+impl<'a> Sum<WeightedDistance<'a>> for Distance {
     fn sum<I>(iter: I) -> Self
     where
-        I: Iterator<Item = &'a Distance>,
+        I: Iterator<Item = WeightedDistance<'a>>,
     {
-        let (total_weighted_dist, total_weight) =
-            iter.fold((0.0f64, 0.0f64), |(weighted_dist, weight), distance| {
+        let (total_distance, total_weight) = iter.fold(
+            (0.0f64, 0.0f64),
+            |(total_dist, total_weight), weighted_distance| {
                 (
-                    weighted_dist + distance.weighted_distance(),
-                    weight + distance.weight,
+                    total_dist + weighted_distance.as_f64(),
+                    total_weight + weighted_distance.weight,
                 )
-            });
+            },
+        );
 
-        Distance::from(total_weighted_dist / total_weight)
-    }
-}
-
-impl Sum<Distance> for Distance {
-    // Required method
-    fn sum<I>(iter: I) -> Self
-    where
-        I: Iterator<Item = Distance>,
-    {
-        let (total_weighted_dist, total_weight) =
-            iter.fold((0.0f64, 0.0f64), |(weighted_dist, weight), distance| {
-                (
-                    weighted_dist + distance.weighted_distance(),
-                    weight + distance.weight,
-                )
-            });
-
-        Distance::from(total_weighted_dist / total_weight)
+        Distance::from(total_distance / total_weight)
     }
 }
 
@@ -147,9 +151,7 @@ impl Eq for Distance {}
 
 impl Ord for Distance {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
-        self.weighted_distance()
-            .partial_cmp(&other.weighted_distance())
-            .unwrap()
+        self.as_f64().partial_cmp(&other.as_f64()).unwrap()
     }
 }
 
@@ -504,20 +506,31 @@ mod tests {
         let dist3 = Distance::from(0.45);
         let dist4 = Distance::from(0.35);
 
-        let total: Distance = [dist0, dist1, dist2, dist3, dist4].into_iter().sum();
-        assert_float_eq!(total.weighted_distance(), 0.5, abs <= 0.000_1);
+        let total: Distance = [dist0, dist1, dist2, dist3, dist4]
+            .iter()
+            .map(|dist| dist.to_weighted(1.0))
+            .sum();
+        assert_float_eq!(total.as_f64(), 0.5, abs <= 0.000_1);
     }
 
     #[test]
     fn test_distance_from_slice_weighted() {
-        let dist0 = Distance::from(1.0).with_weight(2.5);
-        let dist1 = Distance::from(0.2).with_weight(5.0);
-        let dist2 = Distance::from(0.5).with_weight(0.5);
-        let dist3 = Distance::from(0.45).with_weight(3.0);
-        let dist4 = Distance::from(0.55).with_weight(5.0);
+        let dist0 = Distance::from(1.0);
+        let dist1 = Distance::from(0.2);
+        let dist2 = Distance::from(0.5);
+        let dist3 = Distance::from(0.45);
+        let dist4 = Distance::from(0.55);
 
-        let total: Distance = [dist0, dist1, dist2, dist3, dist4].into_iter().sum();
-        assert_float_eq!(total.weighted_distance(), 0.490_625, abs <= 0.000_1);
+        let total: Distance = [
+            dist0.to_weighted(2.5),
+            dist1.to_weighted(5.0),
+            dist2.to_weighted(0.5),
+            dist3.to_weighted(3.0),
+            dist4.to_weighted(5.0),
+        ]
+        .into_iter()
+        .sum();
+        assert_float_eq!(total.as_f64(), 0.490_625, abs <= 0.000_1);
     }
 
     #[test]

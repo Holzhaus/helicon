@@ -150,7 +150,7 @@ pub fn select_candidate<'a, T: ReleaseLike>(
 ) -> Result<ReleaseCandidateSelectionResult<'a, T>, InquireError> {
     if allow_autoselection {
         if let Some(best_candidate) = candidates.iter().next() {
-            if best_candidate.distance(config).weighted_distance() <= 0.05 {
+            if best_candidate.distance(config).as_f64() <= 0.05 {
                 return Ok(ReleaseCandidateSelectionResult::Candidate(best_candidate));
             }
         }

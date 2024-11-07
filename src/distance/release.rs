@@ -9,7 +9,7 @@
 //! Functions for distance calculation between [`ReleaseLike`] objects.
 
 use super::TrackSimilarity;
-use super::{string, Difference, Distance};
+use super::{string, Difference, Distance, WeightedDistance};
 use crate::release::ReleaseLike;
 use crate::track::TrackLike;
 use crate::Config;
@@ -81,18 +81,23 @@ pub struct TrackAssignment {
 
 impl TrackAssignment {
     /// Calculates the distance for this track assignment.
-    pub fn as_distance(&self) -> Distance {
+    pub fn to_distance(&self) -> Distance {
         let matched_tracks_weight = usize_to_f64(self.matched_tracks.len()).unwrap();
         let unmatched_tracks_weight = usize_to_f64(self.unmatched_tracks.len()).unwrap();
         let matched_tracks_dist = self
             .matched_tracks_distance
-            .clone()
-            .with_weight(matched_tracks_weight);
-        let unmatched_tracks_dist = Distance::from(1.0).with_weight(unmatched_tracks_weight);
+            .to_weighted(matched_tracks_weight);
+        let unmatched_tracks_dist = Distance::MAX.to_weighted(unmatched_tracks_weight);
         [matched_tracks_dist, unmatched_tracks_dist]
             .into_iter()
             .sum::<Distance>()
-            .with_weight(matched_tracks_weight + unmatched_tracks_weight)
+    }
+
+    /// Calculates the weighted distance for this track assignment.
+    pub fn to_weighted_distance<'a>(&self) -> WeightedDistance<'a> {
+        self.to_distance().into_weighted(
+            usize_to_f64(self.matched_tracks.len() + self.unmatched_tracks.len()).unwrap(),
+        )
     }
 
     /// Compute the best match between two Iterators of [`TrackLike`] items and returns a
@@ -121,8 +126,7 @@ impl TrackAssignment {
             .iter()
             .map(|distance| {
                 f64_to_u64(
-                    (distance.total_distance(config).weighted_distance()
-                        * TRACK_DISTANCE_PRECISION_FACTOR)
+                    (distance.total_distance(config).as_f64() * TRACK_DISTANCE_PRECISION_FACTOR)
                         .trunc(),
                 )
             })
@@ -327,36 +331,27 @@ impl ReleaseSimilarity {
     pub fn total_distance(&self, config: &Config) -> Distance {
         let weights = &config.weights.release;
 
-        let track_assignment_distance = self.track_assignment.as_distance();
+        let track_assignment_distance = self.track_assignment.to_weighted_distance();
         [
             self.release_title
                 .to_distance()
-                .clone()
-                .with_weight(weights.release_title),
+                .to_weighted(weights.release_title),
             self.release_artist
                 .to_distance()
-                .clone()
-                .with_weight(weights.release_artist),
+                .to_weighted(weights.release_artist),
             self.musicbrainz_release_id
                 .to_distance()
-                .clone()
-                .with_weight(weights.musicbrainz_release_id),
+                .to_weighted(weights.musicbrainz_release_id),
             self.media_format
                 .to_distance()
-                .clone()
-                .with_weight(weights.media_format),
+                .to_weighted(weights.media_format),
             self.record_label
                 .to_distance()
-                .clone()
-                .with_weight(weights.record_label),
+                .to_weighted(weights.record_label),
             self.catalog_number
                 .to_distance()
-                .clone()
-                .with_weight(weights.catalog_number),
-            self.barcode
-                .to_distance()
-                .clone()
-                .with_weight(weights.barcode),
+                .to_weighted(weights.catalog_number),
+            self.barcode.to_distance().to_weighted(weights.barcode),
             track_assignment_distance,
         ]
         .into_iter()
@@ -391,7 +386,7 @@ mod tests {
         assert_eq!(assignment.matched_tracks.len(), 5);
         assert_eq!(assignment.unmatched_tracks.len(), 0);
         assert_float_eq!(
-            assignment.as_distance().weighted_distance(),
+            assignment.to_weighted_distance().as_f64(),
             0.0,
             abs <= 0.000_1
         );
@@ -419,7 +414,7 @@ mod tests {
         assert_eq!(assignment.matched_tracks.len(), 5);
         assert_eq!(assignment.unmatched_tracks.len(), 0);
         assert_float_eq!(
-            assignment.as_distance().weighted_distance(),
+            assignment.to_weighted_distance().as_f64(),
             0.0,
             abs <= 0.000_1
         );
@@ -434,9 +429,9 @@ mod tests {
         let assignment = TrackAssignment::compute_from(&config, lhs.iter(), rhs.iter());
         assert_eq!(assignment.matched_tracks.len(), 2);
         assert_eq!(assignment.unmatched_tracks.len(), 0);
-        assert_float_eq!(assignment.as_distance().base_distance, 1.0, abs <= 0.000_1);
+        assert_float_eq!(assignment.to_distance().as_f64(), 1.0, abs <= 0.000_1);
         assert_float_eq!(
-            assignment.as_distance().weighted_distance(),
+            assignment.to_weighted_distance().as_f64(),
             2.0,
             abs <= 0.000_1
         );
@@ -455,9 +450,9 @@ mod tests {
             assignment.unmatched_tracks_source,
             UnmatchedTracksSource::Left
         );
-        assert_float_eq!(assignment.as_distance().base_distance, 1.0, abs <= 0.000_1);
+        assert_float_eq!(assignment.to_distance().as_f64(), 1.0, abs <= 0.000_1);
         assert_float_eq!(
-            assignment.as_distance().weighted_distance(),
+            assignment.to_weighted_distance().as_f64(),
             3.0,
             abs <= 0.000_1
         );
@@ -476,9 +471,9 @@ mod tests {
             assignment.unmatched_tracks_source,
             UnmatchedTracksSource::Right
         );
-        assert_float_eq!(assignment.as_distance().base_distance, 1.0, abs <= 0.000_1);
+        assert_float_eq!(assignment.to_distance().as_f64(), 1.0, abs <= 0.000_1);
         assert_float_eq!(
-            assignment.as_distance().weighted_distance(),
+            assignment.to_weighted_distance().as_f64(),
             3.0,
             abs <= 0.000_1
         );

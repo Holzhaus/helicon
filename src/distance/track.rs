@@ -35,27 +35,22 @@ impl TrackSimilarity {
         [
             self.track_title
                 .to_distance()
-                .clone()
-                .with_weight(weights.track_title)
+                .to_weighted(weights.track_title)
                 .into(),
             self.track_artist
                 .to_distance_opt()
-                .cloned()
-                .map(|dist| dist.with_weight(weights.track_artist)),
+                .map(|dist| dist.to_weighted(weights.track_artist)),
             self.track_number
                 .to_distance_opt()
-                .cloned()
-                .map(|dist| dist.with_weight(weights.track_number)),
+                .map(|dist| dist.to_weighted(weights.track_number)),
             self.track_length
                 .to_distance_opt()
-                .cloned()
-                .map(|dist| dist.with_weight(weights.track_length)),
+                .map(|dist| dist.to_weighted(weights.track_length)),
             self.musicbrainz_recording_id
                 .to_distance_opt()
-                .cloned()
-                .map(|dist| dist.with_weight(weights.musicbrainz_recording_id)),
+                .map(|dist| dist.to_weighted(weights.musicbrainz_recording_id)),
         ]
-        .iter()
+        .into_iter()
         .flatten()
         .sum()
     }
@@ -104,7 +99,7 @@ mod tests {
         let track = TestTrack("foo");
         let config = Config::default();
         let distance = TrackSimilarity::detect(&track, &track).total_distance(&config);
-        assert_float_eq!(distance.weighted_distance(), 0.0, abs <= 0.000_1);
+        assert_float_eq!(distance.as_f64(), 0.0, abs <= 0.000_1);
     }
 
     #[test]
@@ -113,7 +108,7 @@ mod tests {
         let track2 = TestTrack("bar");
         let config = Config::default();
         let distance = TrackSimilarity::detect(&track1, &track2).total_distance(&config);
-        assert_float_eq!(distance.weighted_distance(), 1.0, abs <= 0.000_1);
+        assert_float_eq!(distance.as_f64(), 1.0, abs <= 0.000_1);
     }
 
     #[test]
@@ -122,6 +117,6 @@ mod tests {
         let track2 = TestTrack("barfoo");
         let config = Config::default();
         let distance = TrackSimilarity::detect(&track1, &track2).total_distance(&config);
-        assert_float_eq!(distance.weighted_distance(), 0.5, abs <= 0.000_1);
+        assert_float_eq!(distance.as_f64(), 0.5, abs <= 0.000_1);
     }
 }

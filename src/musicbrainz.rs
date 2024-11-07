@@ -77,7 +77,7 @@ impl<'a> MusicBrainzClient<'a> {
                 log::debug!(
                     "Release '{}' has distance to track collection: {}",
                     candidate.release().title,
-                    candidate_distance.weighted_distance()
+                    candidate_distance,
                 );
                 let item = DistanceItem::new(candidate, candidate_distance);
                 heap.push(item);
