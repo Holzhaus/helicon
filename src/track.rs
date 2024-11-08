@@ -7,8 +7,6 @@
 // SPDX-License-Identifier: MPL-2.0
 
 //! Generic release implementations.
-use crate::distance::TrackSimilarity;
-use crate::Config;
 use itertools::Itertools;
 use musicbrainz_rs_nova::entity::artist::Artist as MusicBrainzArtist;
 use musicbrainz_rs_nova::entity::relations::Relation as MusicBrainzRelation;
@@ -232,15 +230,6 @@ pub trait TrackLike {
     /// File extension for this track.
     fn track_file_extension(&self) -> Option<Cow<'_, str>> {
         None
-    }
-
-    /// Calculate the distance between this track and another one.
-    fn similarity_to<T>(&self, other: &T, config: &Config) -> TrackSimilarity
-    where
-        Self: Sized,
-        T: TrackLike,
-    {
-        TrackSimilarity::detect(config, self, other)
     }
 }
 

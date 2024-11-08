@@ -111,6 +111,8 @@ pub struct PathFormatterValues<'a> {
     pub track_artist: Option<Cow<'a, str>>,
     /// The track number (relative to the disc).
     pub track_number: Option<Cow<'a, str>>,
+    /// The track index (relative to the disc).
+    pub track_index: Option<usize>,
     /// The number of tracks on the disc).
     pub track_count: Option<usize>,
     /// The album's title.
@@ -140,10 +142,11 @@ impl<'a> PathFormatterValues<'a> {
     }
 
     /// Assign fields from a [`TrackLike`] object.
-    pub fn with_track(mut self, track: &'a impl TrackLike) -> Self {
+    pub fn with_track(mut self, index: usize, track: &'a impl TrackLike) -> Self {
         self.track_title = track.track_title();
         self.track_artist = track.track_artist();
         self.track_number = track.track_number();
+        self.track_index = index.into();
         self
     }
 }
@@ -171,7 +174,7 @@ mod tests {
         let values = PathFormatterValues::default()
             .with_release(&release)
             .with_media(media)
-            .with_track(track);
+            .with_track(1, track);
 
         let output = formatter.format(&values).unwrap();
         assert_eq!(

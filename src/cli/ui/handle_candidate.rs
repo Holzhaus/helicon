@@ -124,7 +124,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
     let candidate_details_config = &config.user_interface.candidate_details;
     let path_formatter = config.paths.format.formatter();
 
-    let distance_color = util::distance_color(&candidate.distance());
+    let distance_color = util::distance_color(&candidate.distance(config));
 
     let release = candidate.release();
     let release_artist_and_title = util::format_release_artist_and_title(release);
@@ -138,7 +138,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
     );
     println!(
         "Similarity: {similarity}",
-        similarity = util::format_similarity(&candidate.distance())
+        similarity = util::format_similarity(&candidate.distance(config))
     );
 
     // Calculate maximum width of the terminal.
@@ -223,11 +223,13 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
             };
 
             let changes = [
-                (!track_similarity.is_track_number_equal()).then_some("#"),
-                (!track_similarity.is_track_title_equal()).then_some("title"),
-                (!track_similarity.is_track_length_equal()).then_some("length"),
-                (!show_details && !track_similarity.is_musicbrainz_recording_id_equal())
-                    .then_some("id"),
+                (!track_similarity.track_number.is_equal()).then_some("#"),
+                (!track_similarity.track_title.is_equal()).then_some("title"),
+                (!track_similarity.track_length.is_equal()).then_some("length"),
+                (!show_details
+                    && track_similarity.musicbrainz_recording_id.is_present_left()
+                    && !track_similarity.musicbrainz_recording_id.is_equal())
+                .then_some("id"),
             ]
             .into_iter()
             .flatten()
@@ -288,7 +290,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                 .with_suffix(rhs_suffix);
 
             // Add the track length to the layout item (if different).
-            if !track_similarity.is_track_length_equal() {
+            if !track_similarity.track_length.is_equal() {
                 lhs.content.push(lhs_track.track_length().map_or_else(
                     || {
                         candidate_details_config
@@ -327,7 +329,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
             );
 
             // Print the track artist (if different)
-            if !track_similarity.is_track_artist_equal() {
+            if !track_similarity.track_artist.is_equal() {
                 print_extra_metadata(
                     lhs_track.track_artist(),
                     rhs_track.track_artist(),
@@ -343,7 +345,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                 // TODO: Add more metadata here.
 
                 // Print the MusicBrain Recording ID (if different)
-                if !track_similarity.is_musicbrainz_recording_id_equal() {
+                if !track_similarity.musicbrainz_recording_id.is_equal() {
                     print_extra_metadata(
                         lhs_track.musicbrainz_recording_id(),
                         rhs_track.musicbrainz_recording_id(),
@@ -486,8 +488,8 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                         .with_release(base_release)
                         .with_release(release)
                         .with_media(media)
-                        .with_track(*lhs_track)
-                        .with_track(rhs_track);
+                        .with_track(*lhs_track_index + 1, *lhs_track)
+                        .with_track(rhs_track_index + 1, rhs_track);
                     let new_path = expanduser(&config.paths.library_path)
                         .ok()
                         .zip(path_formatter.format(&values).ok())

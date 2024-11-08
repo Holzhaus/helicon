@@ -69,7 +69,7 @@ impl<T: ReleaseLike> fmt::Display for StyledReleaseCandidateSelectionOption<'_, 
             ReleaseCandidateSelectionOption::Candidate(candidate) => {
                 let release_artist_and_title =
                     util::format_release_artist_and_title(candidate.release());
-                let similarity = util::format_similarity(&candidate.distance());
+                let similarity = util::format_similarity(&candidate.distance(self.0));
                 write!(
                     f,
                     "{release_artist_and_title}{similarity_prefix}{similarity}{similarity_suffix}",
@@ -150,7 +150,7 @@ pub fn select_candidate<'a, T: ReleaseLike>(
 ) -> Result<ReleaseCandidateSelectionResult<'a, T>, InquireError> {
     if allow_autoselection {
         if let Some(best_candidate) = candidates.iter().next() {
-            if best_candidate.distance().weighted_distance() <= 0.05 {
+            if best_candidate.distance(config).as_f64() <= 0.05 {
                 return Ok(ReleaseCandidateSelectionResult::Candidate(best_candidate));
             }
         }

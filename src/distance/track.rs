@@ -8,7 +8,7 @@
 
 //! Functions for distance calculation between [`ReleaseLike`] objects.
 
-use super::{string, Distance};
+use super::{string, Difference, Distance};
 use crate::track::TrackLike;
 use crate::Config;
 
@@ -16,59 +16,39 @@ use crate::Config;
 #[derive(Debug, Clone)]
 pub struct TrackSimilarity {
     /// The distance between the two track titles.
-    track_title: Distance,
+    pub track_title: Difference,
     /// The distance between the two track artists.
-    track_artist: Option<Distance>,
+    pub track_artist: Difference,
     /// The distance between the two track numbers.
-    track_number: Option<Distance>,
+    pub track_number: Difference,
     /// The distance between the two track lengths.
-    track_length: Option<Distance>,
+    pub track_length: Difference,
     /// The distance between the two MusicBrainz Recording Ids.
-    musicbrainz_recording_id: Option<Distance>,
+    pub musicbrainz_recording_id: Difference,
 }
 
 impl TrackSimilarity {
-    /// Returns `true` if the track title is equal on both tracks.
-    pub fn is_track_title_equal(&self) -> bool {
-        self.track_title.is_equality()
-    }
-
-    /// Returns `true` if the track artist is equal on both tracks.
-    pub fn is_track_artist_equal(&self) -> bool {
-        self.track_artist
-            .as_ref()
-            .is_some_and(Distance::is_equality)
-    }
-
-    /// Returns `true` if the track number is equal on both tracks.
-    pub fn is_track_number_equal(&self) -> bool {
-        self.track_number
-            .as_ref()
-            .is_some_and(Distance::is_equality)
-    }
-
-    /// Returns `true` if the track length is equal on both tracks.
-    pub fn is_track_length_equal(&self) -> bool {
-        self.track_length
-            .as_ref()
-            .is_some_and(Distance::is_equality)
-    }
-
-    /// Returns `true` if the MusicBrainz Recording ID is equal on both tracks.
-    pub fn is_musicbrainz_recording_id_equal(&self) -> bool {
-        self.musicbrainz_recording_id
-            .as_ref()
-            .is_some_and(Distance::is_equality)
-    }
-
     /// Returns the overall distance of the two tracks.
-    pub fn total_distance(&self) -> Distance {
+    pub fn total_distance(&self, config: &Config) -> Distance {
+        let weights = &config.weights.track;
+
         [
-            Some(&self.track_title),
-            self.track_artist.as_ref(),
-            self.track_number.as_ref(),
-            self.track_length.as_ref(),
-            self.musicbrainz_recording_id.as_ref(),
+            self.track_title
+                .to_distance()
+                .to_weighted(weights.track_title)
+                .into(),
+            self.track_artist
+                .to_distance_opt()
+                .map(|dist| dist.to_weighted(weights.track_artist)),
+            self.track_number
+                .to_distance_opt()
+                .map(|dist| dist.to_weighted(weights.track_number)),
+            self.track_length
+                .to_distance_opt()
+                .map(|dist| dist.to_weighted(weights.track_length)),
+            self.musicbrainz_recording_id
+                .to_distance_opt()
+                .map(|dist| dist.to_weighted(weights.musicbrainz_recording_id)),
         ]
         .into_iter()
         .flatten()
@@ -76,36 +56,26 @@ impl TrackSimilarity {
     }
 
     /// Calculate the distance between two releases.
-    pub fn detect<T1, T2>(config: &Config, lhs: &T1, rhs: &T2) -> Self
+    pub fn detect<T1, T2>(lhs: &T1, rhs: &T2) -> Self
     where
         T1: TrackLike + ?Sized,
         T2: TrackLike + ?Sized,
     {
-        let weights = &config.weights.track;
-
-        let track_title = Distance::between_options_or_minmax(lhs.track_title(), rhs.track_title())
-            .with_weight(weights.track_title);
-        let track_artist = lhs
-            .track_artist()
-            .zip(rhs.track_artist())
-            .map(Distance::between_tuple_items)
-            .map(|distance| distance.with_weight(weights.track_artist));
-        let track_number = lhs
-            .track_number()
-            .zip(rhs.track_number())
-            .map(Distance::between_tuple_items)
-            .map(|distance| distance.with_weight(weights.track_number));
-        let track_length = lhs
-            .track_length()
-            .zip(rhs.track_length())
-            .map(Distance::between_tuple_items)
-            .map(|distance| distance.with_weight(weights.track_length));
-        let musicbrainz_recording_id = lhs
-            .musicbrainz_recording_id()
-            .zip(rhs.musicbrainz_recording_id())
-            .map(|(a, b)| string::is_nonempty_and_equal_trimmed(a, b))
-            .map(Distance::from)
-            .map(|distance| distance.with_weight(weights.musicbrainz_recording_id));
+        let track_title = Difference::between_options(lhs.track_title(), rhs.track_title());
+        let track_artist = Difference::between_options(lhs.track_artist(), rhs.track_artist());
+        let track_number = Difference::between_options(lhs.track_number(), rhs.track_number());
+        let track_length = Difference::between_options(lhs.track_length(), rhs.track_length());
+        let musicbrainz_recording_id = Difference::between_options_fn(
+            lhs.musicbrainz_recording_id(),
+            rhs.musicbrainz_recording_id(),
+            |lhs, rhs| {
+                if string::is_nonempty_and_equal_trimmed(lhs, rhs) {
+                    Distance::MIN
+                } else {
+                    Distance::MAX
+                }
+            },
+        );
 
         TrackSimilarity {
             track_title,
@@ -128,8 +98,8 @@ mod tests {
     fn test_track_distance_title_exact() {
         let track = TestTrack("foo");
         let config = Config::default();
-        let distance = TrackSimilarity::detect(&config, &track, &track).total_distance();
-        assert_float_eq!(distance.weighted_distance(), 0.0, abs <= 0.000_1);
+        let distance = TrackSimilarity::detect(&track, &track).total_distance(&config);
+        assert_float_eq!(distance.as_f64(), 0.0, abs <= 0.000_1);
     }
 
     #[test]
@@ -137,8 +107,8 @@ mod tests {
         let track1 = TestTrack("foo");
         let track2 = TestTrack("bar");
         let config = Config::default();
-        let distance = TrackSimilarity::detect(&config, &track1, &track2).total_distance();
-        assert_float_eq!(distance.weighted_distance(), 1.0, abs <= 0.000_1);
+        let distance = TrackSimilarity::detect(&track1, &track2).total_distance(&config);
+        assert_float_eq!(distance.as_f64(), 1.0, abs <= 0.000_1);
     }
 
     #[test]
@@ -146,7 +116,7 @@ mod tests {
         let track1 = TestTrack("foo");
         let track2 = TestTrack("barfoo");
         let config = Config::default();
-        let distance = TrackSimilarity::detect(&config, &track1, &track2).total_distance();
-        assert_float_eq!(distance.weighted_distance(), 0.5, abs <= 0.000_1);
+        let distance = TrackSimilarity::detect(&track1, &track2).total_distance(&config);
+        assert_float_eq!(distance.as_f64(), 0.5, abs <= 0.000_1);
     }
 }

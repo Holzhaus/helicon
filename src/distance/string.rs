@@ -84,30 +84,30 @@ mod tests {
     #[test]
     fn test_string_distance_exact() {
         let distance = between("foo", "foo");
-        assert_float_eq!(distance.weighted_distance(), 0.0, abs <= 0.000_1);
+        assert_float_eq!(distance.as_f64(), 0.0, abs <= 0.000_1);
     }
 
     #[test]
     fn test_string_distance_distinct() {
         let distance = between("foo", "bar");
-        assert_float_eq!(distance.weighted_distance(), 1.0, abs <= 0.000_1);
+        assert_float_eq!(distance.as_f64(), 1.0, abs <= 0.000_1);
     }
 
     #[test]
     fn test_string_distance_longer() {
         let distance = between("foo", "foobar");
-        assert_float_eq!(distance.weighted_distance(), 0.5, abs <= 0.000_1);
+        assert_float_eq!(distance.as_f64(), 0.5, abs <= 0.000_1);
     }
 
     #[test]
     fn test_string_distance_shorter() {
         let distance = between("foobar", "foo");
-        assert_float_eq!(distance.weighted_distance(), 0.5, abs <= 0.000_1);
+        assert_float_eq!(distance.as_f64(), 0.5, abs <= 0.000_1);
     }
 
     #[test]
     fn test_string_distance_suffix() {
         let distance = between("Foo & Bar, The", "The Foo and Bar");
-        assert_float_eq!(distance.weighted_distance(), 0.0, abs <= 0.000_1);
+        assert_float_eq!(distance.as_f64(), 0.0, abs <= 0.000_1);
     }
 }
