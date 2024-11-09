@@ -177,14 +177,14 @@ impl Scanner {
                 {
                     Ok(releases) => ReleaseCandidateCollection::new(releases),
                     Err(err) => {
-                        log::error!("Receiver dropped: {err}");
+                        log::error!("Failed to find releases: {err:?}");
                         continue;
                     }
                 };
 
                 let item = (track_collection, candidates);
                 if let Err(err) = results_tx.send(item).await {
-                    log::error!("Receiver dropped: {err}");
+                    log::error!("Receiver dropped when sending candidates: {err}");
                     continue;
                 }
             }
