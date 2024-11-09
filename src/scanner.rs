@@ -17,18 +17,37 @@ use crate::release_candidate::ReleaseCandidateCollection;
 use crate::util::walk_dir;
 use crate::Cache;
 use crate::{Config, TaggedFile, TaggedFileCollection};
-use std::collections::{BinaryHeap, HashMap, HashSet};
+use futures::executor::ThreadPool;
+use futures::task::{SpawnError, SpawnExt};
+use futures::{future, FutureExt};
+use std::collections::HashSet;
 use std::path::PathBuf;
-use std::time::Duration;
-use tokio::sync::mpsc::{error::TryRecvError, Receiver};
+use tokio::sync::mpsc::Receiver;
+
+/// An error type that contains the path that was scanned when the error occurred.
+pub struct ScanError {
+    /// The path for which the error occurred.
+    pub path: PathBuf,
+    /// The actual error.
+    pub source: crate::Error,
+}
+
+/// Convenience Alias for a Scan Result.
+type ScanResult = Result<
+    (
+        TaggedFileCollection,
+        ReleaseCandidateCollection<MusicBrainzRelease>,
+    ),
+    ScanError,
+>;
 
 /// Scanner struct.
 pub struct Scanner {
+    /// Worker thread pool.
+    #[expect(dead_code)]
+    pool: ThreadPool,
     /// Channel receiver for the scanner results.
-    results_rx: Receiver<(
-        TaggedFileCollection,
-        ReleaseCandidateCollection<MusicBrainzRelease>,
-    )>,
+    results_rx: Receiver<ScanResult>,
 }
 
 impl Scanner {
@@ -36,170 +55,64 @@ impl Scanner {
     pub fn scan(config: Config, cache: Option<Cache>, path: PathBuf) -> Scanner {
         log::info!("Starting scan of {}", path.display());
 
-        let (analyzer_input_tx, analyzer_input_rx) = async_channel::bounded(20);
-        let (analyzer_group_tx, mut analyzer_group_rx) = tokio::sync::mpsc::channel(5);
-
-        let _fsscanner = tokio::task::spawn(async move {
-            let mut group_id: usize = 0;
-            for (_path, tracks) in find_track_paths(path) {
-                let mut num_tracks: usize = 0;
-                for track in tracks {
-                    if let Err(err) = analyzer_input_tx.send((group_id, track)).await {
-                        log::error!("Receiver dropped on sending track: {err}");
-                        continue;
-                    }
-                    log::debug!("Queued track for group {group_id}");
-                    num_tracks += 1;
-                }
-
-                if let Err(err) = analyzer_group_tx.send((group_id, num_tracks)).await {
-                    log::error!("Receiver dropped on sending path group: {err}");
-                } else {
-                    log::debug!("Queued group {group_id} with {num_tracks} for analysis");
-                };
-
-                group_id += 1;
-            }
-        });
-
-        let (analyzer_output_tx, mut analyzer_output_rx) = tokio::sync::mpsc::channel(20);
-        let num_jobs = Some(config.analyzers.num_parallel_jobs)
-            .filter(|&n| n != 0)
-            .unwrap_or_else(num_cpus::get);
-        for _ in 0..num_jobs {
-            let analyzer_input_rx = analyzer_input_rx.clone();
-            let analyzer_output_tx = analyzer_output_tx.clone();
-            let cloned_config = config.clone();
-            let _analysisworker = tokio::task::spawn(async move {
-                while let Ok((group_id, track)) = analyzer_input_rx.recv().await {
-                    let track = analyze_tagged_file(&cloned_config, track);
-                    if let Err(err) = analyzer_output_tx.send((group_id, track)).await {
-                        log::error!("Receiver dropped on sending track: {err}");
-                    }
-                }
-            });
-        }
-
-        let (post_analysis_tx, mut post_analysis_rx) = tokio::sync::mpsc::channel(20);
-        let _analysiscollector = tokio::task::spawn(async move {
-            let mut group_track_counts = HashMap::new();
-            let mut group_tracks = HashMap::new();
-
-            let mut analyzer_group_rx_connected = true;
-            let mut analyzer_output_rx_connected = true;
-
-            #[allow(unused_results)]
-            while analyzer_group_rx_connected || analyzer_output_rx_connected {
-                while analyzer_group_rx_connected {
-                    let (group_id, num_tracks) = match analyzer_group_rx.try_recv() {
-                        Ok(result) => result,
-                        Err(TryRecvError::Empty) => {
-                            break;
-                        }
-                        Err(TryRecvError::Disconnected) => {
-                            analyzer_group_rx_connected = false;
-                            break;
-                        }
-                    };
-
-                    group_track_counts.insert(group_id, num_tracks);
-                    group_tracks.insert(group_id, BinaryHeap::with_capacity(num_tracks));
-                }
-
-                while analyzer_output_rx_connected {
-                    let (group_id, track) = match analyzer_output_rx.try_recv() {
-                        Ok(result) => result,
-                        Err(TryRecvError::Empty) => {
-                            break;
-                        }
-                        Err(TryRecvError::Disconnected) => {
-                            analyzer_output_rx_connected = false;
-                            break;
-                        }
-                    };
-
-                    let is_group_finished = if let Some(tracks) = group_tracks.get_mut(&group_id) {
-                        tracks.push(track);
-                        if let Some(&counts) = group_track_counts.get(&group_id) {
-                            tracks.len() >= counts
-                        } else {
-                            log::error!("Missing track count for group {group_id}");
-                            false
-                        }
-                    } else {
-                        false
-                    };
-
-                    if !is_group_finished {
-                        continue;
-                    }
-
-                    group_track_counts.remove(&group_id);
-                    let Some(tracks) = group_tracks.remove(&group_id) else {
-                        log::error!("Missing tracks for group {group_id}");
-                        continue;
-                    };
-
-                    let collection = TaggedFileCollection::new(tracks.into_sorted_vec());
-                    if let Err(err) = post_analysis_tx.send(collection).await {
-                        log::error!("Receiver dropped on sending collection: {err}");
-                        continue;
-                    }
-                }
-
-                tokio::time::sleep(Duration::from_millis(10)).await;
-            }
-
-            for (group_id, tracks) in group_tracks.drain() {
-                if let Some(&expected_track_count) = group_track_counts.get(&group_id) {
-                    if expected_track_count != tracks.len() {
-                        log::error!("Missing tracks for group {group_id}");
-                    }
-                } else {
-                    log::error!("Missing track count for group {group_id}");
-                }
-
-                let collection = TaggedFileCollection::new(tracks.into_sorted_vec());
-                if let Err(err) = post_analysis_tx.send(collection).await {
-                    log::error!("Receiver dropped on sending collection: {err}");
-                }
-            }
-        });
-
         let (results_tx, results_rx) = tokio::sync::mpsc::channel(20);
-        let _matcher = tokio::task::spawn(async move {
-            let config = config;
-            let musicbrainz = MusicBrainzClient::new(&config, cache.as_ref());
-            while let Some(track_collection) = post_analysis_rx.recv().await {
-                let candidates = match musicbrainz
-                    .find_releases_by_similarity(&track_collection)
-                    .await
-                {
-                    Ok(releases) => ReleaseCandidateCollection::new(releases),
-                    Err(err) => {
-                        log::error!("Failed to find releases: {err:?}");
-                        continue;
-                    }
-                };
+        let pool = ThreadPool::new().unwrap();
 
-                let item = (track_collection, candidates);
-                if let Err(err) = results_tx.send(item).await {
-                    log::error!("Receiver dropped when sending candidates: {err}");
-                    continue;
+        let cloned_results_tx = results_tx.clone();
+        let cloned_pool = pool.clone();
+        pool.spawn_ok(async move {
+            // First, search the file system to find track paths.
+            for (path, tracks) in find_track_paths(path) {
+                let cloned_config = config.clone();
+                let cloned_config2 = config.clone();
+
+                // Some tracks were found, spawn individual tasks for analyzing the tracks in the
+                // threadpool. We keep track of the spawned task handles in a Vec, so that we
+                // combine the results of these tasks in a track collection.
+                let result = tracks
+                    .into_iter()
+                    .map(|track| {
+                        cloned_pool.spawn_with_handle({
+                            let config = cloned_config.clone();
+                            async move { analyze_tagged_file(&config, track) }
+                        })
+                    })
+                    .collect::<Result<Vec<_>, SpawnError>>();
+
+                // When all handles are joined, make a collection out of it and search similar
+                // releases on MusicBrainz. The result is sent to the `results_tx` queue.
+                match result {
+                    Ok(handles) => {
+                        let cloned_cache = cache.clone();
+                        let results_tx = cloned_results_tx.clone();
+                        cloned_pool.spawn_ok(async move {
+                            let musicbrainz =
+                                MusicBrainzClient::new(&cloned_config2, cloned_cache.as_ref());
+                            if let Err(err) = results_tx
+                                .send(
+                                    join_analysis_tasks_to_collection_and_find_release_candidates(
+                                        &musicbrainz,
+                                        path,
+                                        handles,
+                                    )
+                                    .await,
+                                )
+                                .await
+                            {
+                                log::error!("Failed to queue results: {err}");
+                            }
+                        });
+                    }
+                    Err(err) => log::error!("Failed to spawn analyzer tasks: {err}"),
                 }
             }
         });
 
-        Scanner { results_rx }
+        Scanner { pool, results_rx }
     }
 
     /// Receive the next track collection from the scanner.
-    pub async fn recv(
-        &mut self,
-    ) -> Option<(
-        TaggedFileCollection,
-        ReleaseCandidateCollection<MusicBrainzRelease>,
-    )> {
+    pub async fn recv(&mut self) -> Option<ScanResult> {
         self.results_rx.recv().await
     }
 }
@@ -250,4 +163,24 @@ fn analyze_tagged_file(config: &Config, tagged_file: TaggedFile) -> TaggedFile {
         })
         .ok();
     tagged_file.with_analysis_results(analysis_result)
+}
+
+/// Join all analysis tasks, then create a TaggedFieCollection from it. Then find similar
+/// candidates on MusicBrainz.
+async fn join_analysis_tasks_to_collection_and_find_release_candidates(
+    musicbrainz: &MusicBrainzClient<'_>,
+    path: PathBuf,
+    handles: Vec<future::RemoteHandle<TaggedFile>>,
+) -> ScanResult {
+    future::join_all(handles)
+        .then(|tracks| async {
+            let track_collection = TaggedFileCollection::new(tracks);
+            musicbrainz
+                .find_releases_by_similarity(&track_collection)
+                .await
+                .map(ReleaseCandidateCollection::new)
+                .map(|candidates| (track_collection, candidates))
+        })
+        .await
+        .map_err(|source| ScanError { path, source })
 }

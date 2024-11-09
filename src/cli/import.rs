@@ -147,7 +147,14 @@ pub async fn run(config: &Config, cache: Option<&Cache>, args: Args) -> crate::R
     });
 
     let musicbrainz = MusicBrainzClient::new(config, cache);
-    while let Some((track_collection, candidates)) = scanner.recv().await {
+    while let Some(result) = scanner.recv().await {
+        let (track_collection, candidates) = match result {
+            Ok(res) => res,
+            Err(err) => {
+                log::error!("Scan of {} failed: {}", err.path.display(), err.source);
+                continue;
+            }
+        };
         match select_release(config, &musicbrainz, track_collection, candidates).await? {
             SelectionResult::Selected(track_collection, selected_candidate) => {
                 if let Err(err) = importer_tx
