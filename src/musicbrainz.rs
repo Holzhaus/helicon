@@ -48,10 +48,18 @@ impl<'a> MusicBrainzClient<'a> {
         base_release: &impl ReleaseLike,
     ) -> crate::Result<Vec<ReleaseCandidate<MusicBrainzRelease>>> {
         if let Some(release_id) = base_release.musicbrainz_release_id() {
-            let release = self.find_release_by_id(release_id.into_owned()).await?;
-            let candidate =
-                ReleaseCandidate::new_with_base_release(release, base_release, self.config);
-            return Ok(vec![candidate]);
+            match self.find_release_by_id(release_id.into_owned()).await {
+                Ok(release) => {
+                    let candidate =
+                        ReleaseCandidate::new_with_base_release(release, base_release, self.config);
+                    return Ok(vec![candidate]);
+                }
+                Err(err) => {
+                    log::warn!(
+                        "Failed to retrieve release by tagged MusicBrainz Release ID: {err}"
+                    );
+                }
+            }
         }
 
         let similar_release_ids = self
