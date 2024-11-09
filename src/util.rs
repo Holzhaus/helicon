@@ -9,7 +9,7 @@
 //! Utility functions
 
 use chrono::TimeDelta;
-use std::collections::VecDeque;
+use std::collections::BinaryHeap;
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
@@ -21,14 +21,14 @@ use std::path::{Path, PathBuf};
 /// This struct is created by [`walk_dir`]. See its documentation for more.
 pub struct DirWalk {
     /// Queued paths that will be visited next.
-    queue: VecDeque<PathBuf>,
+    queue: BinaryHeap<PathBuf>,
 }
 
 /// Creates an iterator that walks through a directory structure recursively and yields a tuple
 /// consisting of the path of current directory and the files and directories in that directory.
 pub fn walk_dir(path: PathBuf) -> DirWalk {
-    let mut queue = VecDeque::new();
-    queue.push_back(path);
+    let mut queue = BinaryHeap::new();
+    queue.push(path);
     DirWalk { queue }
 }
 
@@ -91,9 +91,9 @@ impl Iterator for DirWalk {
     type Item = io::Result<(PathBuf, Vec<PathBuf>, Vec<PathBuf>)>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let queued_path = self.queue.pop_front();
-
+        let queued_path = self.queue.pop();
         queued_path.map(move |path| {
+            log::debug!("Queued path: {}", path.display());
             fs::read_dir(&path).and_then(move |entries| {
                 let mut files = vec![];
                 let mut dirs = vec![];
@@ -107,11 +107,13 @@ impl Iterator for DirWalk {
                     }
                 }
 
-                dirs.sort_unstable();
                 files.sort_unstable();
 
-                self.queue.extend(dirs.clone());
-                Ok((path, dirs.clone(), files))
+                for dir in dirs.clone() {
+                    self.queue.push(dir);
+                }
+
+                Ok((path, dirs, files))
             })
         })
     }
