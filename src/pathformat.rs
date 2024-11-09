@@ -113,7 +113,7 @@ pub struct PathFormatterValues<'a> {
     pub track_number: Option<Cow<'a, str>>,
     /// The track index (relative to the disc).
     pub track_index: Option<usize>,
-    /// The number of tracks on the disc).
+    /// The number of tracks on the disc.
     pub track_count: Option<usize>,
     /// The album's title.
     pub album_title: Option<Cow<'a, str>>,
