@@ -492,7 +492,14 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                         .with_track(rhs_track_index + 1, rhs_track);
                     let new_path = expanduser(&config.paths.library_path)
                         .ok()
-                        .zip(path_formatter.format(&values).ok())
+                        .zip(
+                            path_formatter
+                                .format(&values)
+                                .inspect_err(|err| {
+                                    log::error!("Failed to format path: {err}");
+                                })
+                                .ok(),
+                        )
                         .map(|(library_path, path)| library_path.join(path))
                         .zip(lhs_track.track_file_extension())
                         .map(|(path, ext)| {

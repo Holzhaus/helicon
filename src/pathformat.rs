@@ -13,8 +13,9 @@ use crate::config::PathTemplateConfig;
 use crate::media::MediaLike;
 use crate::release::ReleaseLike;
 use crate::track::TrackLike;
-use handlebars::{Handlebars, RenderError, Template, TemplateError};
+use handlebars::{handlebars_helper, Handlebars, RenderError, Template, TemplateError};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::borrow::Cow;
 
 /// Characters that are forbidden in paths on Microsoft Windows (in addition to control characters).
@@ -80,6 +81,18 @@ impl From<PathTemplate> for PathTemplateConfig {
     }
 }
 
+handlebars_helper!(helper_zfill: |value: Value, { width: usize = 0 }| {
+    match value {
+        Value::Number(number) => {
+            format!("{number:0>width$}")
+        }
+        Value::String(string) => {
+            format!("{string:0>width$}")
+        }
+        _ => unreachable!()
+    }
+});
+
 /// Formatter for paths.
 #[derive(Debug, Clone)]
 pub struct PathFormatter(Handlebars<'static>);
@@ -89,6 +102,7 @@ impl From<&PathTemplate> for PathFormatter {
         let mut handlebars = Handlebars::new();
         handlebars.set_strict_mode(true);
         handlebars.register_escape_fn(escape_path_chars);
+        handlebars.register_helper("zfill", Box::new(helper_zfill));
         handlebars.register_template("album", template.album_format.clone());
         handlebars.register_template("compilation", template.compilation_format.clone());
         Self(handlebars)
@@ -115,6 +129,8 @@ pub struct PathFormatterValues<'a> {
     pub track_index: Option<usize>,
     /// The number of tracks on the disc.
     pub track_count: Option<usize>,
+    /// The width (i.e., decimal digits count) of the number of tracks on the disc.
+    pub track_count_width: Option<usize>,
     /// The album's title.
     pub album_title: Option<Cow<'a, str>>,
     /// The album's artist (as credited for this release).
@@ -127,6 +143,8 @@ pub struct PathFormatterValues<'a> {
     pub disc_number: Option<u32>,
     /// The total number of discs that are part of this release.
     pub disc_count: Option<usize>,
+    /// The width (i.e., decimal digits count) of the number of discs of this release.
+    pub disc_count_width: Option<usize>,
 }
 
 impl<'a> PathFormatterValues<'a> {
@@ -137,6 +155,11 @@ impl<'a> PathFormatterValues<'a> {
         self.date = release.release_date();
         self.year = release.release_year();
         self.disc_count = Some(release.media().count());
+        self.disc_count_width = self
+            .disc_count
+            .filter(|&count| count != 0)
+            .map(|count| count.ilog10() + 1)
+            .and_then(|count| usize::try_from(count).ok());
         self
     }
 
@@ -144,6 +167,11 @@ impl<'a> PathFormatterValues<'a> {
     pub fn with_media(mut self, media: &'a impl MediaLike) -> Self {
         self.disc_number = media.disc_number();
         self.track_count = Some(media.media_tracks().count());
+        self.track_count_width = self
+            .track_count
+            .filter(|&count| count != 0)
+            .map(|count| count.ilog10() + 1)
+            .and_then(|count| usize::try_from(count).ok());
         self
     }
 
@@ -185,7 +213,7 @@ mod tests {
         let output = formatter.format(&values).unwrap();
         assert_eq!(
             output,
-            "The Ahmad Jamal Trio/Ahmad Jamal at the Pershing: But Not for Me/1-1 - But Not for Me"
+            "The Ahmad Jamal Trio/1958 - Ahmad Jamal at the Pershing: But Not for Me/1-1 - But Not for Me"
         );
     }
 }

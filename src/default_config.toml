@@ -5,8 +5,8 @@ enabled = ["track_length"]
 
 [paths]
 library_path = "~/Music"
-album_format = "{{album_artist}}/{{#if year}}{{year - }}{{/if}}{{album_title}}/{{#if disc_number}}{{disc_number}}-{{/if}}{{track_number}} - {{track_title}}"
-compilation_format = "{{album_artist}}/{{album_title}}/{{#if disc_number}}{{disc_number}}-{{/if}}{{track_number}} - {{artist_credit}} - {{track_title}}"
+album_format = "{{album_artist}}/{{#if year}}{{zfill year width=4}} - {{/if}}{{album_title}}/{{#if disc_number}}{{zfill disc_number number=disc_count_width}}-{{/if}}{{zfill track_index width=track_count_width}} - {{track_title}}"
+compilation_format = "{{album_artist}}/{{#if year}}{{zfill year width=4}} - {{/if}}{{album_title}}/{{#if disc_index}}{{zfill disc_index width=disc_index_width}}-{{/if}}{{zfill track_index width=track_count_width}} - {{artist_credit}} - {{track_title}}"
 
 [lookup]
 connection_limit = 10
