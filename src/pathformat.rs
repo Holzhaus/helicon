@@ -119,6 +119,10 @@ pub struct PathFormatterValues<'a> {
     pub album_title: Option<Cow<'a, str>>,
     /// The album's artist (as credited for this release).
     pub album_artist: Option<Cow<'a, str>>,
+    /// The album's release date.
+    pub date: Option<Cow<'a, str>>,
+    /// The album's release year.
+    pub year: Option<Cow<'a, str>>,
     /// The disc number.
     pub disc_number: Option<u32>,
     /// The total number of discs that are part of this release.
@@ -130,6 +134,8 @@ impl<'a> PathFormatterValues<'a> {
     pub fn with_release(mut self, release: &'a impl ReleaseLike) -> Self {
         self.album_title = release.release_title();
         self.album_artist = release.release_artist();
+        self.date = release.release_date();
+        self.year = release.release_year();
         self.disc_count = Some(release.media().count());
         self
     }
