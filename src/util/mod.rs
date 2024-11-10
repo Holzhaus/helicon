@@ -9,7 +9,9 @@
 //! Utility functions
 
 mod fs;
+mod keyed_binheap;
 mod time;
 
 pub use fs::{move_file, walk_dir};
+pub use keyed_binheap::KeyedBinaryHeap;
 pub use time::FormattedDuration;

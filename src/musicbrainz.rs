@@ -8,9 +8,9 @@
 
 //! MusicBrainz helper functions.
 
-use crate::distance::DistanceItem;
 use crate::release::ReleaseLike;
 use crate::release_candidate::ReleaseCandidate;
+use crate::util::KeyedBinaryHeap;
 use crate::Cache;
 use crate::Config;
 use futures::{
@@ -25,7 +25,6 @@ use musicbrainz_rs_nova::{
 };
 use regex::Regex;
 use std::borrow::{Borrow, Cow};
-use std::collections::BinaryHeap;
 
 /// Configurable MusicBrainz API client with caching support.
 #[derive(Debug)]
@@ -69,7 +68,10 @@ impl<'a> MusicBrainzClient<'a> {
                 0,
             )
             .await?;
-        let heap = BinaryHeap::with_capacity(similar_release_ids.len());
+        let heap = KeyedBinaryHeap::with_capacity(
+            similar_release_ids.len(),
+            |candidate: &ReleaseCandidate<MusicBrainzRelease>| candidate.distance(self.config),
+        );
         let heap = stream::iter(similar_release_ids)
             .map(|release_id| self.find_release_by_id(release_id))
             .buffer_unordered(self.config.lookup.connection_limit)
@@ -80,24 +82,18 @@ impl<'a> MusicBrainzClient<'a> {
 
                 let candidate =
                     ReleaseCandidate::new_with_base_release(release, base_release, self.config);
-                let candidate_distance = candidate.distance(self.config);
 
                 log::debug!(
                     "Release '{}' has distance to track collection: {}",
                     candidate.release().title,
-                    candidate_distance,
+                    candidate.distance(self.config),
                 );
-                let item = DistanceItem::new(candidate, candidate_distance);
-                heap.push(item);
+                heap.push(candidate);
                 heap
             })
             .await;
 
-        let releases: Vec<ReleaseCandidate<MusicBrainzRelease>> = heap
-            .into_sorted_vec()
-            .into_iter()
-            .map(|dist_item: DistanceItem<ReleaseCandidate<MusicBrainzRelease>>| dist_item.item)
-            .collect();
+        let releases: Vec<ReleaseCandidate<MusicBrainzRelease>> = heap.into_sorted_vec();
         log::info!("Found {} release candidates.", releases.len());
         Ok(releases)
     }
