@@ -174,7 +174,8 @@ async fn join_analysis_tasks_to_collection_and_find_release_candidates(
 ) -> ScanResult {
     handles
         .join_all()
-        .then(|tracks| async {
+        .then(|mut tracks| async {
+            tracks.sort_unstable_by(|a, b| a.path.as_path().cmp(b.path.as_path()));
             let track_collection = TaggedFileCollection::new(tracks);
             musicbrainz
                 .find_releases_by_similarity(&track_collection)
