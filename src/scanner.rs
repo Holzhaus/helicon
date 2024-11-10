@@ -20,7 +20,7 @@ use crate::{Config, TaggedFile, TaggedFileCollection};
 use futures::FutureExt;
 use std::collections::HashSet;
 use std::path::PathBuf;
-use tokio::runtime::Runtime;
+use tokio::runtime::{Builder, Runtime};
 use tokio::sync::mpsc::Receiver;
 use tokio::task::JoinSet;
 
@@ -55,7 +55,17 @@ impl Scanner {
         log::info!("Starting scan of {}", path.display());
 
         let (results_tx, results_rx) = tokio::sync::mpsc::channel(20);
-        let pool = Runtime::new().unwrap();
+        let num_parallel_jobs = if config.analyzers.num_parallel_jobs == 0 {
+            num_cpus::get()
+        } else {
+            config.analyzers.num_parallel_jobs
+        };
+        let pool = Builder::new_multi_thread()
+            .max_blocking_threads(num_parallel_jobs)
+            .thread_name("scanner-worker")
+            .enable_all()
+            .build()
+            .unwrap();
 
         let cloned_results_tx = results_tx.clone();
         let pool_handle = pool.handle().clone();
@@ -70,11 +80,9 @@ impl Scanner {
                 // combine the results of these tasks in a track collection.
                 let mut handles = JoinSet::new();
                 for track in tracks {
-                    let _analysis_abort_handle = handles.spawn_on(
-                        {
-                            let config = cloned_config.clone();
-                            async move { analyze_tagged_file(&config, track) }
-                        },
+                    let config = cloned_config.clone();
+                    let _analysis_abort_handle = handles.spawn_blocking_on(
+                        move || analyze_tagged_file(&config, track),
                         &pool_handle,
                     );
                 }
