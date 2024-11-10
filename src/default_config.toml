@@ -1,7 +1,6 @@
 [analyzers]
 num_parallel_jobs = 0
-# The chromaprint_fingerprint analyzer is disabled by default.
-enabled = ["track_length"]
+enabled = ["track_length", "chromaprint_fingerprint", "ebu_r128"]
 
 [paths]
 library_path = "~/Music"
