@@ -6,9 +6,8 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
-//! Utility functions
+//! Filesystem-related utility functions.
 
-use chrono::TimeDelta;
 use std::collections::BinaryHeap;
 use std::ffi::OsStr;
 use std::fs;
@@ -22,6 +21,38 @@ use std::path::{Path, PathBuf};
 pub struct DirWalk {
     /// Queued paths that will be visited next.
     queue: BinaryHeap<PathBuf>,
+}
+
+impl Iterator for DirWalk {
+    type Item = io::Result<(PathBuf, Vec<PathBuf>, Vec<PathBuf>)>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let queued_path = self.queue.pop();
+        queued_path.map(move |path| {
+            log::debug!("Queued path: {}", path.display());
+            fs::read_dir(&path).and_then(move |entries| {
+                let mut files = vec![];
+                let mut dirs = vec![];
+                for entry in entries {
+                    let entry_path = entry?.path();
+
+                    if entry_path.is_dir() {
+                        dirs.push(entry_path.clone());
+                    } else {
+                        files.push(entry_path);
+                    }
+                }
+
+                files.sort_unstable();
+
+                for dir in dirs.clone() {
+                    self.queue.push(dir);
+                }
+
+                Ok((path, dirs, files))
+            })
+        })
+    }
 }
 
 /// Creates an iterator that walks through a directory structure recursively and yields a tuple
@@ -85,55 +116,4 @@ pub fn move_file<S: AsRef<Path>, D: AsRef<Path>>(source: S, destination: D) -> c
     log::info!("Removed file {}", source.as_ref().display());
 
     Ok(())
-}
-
-impl Iterator for DirWalk {
-    type Item = io::Result<(PathBuf, Vec<PathBuf>, Vec<PathBuf>)>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let queued_path = self.queue.pop();
-        queued_path.map(move |path| {
-            log::debug!("Queued path: {}", path.display());
-            fs::read_dir(&path).and_then(move |entries| {
-                let mut files = vec![];
-                let mut dirs = vec![];
-                for entry in entries {
-                    let entry_path = entry?.path();
-
-                    if entry_path.is_dir() {
-                        dirs.push(entry_path.clone());
-                    } else {
-                        files.push(entry_path);
-                    }
-                }
-
-                files.sort_unstable();
-
-                for dir in dirs.clone() {
-                    self.queue.push(dir);
-                }
-
-                Ok((path, dirs, files))
-            })
-        })
-    }
-}
-
-/// Indicates that a value can be represent a duration as a formatted string.
-pub trait FormattedDuration {
-    /// Format the duration as a string, either in the form `M:SS` or `H:MM:SS`.
-    fn formatted_duration(&self) -> String;
-}
-
-impl FormattedDuration for TimeDelta {
-    fn formatted_duration(&self) -> String {
-        let hours = self.num_hours();
-        let minutes = self.num_minutes() - hours * 60;
-        let seconds = self.num_seconds() - hours * 60 * 60 - minutes * 60;
-        if hours > 0 {
-            format!("{hours}:{minutes:02}:{seconds:02}")
-        } else {
-            format!("{minutes}:{seconds:02}")
-        }
-    }
 }

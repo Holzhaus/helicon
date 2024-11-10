@@ -208,47 +208,6 @@ impl Distance {
     }
 }
 
-/// An Item that is bundled together with its distance to a reference item.
-#[derive(Debug, Clone)]
-pub struct DistanceItem<T> {
-    /// The item.
-    pub item: T,
-    /// The distance of the item to a reference item (not part of this struct).
-    pub distance: Distance,
-}
-
-impl<T> DistanceItem<T> {
-    /// Create a new [`DistanceItem`].
-    pub fn new(item: T, distance: Distance) -> Self {
-        Self { item, distance }
-    }
-
-    /// The distance of the item to the reference item.
-    pub fn distance(&self) -> &Distance {
-        &self.distance
-    }
-}
-
-impl<T> PartialEq for DistanceItem<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.distance().eq(other.distance())
-    }
-}
-
-impl<T> Eq for DistanceItem<T> {}
-
-impl<T> PartialOrd for DistanceItem<T> {
-    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl<T> Ord for DistanceItem<T> {
-    fn cmp(&self, other: &Self) -> cmp::Ordering {
-        self.distance().cmp(other.distance())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -569,43 +528,5 @@ mod tests {
         assert_eq!(dist1.partial_cmp(&dist0).unwrap(), cmp::Ordering::Greater);
         assert_eq!(dist2.partial_cmp(&dist0).unwrap(), cmp::Ordering::Greater);
         assert_eq!(dist2.partial_cmp(&dist1).unwrap(), cmp::Ordering::Greater);
-    }
-
-    #[test]
-    fn test_distanceitem_ord_impl() {
-        let item0 = DistanceItem::new((), Distance::from(0.000));
-        let item1 = DistanceItem::new((), Distance::from(0.001));
-        let item2 = DistanceItem::new((), Distance::from(0.002));
-
-        assert_eq!(item0.cmp(&item0), cmp::Ordering::Equal);
-        assert_eq!(item1.cmp(&item1), cmp::Ordering::Equal);
-        assert_eq!(item2.cmp(&item2), cmp::Ordering::Equal);
-
-        assert_eq!(item0.cmp(&item1), cmp::Ordering::Less);
-        assert_eq!(item0.cmp(&item2), cmp::Ordering::Less);
-        assert_eq!(item1.cmp(&item2), cmp::Ordering::Less);
-
-        assert_eq!(item1.cmp(&item0), cmp::Ordering::Greater);
-        assert_eq!(item2.cmp(&item0), cmp::Ordering::Greater);
-        assert_eq!(item2.cmp(&item1), cmp::Ordering::Greater);
-    }
-
-    #[test]
-    fn test_distanceitem_partialord_impl() {
-        let item0 = DistanceItem::new((), Distance::from(0.000));
-        let item1 = DistanceItem::new((), Distance::from(0.001));
-        let item2 = DistanceItem::new((), Distance::from(0.002));
-
-        assert_eq!(item0.partial_cmp(&item0).unwrap(), cmp::Ordering::Equal);
-        assert_eq!(item1.partial_cmp(&item1).unwrap(), cmp::Ordering::Equal);
-        assert_eq!(item2.partial_cmp(&item2).unwrap(), cmp::Ordering::Equal);
-
-        assert_eq!(item0.partial_cmp(&item1).unwrap(), cmp::Ordering::Less);
-        assert_eq!(item0.partial_cmp(&item2).unwrap(), cmp::Ordering::Less);
-        assert_eq!(item1.partial_cmp(&item2).unwrap(), cmp::Ordering::Less);
-
-        assert_eq!(item1.partial_cmp(&item0).unwrap(), cmp::Ordering::Greater);
-        assert_eq!(item2.partial_cmp(&item0).unwrap(), cmp::Ordering::Greater);
-        assert_eq!(item2.partial_cmp(&item1).unwrap(), cmp::Ordering::Greater);
     }
 }
