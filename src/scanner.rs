@@ -44,7 +44,10 @@ type ScanResult = Result<
 /// Scanner struct.
 pub struct Scanner {
     /// Worker thread pool.
-    pool: Runtime,
+    ///
+    /// This is an option because we want to drop it in the `Drop` impl, but the method only takes
+    /// a reference.
+    pool: Option<Runtime>,
     /// Channel receiver for the scanner results.
     results_rx: Receiver<ScanResult>,
 }
@@ -111,17 +114,23 @@ impl Scanner {
             }
         });
 
-        Scanner { pool, results_rx }
+        Scanner {
+            pool: pool.into(),
+            results_rx,
+        }
     }
 
     /// Receive the next track collection from the scanner.
     pub async fn recv(&mut self) -> Option<ScanResult> {
         self.results_rx.recv().await
     }
+}
 
-    /// Receive the next track collection from the scanner.
-    pub fn shutdown(self) {
-        self.pool.shutdown_background();
+impl Drop for Scanner {
+    fn drop(&mut self) {
+        if let Some(runtime) = self.pool.take() {
+            runtime.shutdown_background();
+        }
     }
 }
 

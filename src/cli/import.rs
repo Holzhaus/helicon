@@ -175,7 +175,6 @@ pub async fn run(config: &Config, cache: Option<&Cache>, args: Args) -> crate::R
 
     drop(importer_tx);
     importer_handle.await.unwrap();
-    scanner.shutdown();
 
     Ok(())
 }
