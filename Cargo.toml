@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 log = "0"
-thiserror = "1"
+thiserror = "2"
 unidecode = "0"
 levenshtein = "1"
 musicbrainz_rs_nova = { version = "0", features = ["async"] }
@@ -41,7 +41,7 @@ ebur128 = "0.1"
 async-channel = "2.3.1"
 num_cpus = "1.16.0"
 handlebars = "6.2.0"
-tempfile = "3.13.0"
+tempfile = "3.14.0"
 expanduser = "1.2.2"
 
 [dev-dependencies]
