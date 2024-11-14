@@ -3,35 +3,32 @@ name: Build
 on: [push, pull_request]
 
 jobs:
-    generate-matrix:
-        name: Generate Build Matrix
+    cargo-toml-features:
+        name: Generate Feature Combinations
         runs-on: ubuntu-latest
         outputs:
-            matrix: ${{ steps.set-matrix.outputs.matrix }}
+            feature-combinations: ${{ steps.cargo-toml-features.outputs.feature-combinations }}
         steps:
             - name: Check out repository
               uses: actions/checkout@v4
-            - name: Set up Python
-              uses: actions/setup-python@v5
-              with:
-                  python-version: '3.13'
-            - name: Generate Build Matrix
-              id: set-matrix
-              run: python .github/generate_matrix.py Cargo.toml "$GITHUB_OUTPUT"
+            - name: Determine Cargo Features
+              id: cargo-toml-features
+              uses: Holzhaus/cargo-toml-features-action@3afa751aae4071b2d1ca1c5fa42528a351c995f4
 
     build:
-        needs: generate-matrix
+        needs: cargo-toml-features
         runs-on: ubuntu-latest
         strategy:
-            matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
+            matrix:
+                features: ${{ fromJson(needs.cargo-toml-features.outputs.feature-combinations) }}
         steps:
             - name: Check out repository
               uses: actions/checkout@v4
             - name: Print Rust version
               run: rustc -vV
             - name: Run tests
-              run: cargo test --no-default-features --features "${{ matrix.features }}" --verbose
+              run: cargo test --no-default-features --features "${{ join(matrix.features, ',') }}" --verbose
             - name: Run bench
-              run: cargo bench --no-default-features --features "${{ matrix.features }}" --verbose
+              run: cargo bench --no-default-features --features "${{ join(matrix.features, ',') }}" --verbose
             - name: Run doc
-              run: cargo doc --no-default-features --features "${{ matrix.features }}" --verbose
+              run: cargo doc --no-default-features --features "${{ join(matrix.features, ',') }}" --verbose
