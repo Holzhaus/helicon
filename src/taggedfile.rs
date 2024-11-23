@@ -150,20 +150,20 @@ impl TaggedFile {
     }
 
     /// Yields all values for the given [`TagKey`].
-    pub fn tag_values(&self, key: TagKey) -> impl Iterator<Item = &str> {
+    pub fn tag_values<'a>(&'a self, key: &'a TagKey) -> impl Iterator<Item = &'a str> {
         self.tags().iter().filter_map(move |tag| tag.get(key))
     }
 
     /// Yields all values for the given [`TagKey`].
     #[expect(clippy::needless_pass_by_value)]
-    pub fn set_tag_value(&mut self, key: TagKey, value: Option<Cow<'_, str>>) {
+    pub fn set_tag_value(&mut self, key: &TagKey, value: Option<Cow<'_, str>>) {
         self.content
             .iter_mut()
             .for_each(|tag| tag.set_or_clear(key, value.clone()));
     }
 
     /// Yields all values for the given [`TagKey`].
-    pub fn set_tag_values(&mut self, key: TagKey, values: &[Cow<'_, str>]) {
+    pub fn set_tag_values(&mut self, key: &TagKey, values: &[Cow<'_, str>]) {
         self.content
             .iter_mut()
             .for_each(|tag| tag.set_multiple(key, values));
@@ -171,164 +171,164 @@ impl TaggedFile {
 
     /// Returns the first value for the given [`TagKey`].
     #[must_use]
-    pub fn first_tag_value(&self, key: TagKey) -> Option<&str> {
+    pub fn first_tag_value<'a>(&'a self, key: &'a TagKey) -> Option<&'a str> {
         self.tag_values(key).next()
     }
 
     /// Assign metadata from a `ReleaseLike` struct (e.g. a MusicBrainz release).
     pub fn assign_tags_from_release(&mut self, release: &impl ReleaseLike) {
-        self.set_tag_value(TagKey::Album, release.release_title());
-        self.set_tag_value(TagKey::AlbumArtist, release.release_artist());
+        self.set_tag_value(&TagKey::Album, release.release_title());
+        self.set_tag_value(&TagKey::AlbumArtist, release.release_artist());
         self.set_tag_value(
-            TagKey::AlbumArtistSortOrder,
+            &TagKey::AlbumArtistSortOrder,
             release.release_artist_sort_order(),
         );
-        self.set_tag_value(TagKey::AlbumSortOrder, release.release_sort_order());
-        self.set_tag_value(TagKey::Asin, release.asin());
-        self.set_tag_value(TagKey::Barcode, release.barcode());
-        self.set_tag_value(TagKey::CatalogNumber, release.catalog_number());
-        self.set_tag_value(TagKey::Compilation, release.compilation());
-        self.set_tag_value(TagKey::Grouping, release.grouping());
+        self.set_tag_value(&TagKey::AlbumSortOrder, release.release_sort_order());
+        self.set_tag_value(&TagKey::Asin, release.asin());
+        self.set_tag_value(&TagKey::Barcode, release.barcode());
+        self.set_tag_value(&TagKey::CatalogNumber, release.catalog_number());
+        self.set_tag_value(&TagKey::Compilation, release.compilation());
+        self.set_tag_value(&TagKey::Grouping, release.grouping());
         self.set_tag_value(
-            TagKey::MusicBrainzReleaseArtistId,
+            &TagKey::MusicBrainzReleaseArtistId,
             release.musicbrainz_release_artist_id(),
         );
         self.set_tag_value(
-            TagKey::MusicBrainzReleaseGroupId,
+            &TagKey::MusicBrainzReleaseGroupId,
             release.musicbrainz_release_group_id(),
         );
         self.set_tag_value(
-            TagKey::MusicBrainzReleaseId,
+            &TagKey::MusicBrainzReleaseId,
             release.musicbrainz_release_id(),
         );
-        self.set_tag_value(TagKey::RecordLabel, release.record_label());
-        self.set_tag_value(TagKey::ReleaseCountry, release.release_country());
-        self.set_tag_value(TagKey::ReleaseDate, release.release_date());
-        self.set_tag_value(TagKey::ReleaseYear, release.release_year());
-        self.set_tag_value(TagKey::ReleaseStatus, release.release_status());
-        self.set_tag_value(TagKey::ReleaseType, release.release_type());
-        self.set_tag_value(TagKey::Script, release.script());
-        self.set_tag_value(TagKey::TotalDiscs, release.total_discs());
+        self.set_tag_value(&TagKey::RecordLabel, release.record_label());
+        self.set_tag_value(&TagKey::ReleaseCountry, release.release_country());
+        self.set_tag_value(&TagKey::ReleaseDate, release.release_date());
+        self.set_tag_value(&TagKey::ReleaseYear, release.release_year());
+        self.set_tag_value(&TagKey::ReleaseStatus, release.release_status());
+        self.set_tag_value(&TagKey::ReleaseType, release.release_type());
+        self.set_tag_value(&TagKey::Script, release.script());
+        self.set_tag_value(&TagKey::TotalDiscs, release.total_discs());
     }
 
     /// Assign metadata from another `TrackLike` struct (e.g. a MusicBrainz track).
     pub fn assign_tags_from_track(&mut self, track: &impl TrackLike) {
-        self.set_tag_value(TagKey::AcoustId, track.acoustid());
+        self.set_tag_value(&TagKey::AcoustId, track.acoustid());
         let acoustid_fingerprint = self
             .analyzed_metadata()
             .acoustid_fingerprint()
             .map(|value| Cow::from(value.to_string()));
-        self.set_tag_value(TagKey::AcoustIdFingerprint, acoustid_fingerprint);
+        self.set_tag_value(&TagKey::AcoustIdFingerprint, acoustid_fingerprint);
         self.set_tag_values(
-            TagKey::Arranger,
+            &TagKey::Arranger,
             track.arranger().collect::<Vec<_>>().as_slice(),
         );
-        self.set_tag_value(TagKey::Artist, track.track_artist());
-        self.set_tag_value(TagKey::ArtistSortOrder, track.track_artist_sort_order());
-        self.set_tag_value(TagKey::Artists, track.track_artist());
-        self.set_tag_value(TagKey::Bpm, track.bpm());
-        self.set_tag_value(TagKey::Comment, track.comment());
+        self.set_tag_value(&TagKey::Artist, track.track_artist());
+        self.set_tag_value(&TagKey::ArtistSortOrder, track.track_artist_sort_order());
+        self.set_tag_value(&TagKey::Artists, track.track_artist());
+        self.set_tag_value(&TagKey::Bpm, track.bpm());
+        self.set_tag_value(&TagKey::Comment, track.comment());
         self.set_tag_values(
-            TagKey::Composer,
+            &TagKey::Composer,
             track.composer().collect::<Vec<_>>().as_slice(),
         );
-        self.set_tag_value(TagKey::ComposerSortOrder, track.composer_sort_order());
+        self.set_tag_value(&TagKey::ComposerSortOrder, track.composer_sort_order());
         self.set_tag_values(
-            TagKey::Conductor,
+            &TagKey::Conductor,
             track.conductor().collect::<Vec<_>>().as_slice(),
         );
-        self.set_tag_value(TagKey::Copyright, track.copyright());
+        self.set_tag_value(&TagKey::Copyright, track.copyright());
         self.set_tag_values(
-            TagKey::Director,
+            &TagKey::Director,
             track.director().collect::<Vec<_>>().as_slice(),
         );
         self.set_tag_values(
-            TagKey::DjMixer,
+            &TagKey::DjMixer,
             track.dj_mixer().collect::<Vec<_>>().as_slice(),
         );
-        self.set_tag_value(TagKey::EncodedBy, track.encoded_by());
-        self.set_tag_value(TagKey::EncoderSettings, track.encoder_settings());
+        self.set_tag_value(&TagKey::EncodedBy, track.encoded_by());
+        self.set_tag_value(&TagKey::EncoderSettings, track.encoder_settings());
         self.set_tag_values(
-            TagKey::Engineer,
+            &TagKey::Engineer,
             track.engineer().collect::<Vec<_>>().as_slice(),
         );
-        self.set_tag_values(TagKey::Genre, track.genre().collect::<Vec<_>>().as_slice());
-        self.set_tag_value(TagKey::InitialKey, track.initial_key());
-        self.set_tag_values(TagKey::Isrc, track.isrc().collect::<Vec<_>>().as_slice());
-        self.set_tag_value(TagKey::Language, track.language());
-        self.set_tag_value(TagKey::License, track.license());
+        self.set_tag_values(&TagKey::Genre, track.genre().collect::<Vec<_>>().as_slice());
+        self.set_tag_value(&TagKey::InitialKey, track.initial_key());
+        self.set_tag_values(&TagKey::Isrc, track.isrc().collect::<Vec<_>>().as_slice());
+        self.set_tag_value(&TagKey::Language, track.language());
+        self.set_tag_value(&TagKey::License, track.license());
         self.set_tag_values(
-            TagKey::Lyricist,
+            &TagKey::Lyricist,
             track.lyricist().collect::<Vec<_>>().as_slice(),
         );
-        self.set_tag_value(TagKey::Lyrics, track.lyrics());
-        self.set_tag_values(TagKey::Mixer, track.mixer().collect::<Vec<_>>().as_slice());
-        self.set_tag_value(TagKey::Mood, track.mood());
-        self.set_tag_value(TagKey::Movement, track.movement());
-        self.set_tag_value(TagKey::MovementCount, track.movement_count());
-        self.set_tag_value(TagKey::MovementNumber, track.movement_number());
-        self.set_tag_value(TagKey::MusicBrainzArtistId, track.musicbrainz_artist_id());
+        self.set_tag_value(&TagKey::Lyrics, track.lyrics());
+        self.set_tag_values(&TagKey::Mixer, track.mixer().collect::<Vec<_>>().as_slice());
+        self.set_tag_value(&TagKey::Mood, track.mood());
+        self.set_tag_value(&TagKey::Movement, track.movement());
+        self.set_tag_value(&TagKey::MovementCount, track.movement_count());
+        self.set_tag_value(&TagKey::MovementNumber, track.movement_number());
+        self.set_tag_value(&TagKey::MusicBrainzArtistId, track.musicbrainz_artist_id());
         self.set_tag_value(
-            TagKey::MusicBrainzOriginalArtistId,
+            &TagKey::MusicBrainzOriginalArtistId,
             track.musicbrainz_original_artist_id(),
         );
         self.set_tag_value(
-            TagKey::MusicBrainzOriginalReleaseId,
+            &TagKey::MusicBrainzOriginalReleaseId,
             track.musicbrainz_original_release_id(),
         );
         self.set_tag_value(
-            TagKey::MusicBrainzRecordingId,
+            &TagKey::MusicBrainzRecordingId,
             track.musicbrainz_recording_id(),
         );
-        self.set_tag_value(TagKey::MusicBrainzTrackId, track.musicbrainz_track_id());
-        self.set_tag_value(TagKey::MusicBrainzTrmId, track.musicbrainz_trm_id());
-        self.set_tag_value(TagKey::MusicBrainzWorkId, track.musicbrainz_work_id());
-        self.set_tag_value(TagKey::MusicIpFingerprint, track.musicip_fingerprint());
-        self.set_tag_value(TagKey::MusicIpPuid, track.musicip_puid());
-        self.set_tag_value(TagKey::OriginalAlbum, track.original_album());
-        self.set_tag_value(TagKey::OriginalArtist, track.original_artist());
-        self.set_tag_value(TagKey::OriginalFilename, track.original_filename());
-        self.set_tag_value(TagKey::OriginalReleaseDate, track.original_release_date());
-        self.set_tag_value(TagKey::OriginalReleaseYear, track.original_release_year());
+        self.set_tag_value(&TagKey::MusicBrainzTrackId, track.musicbrainz_track_id());
+        self.set_tag_value(&TagKey::MusicBrainzTrmId, track.musicbrainz_trm_id());
+        self.set_tag_value(&TagKey::MusicBrainzWorkId, track.musicbrainz_work_id());
+        self.set_tag_value(&TagKey::MusicIpFingerprint, track.musicip_fingerprint());
+        self.set_tag_value(&TagKey::MusicIpPuid, track.musicip_puid());
+        self.set_tag_value(&TagKey::OriginalAlbum, track.original_album());
+        self.set_tag_value(&TagKey::OriginalArtist, track.original_artist());
+        self.set_tag_value(&TagKey::OriginalFilename, track.original_filename());
+        self.set_tag_value(&TagKey::OriginalReleaseDate, track.original_release_date());
+        self.set_tag_value(&TagKey::OriginalReleaseYear, track.original_release_year());
         self.set_tag_values(
-            TagKey::Performer,
+            &TagKey::Performer,
             track.performer().collect::<Vec<_>>().as_slice(),
         );
         self.set_tag_values(
-            TagKey::Producer,
+            &TagKey::Producer,
             track.producer().collect::<Vec<_>>().as_slice(),
         );
-        self.set_tag_value(TagKey::Rating, track.rating());
+        self.set_tag_value(&TagKey::Rating, track.rating());
         self.set_tag_values(
-            TagKey::Remixer,
+            &TagKey::Remixer,
             track.remixer().collect::<Vec<_>>().as_slice(),
         );
         self.set_tag_value(
-            TagKey::ReplayGainReferenceLoudness,
+            &TagKey::ReplayGainReferenceLoudness,
             track.replay_gain_reference_loudness(),
         );
         let replay_gain_track_gain = self
             .analyzed_metadata()
             .replay_gain_track_gain()
             .map(|value| Cow::from(value.to_string()));
-        self.set_tag_value(TagKey::ReplayGainTrackGain, replay_gain_track_gain);
+        self.set_tag_value(&TagKey::ReplayGainTrackGain, replay_gain_track_gain);
         let replay_gain_track_peak = self
             .analyzed_metadata()
             .replay_gain_track_peak()
             .map(|value| Cow::from(value.to_string()));
-        self.set_tag_value(TagKey::ReplayGainTrackPeak, replay_gain_track_peak);
+        self.set_tag_value(&TagKey::ReplayGainTrackPeak, replay_gain_track_peak);
         let replay_gain_track_range = self
             .analyzed_metadata()
             .replay_gain_track_range()
             .map(|value| Cow::from(value.to_string()));
-        self.set_tag_value(TagKey::ReplayGainTrackRange, replay_gain_track_range);
-        self.set_tag_value(TagKey::TrackNumber, track.track_number());
-        self.set_tag_value(TagKey::TrackTitle, track.track_title());
-        self.set_tag_value(TagKey::TrackTitleSortOrder, track.track_title_sort_order());
-        self.set_tag_value(TagKey::ArtistWebsite, track.artist_website());
-        self.set_tag_value(TagKey::WorkTitle, track.work_title());
+        self.set_tag_value(&TagKey::ReplayGainTrackRange, replay_gain_track_range);
+        self.set_tag_value(&TagKey::TrackNumber, track.track_number());
+        self.set_tag_value(&TagKey::TrackTitle, track.track_title());
+        self.set_tag_value(&TagKey::TrackTitleSortOrder, track.track_title_sort_order());
+        self.set_tag_value(&TagKey::ArtistWebsite, track.artist_website());
+        self.set_tag_value(&TagKey::WorkTitle, track.work_title());
         self.set_tag_values(
-            TagKey::Writer,
+            &TagKey::Writer,
             track.writer().collect::<Vec<_>>().as_slice(),
         );
     }
@@ -369,263 +369,265 @@ impl PartialOrd for TaggedFile {
 
 impl TrackLike for TaggedFile {
     fn acoustid(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::AcoustId).map(Cow::from)
+        self.first_tag_value(&TagKey::AcoustId).map(Cow::from)
     }
 
     fn acoustid_fingerprint(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::AcoustIdFingerprint)
+        self.first_tag_value(&TagKey::AcoustIdFingerprint)
             .map(Cow::from)
     }
 
     fn arranger(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(TagKey::Arranger).map(Cow::from)
+        self.tag_values(&TagKey::Arranger).map(Cow::from)
     }
 
     fn track_artist(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::Artist)
-            .or_else(|| self.first_tag_value(TagKey::Artists))
-            .or_else(|| self.first_tag_value(TagKey::AlbumArtist))
+        self.first_tag_value(&TagKey::Artist)
+            .or_else(|| self.first_tag_value(&TagKey::Artists))
+            .or_else(|| self.first_tag_value(&TagKey::AlbumArtist))
             .map(Cow::from)
     }
 
     fn track_artist_sort_order(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::ArtistSortOrder).map(Cow::from)
+        self.first_tag_value(&TagKey::ArtistSortOrder)
+            .map(Cow::from)
     }
 
     fn bpm(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::Bpm).map(Cow::from)
+        self.first_tag_value(&TagKey::Bpm).map(Cow::from)
     }
 
     fn comment(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::Comment).map(Cow::from)
+        self.first_tag_value(&TagKey::Comment).map(Cow::from)
     }
 
     fn composer(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(TagKey::Composer).map(Cow::from)
+        self.tag_values(&TagKey::Composer).map(Cow::from)
     }
 
     fn composer_sort_order(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::ComposerSortOrder)
+        self.first_tag_value(&TagKey::ComposerSortOrder)
             .map(Cow::from)
     }
 
     fn conductor(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(TagKey::Conductor).map(Cow::from)
+        self.tag_values(&TagKey::Conductor).map(Cow::from)
     }
 
     fn copyright(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::Copyright).map(Cow::from)
+        self.first_tag_value(&TagKey::Copyright).map(Cow::from)
     }
 
     fn director(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(TagKey::Director).map(Cow::from)
+        self.tag_values(&TagKey::Director).map(Cow::from)
     }
 
     fn dj_mixer(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(TagKey::DjMixer).map(Cow::from)
+        self.tag_values(&TagKey::DjMixer).map(Cow::from)
     }
 
     fn encoded_by(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::EncodedBy).map(Cow::from)
+        self.first_tag_value(&TagKey::EncodedBy).map(Cow::from)
     }
 
     fn encoder_settings(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::EncoderSettings).map(Cow::from)
+        self.first_tag_value(&TagKey::EncoderSettings)
+            .map(Cow::from)
     }
 
     fn engineer(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(TagKey::Engineer).map(Cow::from)
+        self.tag_values(&TagKey::Engineer).map(Cow::from)
     }
 
     fn genre(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(TagKey::Genre).map(Cow::from)
+        self.tag_values(&TagKey::Genre).map(Cow::from)
     }
 
     fn initial_key(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::InitialKey).map(Cow::from)
+        self.first_tag_value(&TagKey::InitialKey).map(Cow::from)
     }
 
     fn isrc(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(TagKey::Isrc).map(Cow::from)
+        self.tag_values(&TagKey::Isrc).map(Cow::from)
     }
 
     fn language(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::Language).map(Cow::from)
+        self.first_tag_value(&TagKey::Language).map(Cow::from)
     }
 
     fn license(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::License).map(Cow::from)
+        self.first_tag_value(&TagKey::License).map(Cow::from)
     }
 
     fn lyricist(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(TagKey::Lyricist).map(Cow::from)
+        self.tag_values(&TagKey::Lyricist).map(Cow::from)
     }
 
     fn lyrics(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::Lyrics).map(Cow::from)
+        self.first_tag_value(&TagKey::Lyrics).map(Cow::from)
     }
 
     fn mixer(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(TagKey::Mixer).map(Cow::from)
+        self.tag_values(&TagKey::Mixer).map(Cow::from)
     }
 
     fn mood(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::Mood).map(Cow::from)
+        self.first_tag_value(&TagKey::Mood).map(Cow::from)
     }
 
     fn movement(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::Movement).map(Cow::from)
+        self.first_tag_value(&TagKey::Movement).map(Cow::from)
     }
 
     fn movement_count(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::MovementCount).map(Cow::from)
+        self.first_tag_value(&TagKey::MovementCount).map(Cow::from)
     }
 
     fn movement_number(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::MovementNumber).map(Cow::from)
+        self.first_tag_value(&TagKey::MovementNumber).map(Cow::from)
     }
 
     fn musicbrainz_artist_id(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::MusicBrainzArtistId)
+        self.first_tag_value(&TagKey::MusicBrainzArtistId)
             .map(Cow::from)
     }
 
     fn musicbrainz_original_artist_id(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::MusicBrainzOriginalArtistId)
+        self.first_tag_value(&TagKey::MusicBrainzOriginalArtistId)
             .map(Cow::from)
     }
 
     fn musicbrainz_original_release_id(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::MusicBrainzOriginalReleaseId)
+        self.first_tag_value(&TagKey::MusicBrainzOriginalReleaseId)
             .map(Cow::from)
     }
 
     fn musicbrainz_recording_id(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::MusicBrainzRecordingId)
+        self.first_tag_value(&TagKey::MusicBrainzRecordingId)
             .map(Cow::from)
     }
 
     fn musicbrainz_track_id(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::MusicBrainzTrackId)
+        self.first_tag_value(&TagKey::MusicBrainzTrackId)
             .map(Cow::from)
     }
 
     fn musicbrainz_trm_id(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::MusicBrainzTrmId)
+        self.first_tag_value(&TagKey::MusicBrainzTrmId)
             .map(Cow::from)
     }
 
     fn musicbrainz_work_id(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::MusicBrainzWorkId)
+        self.first_tag_value(&TagKey::MusicBrainzWorkId)
             .map(Cow::from)
     }
 
     fn musicip_fingerprint(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::MusicIpFingerprint)
+        self.first_tag_value(&TagKey::MusicIpFingerprint)
             .map(Cow::from)
     }
 
     fn musicip_puid(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::MusicIpPuid).map(Cow::from)
+        self.first_tag_value(&TagKey::MusicIpPuid).map(Cow::from)
     }
 
     fn original_album(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::OriginalAlbum).map(Cow::from)
+        self.first_tag_value(&TagKey::OriginalAlbum).map(Cow::from)
     }
 
     fn original_artist(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::OriginalArtist).map(Cow::from)
+        self.first_tag_value(&TagKey::OriginalArtist).map(Cow::from)
     }
 
     fn original_filename(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::OriginalFilename)
+        self.first_tag_value(&TagKey::OriginalFilename)
             .map(Cow::from)
     }
 
     fn original_release_date(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::OriginalReleaseDate)
+        self.first_tag_value(&TagKey::OriginalReleaseDate)
             .map(Cow::from)
     }
 
     fn original_release_year(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::OriginalReleaseYear)
+        self.first_tag_value(&TagKey::OriginalReleaseYear)
             .map(Cow::from)
     }
 
     fn performer(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(TagKey::Performer).map(Cow::from)
+        self.tag_values(&TagKey::Performer).map(Cow::from)
     }
 
     fn producer(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(TagKey::Producer).map(Cow::from)
+        self.tag_values(&TagKey::Producer).map(Cow::from)
     }
 
     fn rating(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::Rating).map(Cow::from)
+        self.first_tag_value(&TagKey::Rating).map(Cow::from)
     }
 
     fn remixer(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(TagKey::Remixer).map(Cow::from)
+        self.tag_values(&TagKey::Remixer).map(Cow::from)
     }
 
     fn replay_gain_album_gain(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::ReplayGainAlbumGain)
+        self.first_tag_value(&TagKey::ReplayGainAlbumGain)
             .map(Cow::from)
     }
 
     fn replay_gain_album_peak(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::ReplayGainAlbumPeak)
+        self.first_tag_value(&TagKey::ReplayGainAlbumPeak)
             .map(Cow::from)
     }
 
     fn replay_gain_album_range(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::ReplayGainAlbumRange)
+        self.first_tag_value(&TagKey::ReplayGainAlbumRange)
             .map(Cow::from)
     }
 
     fn replay_gain_reference_loudness(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::ReplayGainReferenceLoudness)
+        self.first_tag_value(&TagKey::ReplayGainReferenceLoudness)
             .map(Cow::from)
     }
 
     fn replay_gain_track_gain(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::ReplayGainTrackGain)
+        self.first_tag_value(&TagKey::ReplayGainTrackGain)
             .map(Cow::from)
     }
 
     fn replay_gain_track_peak(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::ReplayGainTrackPeak)
+        self.first_tag_value(&TagKey::ReplayGainTrackPeak)
             .map(Cow::from)
     }
 
     fn replay_gain_track_range(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::ReplayGainTrackRange)
+        self.first_tag_value(&TagKey::ReplayGainTrackRange)
             .map(Cow::from)
     }
 
     fn track_number(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::TrackNumber).map(Cow::from)
+        self.first_tag_value(&TagKey::TrackNumber).map(Cow::from)
     }
 
     fn track_title(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::TrackTitle).map(Cow::from)
+        self.first_tag_value(&TagKey::TrackTitle).map(Cow::from)
     }
 
     fn track_title_sort_order(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::TrackTitleSortOrder)
+        self.first_tag_value(&TagKey::TrackTitleSortOrder)
             .map(Cow::from)
     }
 
     fn artist_website(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::ArtistWebsite).map(Cow::from)
+        self.first_tag_value(&TagKey::ArtistWebsite).map(Cow::from)
     }
 
     fn work_title(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(TagKey::WorkTitle).map(Cow::from)
+        self.first_tag_value(&TagKey::WorkTitle).map(Cow::from)
     }
 
     fn writer(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(TagKey::Writer).map(Cow::from)
+        self.tag_values(&TagKey::Writer).map(Cow::from)
     }
 
     fn track_length(&self) -> Option<chrono::TimeDelta> {
