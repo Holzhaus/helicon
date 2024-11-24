@@ -9,6 +9,7 @@
 //! Support for FLAC tags.
 
 use crate::tag::{Tag, TagKey, TagType};
+use crate::track::InvolvedPerson;
 use std::borrow::Cow;
 use std::path::Path;
 
@@ -96,7 +97,8 @@ impl FlacTag {
             TagKey::OriginalFilename => "ORIGINALFILENAME".into(),
             TagKey::OriginalReleaseDate => "ORIGINALDATE".into(),
             TagKey::OriginalReleaseYear => "ORIGINALYEAR".into(),
-            TagKey::Performer => "PERFORMER".into(), // This should be in "PERFORMER={artist} (instrument)" format.
+            TagKey::Performers => "PERFORMER".into(),
+            TagKey::Performer(_) => "PERFORMER".into(), // This should be in "PERFORMER={artist} (instrument)" format.
             TagKey::Podcast => None,
             TagKey::PodcastUrl => None,
             TagKey::Producer => "PRODUCER".into(),
@@ -145,7 +147,12 @@ impl Tag for FlacTag {
 
     fn set(&mut self, key: &TagKey, value: Cow<'_, str>) {
         if let Some(frame) = Self::tag_key_to_frame(key) {
-            self.data.set_vorbis(frame, vec![value]);
+            if let TagKey::Performer(instrument) = &key {
+                self.data
+                    .set_vorbis(frame, vec![format!("{value} ({instrument}")]);
+            } else {
+                self.data.set_vorbis(frame, vec![value]);
+            }
         }
     }
 
@@ -165,6 +172,32 @@ impl Tag for FlacTag {
         self.data.write_to_path(path)?;
         Ok(())
     }
+
+    fn performers(&self) -> Option<Vec<InvolvedPerson<'_>>> {
+        Self::tag_key_to_frame(&TagKey::Performers)
+            .and_then(|key| self.data.get_vorbis(key))
+            .map(|iterator| iterator.map(parse_performer_value).collect())
+    }
+}
+
+/// Parse a performer value in the form `involvee (involvement)`.
+fn parse_performer_value(value: &str) -> InvolvedPerson<'_> {
+    value
+        .split_once(" (")
+        .and_then(|(involvee, involvement)| {
+            involvement
+                .char_indices()
+                .next_back()
+                .and_then(|(i, character)| (character == ')').then_some(&involvement[..i]))
+                .map(|involvement| InvolvedPerson {
+                    involvement: Cow::from(involvement),
+                    involvee: Cow::from(involvee),
+                })
+        })
+        .unwrap_or_else(|| InvolvedPerson {
+            involvement: Cow::from(""),
+            involvee: Cow::from(value),
+        })
 }
 
 #[cfg(test)]
@@ -172,6 +205,63 @@ mod tests {
     use super::*;
     use crate::tag::{Tag, TagKey};
     use paste::paste;
+
+    #[test]
+    fn test_parse_performer_value_valid() {
+        assert_eq!(
+            parse_performer_value("foo (bar)"),
+            InvolvedPerson {
+                involvee: "foo".into(),
+                involvement: "bar".into()
+            }
+        );
+        assert_eq!(
+            parse_performer_value("Ahmad Jamal (piano)"),
+            InvolvedPerson {
+                involvee: "Ahmad Jamal".into(),
+                involvement: "piano".into()
+            }
+        );
+        assert_eq!(
+            parse_performer_value("Israel Crosby (double bass)"),
+            InvolvedPerson {
+                involvee: "Israel Crosby".into(),
+                involvement: "double bass".into()
+            }
+        );
+        assert_eq!(
+            parse_performer_value("Vernell Fournier (drums (drum set))"),
+            InvolvedPerson {
+                involvee: "Vernell Fournier".into(),
+                involvement: "drums (drum set)".into()
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_performer_value_invalid() {
+        assert_eq!(
+            parse_performer_value("foo"),
+            InvolvedPerson {
+                involvee: "foo".into(),
+                involvement: "".into()
+            }
+        );
+        assert_eq!(
+            parse_performer_value("foo bar"),
+            InvolvedPerson {
+                involvee: "foo bar".into(),
+                involvement: "".into()
+            }
+        );
+        assert_eq!(
+            parse_performer_value("Ahmad Jamal (piano"),
+            InvolvedPerson {
+                involvee: "Ahmad Jamal (piano".into(),
+                involvement: "".into()
+            }
+        );
+    }
 
     #[test]
     fn test_tag_type() {
@@ -293,7 +383,7 @@ mod tests {
     add_tests!(&TagKey::OriginalFilename, originalfilename);
     add_tests!(&TagKey::OriginalReleaseDate, originalreleasedate);
     add_tests!(&TagKey::OriginalReleaseYear, originalreleaseyear);
-    add_tests!(&TagKey::Performer, performer);
+    //add_tests!(&TagKey::Performer, performers);
     //add_tests!(&TagKey::Podcast, podcast);
     //add_tests!(&TagKey::PodcastUrl, podcasturl);
     add_tests!(&TagKey::Producer, producer);

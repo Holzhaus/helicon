@@ -11,7 +11,7 @@
 use crate::analyzer::CompoundAnalyzerResult;
 use crate::release::ReleaseLike;
 use crate::tag::{read_tags_from_path, Tag, TagKey, TagType};
-use crate::track::{AnalyzedTrackMetadata, TrackLike};
+use crate::track::{AnalyzedTrackMetadata, InvolvedPerson, TrackLike};
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::ffi::OsStr;
@@ -290,10 +290,10 @@ impl TaggedFile {
         self.set_tag_value(&TagKey::OriginalFilename, track.original_filename());
         self.set_tag_value(&TagKey::OriginalReleaseDate, track.original_release_date());
         self.set_tag_value(&TagKey::OriginalReleaseYear, track.original_release_year());
-        self.set_tag_values(
-            &TagKey::Performer,
-            track.performer().collect::<Vec<_>>().as_slice(),
-        );
+        //self.set_tag_values(
+        //    &TagKey::Performer,
+        //    track.performer().collect::<Vec<_>>().as_slice(),
+        //);
         self.set_tag_values(
             &TagKey::Producer,
             track.producer().collect::<Vec<_>>().as_slice(),
@@ -554,8 +554,8 @@ impl TrackLike for TaggedFile {
             .map(Cow::from)
     }
 
-    fn performer(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(&TagKey::Performer).map(Cow::from)
+    fn performers(&self) -> Option<Vec<InvolvedPerson<'_>>> {
+        self.tags().iter().find_map(|tag| tag.performers())
     }
 
     fn producer(&self) -> impl Iterator<Item = Cow<'_, str>> {

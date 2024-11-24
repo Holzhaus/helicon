@@ -9,11 +9,15 @@
 //! Support for ID3 tags.
 
 use crate::tag::{Tag, TagKey, TagType};
+use crate::track::InvolvedPerson;
 use id3::{
-    frame::{Comment, ExtendedText, UniqueFileIdentifier},
+    frame::{
+        Comment, ExtendedText, Frame, InvolvedPeopleList, InvolvedPeopleListItem,
+        UniqueFileIdentifier,
+    },
     Content, TagLike,
 };
-use std::borrow::{Borrow, Cow};
+use std::borrow::Cow;
 use std::iter;
 use std::mem;
 use std::path::Path;
@@ -36,13 +40,18 @@ enum FrameId<'a> {
     CombinedText(&'a str, CombinedTextPart),
     /// Extended Text frame (`TXXX`).
     ExtendedText(&'a str),
-    /// Text Frame with multiple values.
-    MultiValuedText(&'a str, &'a str),
     /// Unique File Identifier frame (`UFID`).
     UniqueFileIdentifier(&'a str),
     /// Comment frame (`COMM`).
     Comment(&'a str),
+    /// Involved Person List in a `IPLS`/`TMCL`/`TIPL` frame.
+    InvolvedPersonList(&'a str),
+    /// Involved Person in a `IPLS`/`TMCL`/`TIPL` frame.
+    InvolvedPerson(&'a str, &'a str),
 }
+
+const IPLS_NON_PERFORMER_INVOLVEMENTS: [&str; 5] =
+    ["arranger", "engineer", "DJ-mix", "mix", "producer"];
 
 /// ID3 tag (version 2).
 #[derive(Debug)]
@@ -77,8 +86,8 @@ impl ID3v2Tag {
             TagKey::AlbumSortOrder => FrameId::Text("TSOA").into(),
             TagKey::Arranger => match self.data.version() {
                 id3::Version::Id3v22 => None,
-                id3::Version::Id3v23 => FrameId::MultiValuedText("IPLS", "arranger").into(),
-                id3::Version::Id3v24 => FrameId::MultiValuedText("TIPL", "arranger").into(),
+                id3::Version::Id3v23 => FrameId::InvolvedPerson("IPLS", "arranger").into(),
+                id3::Version::Id3v24 => FrameId::InvolvedPerson("TIPL", "arranger").into(),
             },
             TagKey::Artist => FrameId::Text("TPE1").into(),
             TagKey::ArtistSortOrder => FrameId::Text("TSOP").into(),
@@ -103,8 +112,8 @@ impl ID3v2Tag {
             TagKey::EncoderSettings => FrameId::Text("TSSE").into(),
             TagKey::Engineer => match self.data.version() {
                 id3::Version::Id3v22 => None,
-                id3::Version::Id3v23 => FrameId::MultiValuedText("IPLS", "engineer").into(),
-                id3::Version::Id3v24 => FrameId::MultiValuedText("TIPL", "engineer").into(),
+                id3::Version::Id3v23 => FrameId::InvolvedPerson("IPLS", "engineer").into(),
+                id3::Version::Id3v24 => FrameId::InvolvedPerson("TIPL", "engineer").into(),
             },
             TagKey::GaplessPlayback => None,
             TagKey::Genre => FrameId::Text("TCON").into(),
@@ -118,13 +127,13 @@ impl ID3v2Tag {
             TagKey::Media => FrameId::Text("TMED").into(),
             TagKey::DjMixer => match self.data.version() {
                 id3::Version::Id3v22 => None,
-                id3::Version::Id3v23 => FrameId::MultiValuedText("IPLS", "DJ-mix").into(),
-                id3::Version::Id3v24 => FrameId::MultiValuedText("TIPL", "DJ-mix").into(),
+                id3::Version::Id3v23 => FrameId::InvolvedPerson("IPLS", "DJ-mix").into(),
+                id3::Version::Id3v24 => FrameId::InvolvedPerson("TIPL", "DJ-mix").into(),
             },
             TagKey::Mixer => match self.data.version() {
                 id3::Version::Id3v22 => None,
-                id3::Version::Id3v23 => FrameId::MultiValuedText("IPLS", "mix").into(),
-                id3::Version::Id3v24 => FrameId::MultiValuedText("TIPL", "mix").into(),
+                id3::Version::Id3v23 => FrameId::InvolvedPerson("IPLS", "mix").into(),
+                id3::Version::Id3v24 => FrameId::InvolvedPerson("TIPL", "mix").into(),
             },
             TagKey::Mood => match self.data.version() {
                 id3::Version::Id3v22 | id3::Version::Id3v23 => None,
@@ -167,13 +176,22 @@ impl ID3v2Tag {
                 id3::Version::Id3v24 => FrameId::Text("TDOR").into(),
             },
             TagKey::OriginalReleaseYear => None,
-            TagKey::Performer => None, // TODO: Add mapping to "TMCL:instrument" (ID3v2.4) or "IPLS:instrument" (ID3v2.3)
+            TagKey::Performers => match self.data.version() {
+                id3::Version::Id3v22 => None,
+                id3::Version::Id3v23 => FrameId::InvolvedPersonList("IPLS").into(),
+                id3::Version::Id3v24 => FrameId::InvolvedPersonList("TMCL").into(),
+            },
+            TagKey::Performer(instrument) => match self.data.version() {
+                id3::Version::Id3v22 => None,
+                id3::Version::Id3v23 => FrameId::InvolvedPerson("IPLS", instrument).into(),
+                id3::Version::Id3v24 => FrameId::InvolvedPerson("TMCL", instrument).into(),
+            },
             TagKey::Podcast => None,
             TagKey::PodcastUrl => None,
             TagKey::Producer => match self.data.version() {
                 id3::Version::Id3v22 => None,
-                id3::Version::Id3v23 => FrameId::MultiValuedText("IPLS", "producer").into(),
-                id3::Version::Id3v24 => FrameId::MultiValuedText("TIPL", "producer").into(),
+                id3::Version::Id3v23 => FrameId::InvolvedPerson("IPLS", "producer").into(),
+                id3::Version::Id3v24 => FrameId::InvolvedPerson("TIPL", "producer").into(),
             },
             TagKey::Rating => FrameId::Text("POPM").into(),
             TagKey::RecordLabel => FrameId::Text("TPUB").into(),
@@ -249,23 +267,6 @@ impl ID3v2Tag {
             .map(|extended_text| extended_text.value.as_str())
     }
 
-    /// Get the content of multi-valued text frames (e.g., TIPL, IPLS) as string pairs.
-    fn get_multi_valued_texts<'a>(
-        &'a self,
-        frame_id: &'a str,
-    ) -> impl Iterator<Item = (&'a str, &'a str)> {
-        // TODO: Once it becomes stable, `std::iter::Iterator::array_chunks` should be used instead.
-        let descriptions = self
-            .get_frames(frame_id)
-            .enumerate()
-            .filter_map(|(i, v)| ((i & 1) == 0).then_some(v));
-        let values = self
-            .get_frames(frame_id)
-            .enumerate()
-            .filter_map(|(i, v)| ((i & 1) == 1).then_some(v));
-        descriptions.zip(values)
-    }
-
     /// Get the content of unique file identifier frames as byte slices.
     fn get_unique_file_identifiers<'a>(
         &'a self,
@@ -318,7 +319,7 @@ impl ID3v2Tag {
                 Some(new_id) => {
                     log::info!("Converting ID3 frame {id} to {new_id}");
                     let content = frame.content().to_owned();
-                    id3::Frame::with_content(new_id, content)
+                    Frame::with_content(new_id, content)
                 }
                 None => {
                     log::info!("Removing unsupported ID3 frame {id}");
@@ -371,9 +372,6 @@ impl Tag for ID3v2Tag {
                     .get_unique_file_identifiers(id)
                     .map(std::str::from_utf8)
                     .find_map(Result::ok),
-                FrameId::MultiValuedText(id, desc) => self
-                    .get_multi_valued_texts(id)
-                    .find_map(|(frame_desc, text)| (frame_desc == desc).then_some(text)),
                 FrameId::Comment(desc) => self.data.comments().find_map(|comment| {
                     if comment.lang == "eng" && comment.description == desc {
                         Some(comment.text.as_str())
@@ -381,6 +379,20 @@ impl Tag for ID3v2Tag {
                         None
                     }
                 }),
+                FrameId::InvolvedPersonList(_) => {
+                    // Use the dedicated `performers()` method instead.
+                    unreachable!();
+                }
+                FrameId::InvolvedPerson(id, involvement) => self
+                    .data
+                    .get(id)
+                    .and_then(|frame| frame.content().involved_people_list())
+                    .and_then(|people_list| {
+                        people_list.items.iter().find_map(|item| {
+                            (item.involvement.as_str() == involvement)
+                                .then_some(item.involvee.as_str())
+                        })
+                    }),
             })
     }
 
@@ -408,23 +420,34 @@ impl Tag for ID3v2Tag {
                     self.data
                         .remove_unique_file_identifier_by_owner_identifier(owner_id);
                 }
-                #[expect(unused_results)]
-                FrameId::MultiValuedText(id, desc) => {
-                    let new_value = self
-                        .get_multi_valued_texts(id)
-                        .filter(|(frame_desc, _)| frame_desc != &desc)
-                        .fold(String::new(), |acc: String, (desc, text)| {
-                            let sep = if acc.is_empty() { "" } else { "\0" };
-                            acc + sep + desc + "\0" + text
-                        });
-                    if new_value.is_empty() {
-                        self.data.remove(id);
-                    } else {
-                        self.data.set_text(id, new_value);
-                    }
-                }
                 FrameId::Comment(desc) => {
                     self.data.remove_comment(Some(desc), None);
+                }
+                FrameId::InvolvedPersonList(_) => {
+                    unreachable!();
+                }
+                FrameId::InvolvedPerson(id, involvement) => {
+                    let remaining_items = self
+                        .data
+                        .get(id)
+                        .and_then(|frame| frame.content().involved_people_list())
+                        .map(|people_list| {
+                            people_list
+                                .items
+                                .clone()
+                                .into_iter()
+                                .filter(|item| item.involvement.as_str() != involvement)
+                                .collect::<Vec<_>>()
+                        });
+                    let _unused = self.data.remove(id);
+                    if let Some(items) = remaining_items {
+                        if !items.is_empty() {
+                            let _unused = self.data.add_frame(Frame::with_content(
+                                id,
+                                Content::InvolvedPeopleList(InvolvedPeopleList { items }),
+                            ));
+                        }
+                    }
                 }
             }
         }
@@ -438,16 +461,34 @@ impl Tag for ID3v2Tag {
 
         let frame = self.tag_key_to_frame(key);
         match frame {
-            Some(FrameId::MultiValuedText(id, desc)) => {
-                let new_value = self
-                    .get_multi_valued_texts(id)
-                    .filter(|(frame_desc, _)| frame_desc != &desc)
-                    .chain(values.iter().map(|value| (desc, value.borrow())))
-                    .fold(String::new(), |acc: String, (desc, text)| {
-                        let sep = if acc.is_empty() { "" } else { "\0" };
-                        acc + sep + desc + "\0" + text
-                    });
-                self.data.set_text(id, new_value);
+            Some(FrameId::InvolvedPersonList(_)) => {
+                unreachable!();
+            }
+            Some(FrameId::InvolvedPerson(id, involvement)) => {
+                let items = self
+                    .data
+                    .get(id)
+                    .and_then(|frame| frame.content().involved_people_list())
+                    .into_iter()
+                    .flat_map(|people_list| {
+                        people_list
+                            .items
+                            .clone()
+                            .into_iter()
+                            .filter(|item| item.involvement.as_str() != involvement)
+                    })
+                    .chain(values.iter().map(|involvee| InvolvedPeopleListItem {
+                        involvement: involvement.to_owned(),
+                        involvee: involvee.to_string(),
+                    }))
+                    .collect::<Vec<_>>();
+                let _unused = self.data.remove(id);
+                if !items.is_empty() {
+                    let _unused = self.data.add_frame(Frame::with_content(
+                        id,
+                        Content::InvolvedPeopleList(InvolvedPeopleList { items }),
+                    ));
+                }
             }
             _ => {
                 self.set(key, values.join(" / ").into());
@@ -488,17 +529,6 @@ impl Tag for ID3v2Tag {
                         value: value.into_owned(),
                     });
                 }
-                FrameId::MultiValuedText(id, desc) => {
-                    let new_value = self
-                        .get_multi_valued_texts(id)
-                        .filter(|(frame_desc, _)| frame_desc != &desc)
-                        .chain(iter::once((desc, value.borrow())))
-                        .fold(String::new(), |acc: String, (desc, text)| {
-                            let sep = if acc.is_empty() { "" } else { "\0" };
-                            acc + sep + desc + "\0" + text
-                        });
-                    self.data.set_text(id, new_value);
-                }
                 #[expect(unused_results)]
                 FrameId::UniqueFileIdentifier(owner_id) => {
                     self.data.add_frame(UniqueFileIdentifier {
@@ -514,6 +544,35 @@ impl Tag for ID3v2Tag {
                         text: value.to_string(),
                     });
                 }
+                FrameId::InvolvedPersonList(_) => {
+                    unreachable!();
+                }
+                FrameId::InvolvedPerson(id, involvement) => {
+                    let items = self
+                        .data
+                        .get(id)
+                        .and_then(|frame| frame.content().involved_people_list())
+                        .into_iter()
+                        .flat_map(|people_list| {
+                            people_list
+                                .items
+                                .clone()
+                                .into_iter()
+                                .filter(|item| item.involvement.as_str() != involvement)
+                        })
+                        .chain(iter::once(InvolvedPeopleListItem {
+                            involvement: involvement.to_owned(),
+                            involvee: value.to_string(),
+                        }))
+                        .collect::<Vec<_>>();
+                    let _unused = self.data.remove(id);
+                    if !items.is_empty() {
+                        let _unused = self.data.add_frame(Frame::with_content(
+                            id,
+                            Content::InvolvedPeopleList(InvolvedPeopleList { items }),
+                        ));
+                    }
+                }
             }
         }
     }
@@ -525,6 +584,31 @@ impl Tag for ID3v2Tag {
 
     fn maybe_as_id3v2_mut(&mut self) -> Option<&mut ID3v2Tag> {
         Some(self)
+    }
+
+    fn performers(&self) -> Option<Vec<InvolvedPerson<'_>>> {
+        self.tag_key_to_frame(&TagKey::Performers)
+            .and_then(|frame_id| match frame_id {
+                FrameId::InvolvedPersonList(id) => self.data.get(id),
+                _ => None,
+            })
+            .and_then(|frame| frame.content().involved_people_list())
+            .map(|people_list| {
+                people_list
+                    .items
+                    .iter()
+                    .filter(|item| match self.data.version() {
+                        id3::Version::Id3v22 | id3::Version::Id3v23 => {
+                            !IPLS_NON_PERFORMER_INVOLVEMENTS.contains(&item.involvement.as_str())
+                        }
+                        id3::Version::Id3v24 => true,
+                    })
+                    .map(|item| InvolvedPerson {
+                        involvement: Cow::from(&item.involvement),
+                        involvee: Cow::from(&item.involvee),
+                    })
+                    .collect()
+            })
     }
 }
 
@@ -691,9 +775,24 @@ mod tests {
             Some("f53d7dd0-fdbd-3901-adf8-9b1ab3121e9e")
         );
         assert_eq!(tag.get(&TagKey::OriginalReleaseDate), Some("1958"));
-        // TODO Performer
-        // TODO Producer
-        //assert_eq!(tag.get(&TagKey::Producer), Some("Dave Usher"));
+        assert_eq!(
+            tag.performers(),
+            Some(vec![
+                InvolvedPerson {
+                    involvement: "double bass".into(),
+                    involvee: "Israel Crosby".into(),
+                },
+                InvolvedPerson {
+                    involvement: "drums (drum set)".into(),
+                    involvee: "Vernell Fournier".into(),
+                },
+                InvolvedPerson {
+                    involvement: "piano".into(),
+                    involvee: "Ahmad Jamal".into(),
+                }
+            ])
+        );
+        assert_eq!(tag.get(&TagKey::Producer), Some("Dave Usher"));
         assert_eq!(tag.get(&TagKey::RecordLabel), Some("Argo"));
         assert_eq!(tag.get(&TagKey::ReleaseCountry), Some("US"));
         assert_eq!(tag.get(&TagKey::ReleaseStatus), Some("official"));
@@ -912,7 +1011,7 @@ mod tests {
         originalreleasedate_id3v24
     );
     //add_tests_with_id3_versions_all!(&TagKey::OriginalReleaseYear, originalreleaseyear);
-    //add_tests_with_id3_versions_all!(&TagKey::Performer, performer);
+    //add_tests_with_id3_versions_all!(&TagKey::Performer, performers);
     //add_tests_with_id3_versions_all!(&TagKey::Podcast, podcast);
     //add_tests_with_id3_versions_all!(&TagKey::PodcastUrl, podcasturl);
     add_tests_with_id3_versions_all!(&TagKey::Rating, rating);
