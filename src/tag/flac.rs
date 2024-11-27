@@ -146,19 +146,31 @@ impl Tag for FlacTag {
     }
 
     fn set(&mut self, key: &TagKey, value: Cow<'_, str>) {
-        if let Some(frame) = Self::tag_key_to_frame(key) {
-            if let TagKey::Performer(instrument) = &key {
-                self.data
-                    .set_vorbis(frame, vec![format!("{value} ({instrument}")]);
-            } else {
-                self.data.set_vorbis(frame, vec![value]);
-            }
-        }
+        self.set_multiple(key, &[value]);
     }
 
     fn set_multiple<'a>(&'a mut self, key: &TagKey, values: &[Cow<'a, str>]) {
         if let Some(frame) = Self::tag_key_to_frame(key) {
-            self.data.set_vorbis(frame, values.to_vec());
+            match key {
+                TagKey::Performer(instrument) => {
+                    let items = self
+                        .performers()
+                        .into_iter()
+                        .flatten()
+                        .filter(|person| &person.involvement != instrument)
+                        .map(|person| {
+                            unparse_performer_value(&person.involvee, &person.involvement)
+                        })
+                        .chain(
+                            values
+                                .iter()
+                                .map(|value| unparse_performer_value(value, instrument)),
+                        )
+                        .collect::<Vec<_>>();
+                    self.data.set_vorbis(frame, items);
+                }
+                _ => self.data.set_vorbis(frame, values.to_vec()),
+            }
         }
     }
 
@@ -198,6 +210,11 @@ fn parse_performer_value(value: &str) -> InvolvedPerson<'_> {
             involvement: Cow::from(""),
             involvee: Cow::from(value),
         })
+}
+
+/// Create a performer value in the form `involvee (involvement)`.
+fn unparse_performer_value(value: &str, instrument: &str) -> String {
+    format!("{value} ({instrument})")
 }
 
 #[cfg(test)]
