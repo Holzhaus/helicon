@@ -17,6 +17,15 @@ use std::borrow::Cow;
 use std::iter::Iterator;
 use std::path::Path;
 
+/// An person that was involved in this track's making.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InvolvedPerson<'a> {
+    /// The involvement (e.g., the instrument played or the role of the person)
+    pub involvement: Cow<'a, str>,
+    /// The name of the involved persoon.
+    pub involvee: Cow<'a, str>,
+}
+
 /// Represent a generic release, independent of the underlying source.
 pub trait TrackLike {
     /// AcoustID associated with the track.
@@ -162,7 +171,7 @@ pub trait TrackLike {
     fn original_release_year(&self) -> Option<Cow<'_, str>>;
 
     /// Performer.
-    fn performer(&self) -> impl Iterator<Item = Cow<'_, str>>;
+    fn performers(&self) -> Option<Vec<InvolvedPerson<'_>>>;
 
     /// Producer Name(s).
     fn producer(&self) -> impl Iterator<Item = Cow<'_, str>>;
@@ -609,7 +618,7 @@ impl TrackLike for MusicBrainzReleaseTrack {
             .map(|date| Cow::from(date.format("%Y").to_string()))
     }
 
-    fn performer(&self) -> impl Iterator<Item = Cow<'_, str>> {
+    fn performers(&self) -> Option<Vec<InvolvedPerson<'_>>> {
         self.find_release_relations_by_type(&["performer", "instrument", "vocal"])
             .filter_map(|relation| {
                 if let MusicBrainzRelationContent::Artist(artist) = &relation.content {
@@ -620,12 +629,13 @@ impl TrackLike for MusicBrainzReleaseTrack {
             })
             .map(|(artist, attributes)| {
                 let attrs = attributes.iter().flat_map(|vec| vec.iter()).join(", ");
-                if attrs.is_empty() {
-                    Cow::from(artist)
-                } else {
-                    Cow::from(format!("{artist} ({attrs})"))
+                InvolvedPerson {
+                    involvement: Cow::from(attrs),
+                    involvee: Cow::from(artist),
                 }
             })
+            .collect::<Vec<_>>()
+            .into()
     }
 
     fn producer(&self) -> impl Iterator<Item = Cow<'_, str>> {

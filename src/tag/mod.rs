@@ -7,6 +7,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 //! Tags and tag-related functions.
+use crate::track::InvolvedPerson;
 use std::borrow::Cow;
 use std::path::Path;
 
@@ -16,7 +17,7 @@ pub mod flac;
 pub mod id3;
 
 /// A tag key describes the kind of information in a generic, format-independent way.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TagKey {
     // Track Level
     /// AcoustID associated with the track.
@@ -121,8 +122,10 @@ pub enum TagKey {
     OriginalReleaseDate,
     /// The year of the original release date in the format YYYY.
     OriginalReleaseYear,
-    /// Performer.
-    Performer,
+    /// All performers.
+    Performers,
+    /// Performer of a specific instrument.
+    Performer(String),
     /// Producer Name(s).
     Producer,
     /// Rating of the track.
@@ -257,15 +260,15 @@ pub trait Tag: Send + Sync {
     /// Get the tag type.
     fn tag_type(&self) -> TagType;
     /// Get the string value for the tag key.
-    fn get(&self, key: TagKey) -> Option<&str>;
+    fn get<'a>(&'a self, key: &'a TagKey) -> Option<&'a str>;
     /// Set the value for tag key..
-    fn set(&mut self, key: TagKey, value: Cow<'_, str>);
+    fn set(&mut self, key: &TagKey, value: Cow<'_, str>);
     /// Set the value for tag key to multiple values.
-    fn set_multiple<'a>(&'a mut self, key: TagKey, value: &[Cow<'a, str>]);
+    fn set_multiple<'a>(&'a mut self, key: &TagKey, value: &[Cow<'a, str>]);
     /// Unset the value for the tag key.
-    fn clear(&mut self, key: TagKey);
+    fn clear(&mut self, key: &TagKey);
     /// Set or clear the value for tag key.
-    fn set_or_clear(&mut self, key: TagKey, value: Option<Cow<'_, str>>) {
+    fn set_or_clear(&mut self, key: &TagKey, value: Option<Cow<'_, str>>) {
         if let Some(val) = value {
             self.set(key, val);
         } else {
@@ -275,10 +278,23 @@ pub trait Tag: Send + Sync {
     /// Write the tags to the path.
     fn write(&mut self, path: &Path) -> crate::Result<()>;
 
-    /// Get mutable reference to the underlying [`id3::ID3v2Tag`] (is this is an ID3v2 tag).
+    /// Get mutable reference to the underlying [`id3::ID3v2Tag`] (if this is an ID3v2 tag).
     #[cfg(feature = "id3")]
     fn maybe_as_id3v2_mut(&mut self) -> Option<&mut id3::ID3v2Tag> {
         None
+    }
+
+    /// Get the list of performers and instruments.
+    fn performers(&self) -> Option<Vec<InvolvedPerson<'_>>>;
+
+    /// Get the list performers for the given instrument.
+    fn performer(&self, instrument: &str) -> Option<Vec<InvolvedPerson<'_>>> {
+        self.performers().map(|performers| {
+            performers
+                .into_iter()
+                .filter(|involved_person| involved_person.involvement == instrument)
+                .collect()
+        })
     }
 }
 

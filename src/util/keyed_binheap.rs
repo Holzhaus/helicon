@@ -15,10 +15,11 @@
 //! present in the heap.
 
 use std::cmp::Ordering;
-use std::collections::BinaryHeap;
+use std::collections::binary_heap::{BinaryHeap, IntoIter};
+use std::iter::Map;
 
 /// An item that is stored in [`KeyedBinaryHeap`].
-struct Item<T, K>
+pub struct Item<T, K>
 where
     K: Eq + Ord,
 {
@@ -83,7 +84,6 @@ where
     }
 
     /// Create a new binary heap with the given key function.
-    #[cfg(test)]
     pub const fn new(key_fn: F) -> Self {
         let heap = BinaryHeap::new();
         KeyedBinaryHeap { heap, key_fn }
@@ -102,6 +102,19 @@ where
             .into_iter()
             .map(|item| item.value)
             .collect::<Vec<T>>()
+    }
+}
+
+impl<T, F, K> IntoIterator for KeyedBinaryHeap<T, F, K>
+where
+    F: Fn(&T) -> K,
+    K: Eq + Ord,
+{
+    type Item = T;
+    type IntoIter = Map<IntoIter<Item<T, K>>, fn(Item<T, K>) -> T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.heap.into_iter().map(|item| item.value)
     }
 }
 

@@ -9,29 +9,49 @@
 //! Support for ID3 tags.
 
 use crate::tag::{Tag, TagKey, TagType};
+use crate::track::InvolvedPerson;
 use id3::{
-    frame::{Comment, ExtendedText, UniqueFileIdentifier},
-    TagLike,
+    frame::{
+        Comment, ExtendedText, Frame, InvolvedPeopleList, InvolvedPeopleListItem,
+        UniqueFileIdentifier,
+    },
+    Content, TagLike,
 };
-use std::borrow::{Borrow, Cow};
+use std::borrow::Cow;
 use std::iter;
 use std::mem;
 use std::path::Path;
+
+/// Determines which part of an combined text part.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum CombinedTextPart {
+    /// The first value.
+    First,
+    /// The second value.
+    Second,
+}
 
 /// ID3 frame ID.
 #[derive(Debug)]
 enum FrameId<'a> {
     /// Text frame.
     Text(&'a str),
+    /// Special kind of text frame, where multiple values are joined with a slash. The second field is the index.
+    CombinedText(&'a str, CombinedTextPart),
     /// Extended Text frame (`TXXX`).
     ExtendedText(&'a str),
-    /// Text Frame with multiple values.
-    MultiValuedText(&'a str, &'a str),
     /// Unique File Identifier frame (`UFID`).
     UniqueFileIdentifier(&'a str),
     /// Comment frame (`COMM`).
     Comment(&'a str),
+    /// Involved Person List in a `IPLS`/`TMCL`/`TIPL` frame.
+    InvolvedPersonList(&'a str),
+    /// Involved Person in a `IPLS`/`TMCL`/`TIPL` frame.
+    InvolvedPerson(&'a str, &'a str),
 }
+
+const IPLS_NON_PERFORMER_INVOLVEMENTS: [&str; 5] =
+    ["arranger", "engineer", "DJ-mix", "mix", "producer"];
 
 /// ID3 tag (version 2).
 #[derive(Debug)]
@@ -50,12 +70,18 @@ impl ID3v2Tag {
 
     /// Read the ID3 tag from the path
     pub fn read_from_path(path: impl AsRef<Path>) -> crate::Result<Self> {
-        let data = id3::Tag::read_from_path(path)?;
+        let data = id3::Tag::read_from_path(path).or_else(|err| {
+            if matches!(err.kind, id3::ErrorKind::NoTag) {
+                Ok(id3::Tag::new())
+            } else {
+                Err(err)
+            }
+        })?;
         Ok(ID3v2Tag { data })
     }
 
     /// Get the ID3 frame for a tag key.
-    fn tag_key_to_frame(&self, key: TagKey) -> Option<FrameId<'static>> {
+    fn tag_key_to_frame<'a>(&self, key: &'a TagKey) -> Option<FrameId<'a>> {
         #[expect(clippy::match_same_arms)]
         match key {
             TagKey::AcoustId => FrameId::ExtendedText("Acoustid Id").into(),
@@ -66,8 +92,8 @@ impl ID3v2Tag {
             TagKey::AlbumSortOrder => FrameId::Text("TSOA").into(),
             TagKey::Arranger => match self.data.version() {
                 id3::Version::Id3v22 => None,
-                id3::Version::Id3v23 => FrameId::MultiValuedText("IPLS", "arranger").into(),
-                id3::Version::Id3v24 => FrameId::MultiValuedText("TIPL", "arranger").into(),
+                id3::Version::Id3v23 => FrameId::InvolvedPerson("IPLS", "arranger").into(),
+                id3::Version::Id3v24 => FrameId::InvolvedPerson("TIPL", "arranger").into(),
             },
             TagKey::Artist => FrameId::Text("TPE1").into(),
             TagKey::ArtistSortOrder => FrameId::Text("TSOP").into(),
@@ -83,7 +109,7 @@ impl ID3v2Tag {
             TagKey::Conductor => FrameId::Text("TPE3").into(),
             TagKey::Copyright => FrameId::Text("TCOP").into(),
             TagKey::Director => FrameId::ExtendedText("DIRECTOR").into(),
-            TagKey::DiscNumber => FrameId::Text("TPOS").into(),
+            TagKey::DiscNumber => FrameId::CombinedText("TPOS", CombinedTextPart::First).into(),
             TagKey::DiscSubtitle => match self.data.version() {
                 id3::Version::Id3v22 | id3::Version::Id3v23 => None,
                 id3::Version::Id3v24 => FrameId::Text("TSST").into(),
@@ -92,8 +118,8 @@ impl ID3v2Tag {
             TagKey::EncoderSettings => FrameId::Text("TSSE").into(),
             TagKey::Engineer => match self.data.version() {
                 id3::Version::Id3v22 => None,
-                id3::Version::Id3v23 => FrameId::MultiValuedText("IPLS", "engineer").into(),
-                id3::Version::Id3v24 => FrameId::MultiValuedText("TIPL", "engineer").into(),
+                id3::Version::Id3v23 => FrameId::InvolvedPerson("IPLS", "engineer").into(),
+                id3::Version::Id3v24 => FrameId::InvolvedPerson("TIPL", "engineer").into(),
             },
             TagKey::GaplessPlayback => None,
             TagKey::Genre => FrameId::Text("TCON").into(),
@@ -107,13 +133,13 @@ impl ID3v2Tag {
             TagKey::Media => FrameId::Text("TMED").into(),
             TagKey::DjMixer => match self.data.version() {
                 id3::Version::Id3v22 => None,
-                id3::Version::Id3v23 => FrameId::MultiValuedText("IPLS", "DJ-mix").into(),
-                id3::Version::Id3v24 => FrameId::MultiValuedText("TIPL", "DJ-mix").into(),
+                id3::Version::Id3v23 => FrameId::InvolvedPerson("IPLS", "DJ-mix").into(),
+                id3::Version::Id3v24 => FrameId::InvolvedPerson("TIPL", "DJ-mix").into(),
             },
             TagKey::Mixer => match self.data.version() {
                 id3::Version::Id3v22 => None,
-                id3::Version::Id3v23 => FrameId::MultiValuedText("IPLS", "mix").into(),
-                id3::Version::Id3v24 => FrameId::MultiValuedText("TIPL", "mix").into(),
+                id3::Version::Id3v23 => FrameId::InvolvedPerson("IPLS", "mix").into(),
+                id3::Version::Id3v24 => FrameId::InvolvedPerson("TIPL", "mix").into(),
             },
             TagKey::Mood => match self.data.version() {
                 id3::Version::Id3v22 | id3::Version::Id3v23 => None,
@@ -156,13 +182,22 @@ impl ID3v2Tag {
                 id3::Version::Id3v24 => FrameId::Text("TDOR").into(),
             },
             TagKey::OriginalReleaseYear => None,
-            TagKey::Performer => None, // TODO: Add mapping to "TMCL:instrument" (ID3v2.4) or "IPLS:instrument" (ID3v2.3)
+            TagKey::Performers => match self.data.version() {
+                id3::Version::Id3v22 => None,
+                id3::Version::Id3v23 => FrameId::InvolvedPersonList("IPLS").into(),
+                id3::Version::Id3v24 => FrameId::InvolvedPersonList("TMCL").into(),
+            },
+            TagKey::Performer(instrument) => match self.data.version() {
+                id3::Version::Id3v22 => None,
+                id3::Version::Id3v23 => FrameId::InvolvedPerson("IPLS", instrument).into(),
+                id3::Version::Id3v24 => FrameId::InvolvedPerson("TMCL", instrument).into(),
+            },
             TagKey::Podcast => None,
             TagKey::PodcastUrl => None,
             TagKey::Producer => match self.data.version() {
                 id3::Version::Id3v22 => None,
-                id3::Version::Id3v23 => FrameId::MultiValuedText("IPLS", "producer").into(),
-                id3::Version::Id3v24 => FrameId::MultiValuedText("TIPL", "producer").into(),
+                id3::Version::Id3v23 => FrameId::InvolvedPerson("IPLS", "producer").into(),
+                id3::Version::Id3v24 => FrameId::InvolvedPerson("TIPL", "producer").into(),
             },
             TagKey::Rating => FrameId::Text("POPM").into(),
             TagKey::RecordLabel => FrameId::Text("TPUB").into(),
@@ -195,13 +230,14 @@ impl ID3v2Tag {
             TagKey::ShowNameSortOrder => None,
             TagKey::ShowMovement => FrameId::ExtendedText("SHOWMOVEMENT").into(),
             TagKey::Subtitle => FrameId::Text("TIT3").into(),
-            TagKey::TotalDiscs => FrameId::Text("TPOS").into(),
-            TagKey::TotalTracks => FrameId::Text("TRCK").into(),
-            TagKey::TrackNumber => FrameId::Text("TRCK").into(),
+            TagKey::TotalDiscs => FrameId::CombinedText("TPOS", CombinedTextPart::Second).into(),
+            TagKey::TotalTracks => FrameId::CombinedText("TRCK", CombinedTextPart::Second).into(),
+            TagKey::TrackNumber => FrameId::CombinedText("TRCK", CombinedTextPart::First).into(),
             TagKey::TrackTitle => FrameId::Text("TIT2").into(),
             TagKey::TrackTitleSortOrder => FrameId::Text("TSOT").into(),
             TagKey::ArtistWebsite => FrameId::Text("WOAR").into(),
-            TagKey::WorkTitle => FrameId::ExtendedText("WORK TIT1").into(),
+            TagKey::WorkTitle => FrameId::ExtendedText("WORK").into(), // TODO: Add mapping to "TIT1", too?
+
             TagKey::Writer => FrameId::ExtendedText("Writer").into(),
         }
     }
@@ -210,7 +246,21 @@ impl ID3v2Tag {
     fn get_frames<'a>(&'a self, frame_id: &'a str) -> impl Iterator<Item = &'a str> {
         self.data
             .get(frame_id)
-            .and_then(|frame| frame.content().text_values())
+            .and_then(|frame| {
+                let mut text_values = None;
+                match frame.content() {
+                    Content::Text(_) | Content::ExtendedText(_) => {
+                        text_values = frame.content().text_values();
+                    }
+                    Content::Unknown(unknown) => {
+                        println!("{:02x?}", &unknown.data);
+                    }
+                    _ => (),
+                };
+                //let use_unknown = text_values.is_none();
+                //text_values.into_iter().map(|it| it.chain(frame.content().to_unknown().ok().filter(|_| use_unknown).into_iter().filter_map(|unk| String::from_utf8(unk.data).ok())))
+                text_values
+            })
             .into_iter()
             .flatten()
     }
@@ -221,23 +271,6 @@ impl ID3v2Tag {
             .extended_texts()
             .filter(move |extended_text| extended_text.description == description)
             .map(|extended_text| extended_text.value.as_str())
-    }
-
-    /// Get the content of multi-valued text frames (e.g., TIPL, IPLS) as string pairs.
-    fn get_multi_valued_texts<'a>(
-        &'a self,
-        frame_id: &'a str,
-    ) -> impl Iterator<Item = (&'a str, &'a str)> {
-        // TODO: Once it becomes stable, `std::iter::Iterator::array_chunks` should be used instead.
-        let descriptions = self
-            .get_frames(frame_id)
-            .enumerate()
-            .filter_map(|(i, v)| ((i & 1) == 0).then_some(v));
-        let values = self
-            .get_frames(frame_id)
-            .enumerate()
-            .filter_map(|(i, v)| ((i & 1) == 1).then_some(v));
-        descriptions.zip(values)
     }
 
     /// Get the content of unique file identifier frames as byte slices.
@@ -251,6 +284,23 @@ impl ID3v2Tag {
                 unique_file_identifier.owner_identifier == owner_id
             })
             .map(|unique_file_identifier| unique_file_identifier.identifier.as_slice())
+    }
+
+    /// Get the combined text part as string.
+    fn get_combined_text_part<'a>(
+        &'a self,
+        id: &'a str,
+        part: CombinedTextPart,
+    ) -> Option<&'a str> {
+        self.get_frames(id).next().and_then(|value| {
+            value
+                .split_once('/')
+                .map(|(first, second)| match part {
+                    CombinedTextPart::First => first,
+                    CombinedTextPart::Second => second,
+                })
+                .or_else(|| (part == CombinedTextPart::First).then_some(value))
+        })
     }
 
     /// Migrate this tag to the given ID3 version.
@@ -275,7 +325,7 @@ impl ID3v2Tag {
                 Some(new_id) => {
                     log::info!("Converting ID3 frame {id} to {new_id}");
                     let content = frame.content().to_owned();
-                    id3::Frame::with_content(new_id, content)
+                    Frame::with_content(new_id, content)
                 }
                 None => {
                     log::info!("Removing unsupported ID3 frame {id}");
@@ -304,18 +354,30 @@ impl Tag for ID3v2Tag {
         }
     }
 
-    fn get(&self, key: TagKey) -> Option<&str> {
+    fn get<'a>(&'a self, key: &'a TagKey) -> Option<&'a str> {
         self.tag_key_to_frame(key)
             .and_then(|frame_id| match frame_id {
                 FrameId::Text(id) => self.get_frames(id).next(),
-                FrameId::ExtendedText(id) => self.get_extended_texts(id).next(),
+                FrameId::CombinedText(id, part) => self.get_combined_text_part(id, part),
+                FrameId::ExtendedText(id) => self
+                    .get_extended_texts(id)
+                    .map(|value| {
+                        value
+                            .char_indices()
+                            .next_back()
+                            .map_or(value, |(i, character)| {
+                                if character == '\0' {
+                                    &value[..i]
+                                } else {
+                                    value
+                                }
+                            })
+                    })
+                    .next(),
                 FrameId::UniqueFileIdentifier(id) => self
                     .get_unique_file_identifiers(id)
                     .map(std::str::from_utf8)
                     .find_map(Result::ok),
-                FrameId::MultiValuedText(id, desc) => self
-                    .get_multi_valued_texts(id)
-                    .find_map(|(frame_desc, text)| (frame_desc == desc).then_some(text)),
                 FrameId::Comment(desc) => self.data.comments().find_map(|comment| {
                     if comment.lang == "eng" && comment.description == desc {
                         Some(comment.text.as_str())
@@ -323,16 +385,41 @@ impl Tag for ID3v2Tag {
                         None
                     }
                 }),
+                FrameId::InvolvedPersonList(_) => {
+                    // Use the dedicated `performers()` method instead.
+                    unreachable!();
+                }
+                FrameId::InvolvedPerson(id, involvement) => self
+                    .data
+                    .get(id)
+                    .and_then(|frame| frame.content().involved_people_list())
+                    .and_then(|people_list| {
+                        people_list.items.iter().find_map(|item| {
+                            (item.involvement.as_str() == involvement)
+                                .then_some(item.involvee.as_str())
+                        })
+                    }),
             })
     }
 
-    fn clear(&mut self, key: TagKey) {
+    fn clear(&mut self, key: &TagKey) {
         let frame = self.tag_key_to_frame(key);
         if let Some(frame) = frame {
             match frame {
-                #[expect(unused_results)]
-                FrameId::Text(id) => {
-                    self.data.remove(id);
+                FrameId::Text(id)
+                | FrameId::CombinedText(id, CombinedTextPart::First)
+                | FrameId::InvolvedPersonList(id) => {
+                    let _unused = self.data.remove(id);
+                }
+                FrameId::CombinedText(id, CombinedTextPart::Second) => {
+                    if let Some(value) = self
+                        .get_combined_text_part(id, CombinedTextPart::First)
+                        .map(ToOwned::to_owned)
+                    {
+                        self.data.set_text(id, value);
+                    } else {
+                        let _unused = self.data.remove(id);
+                    }
                 }
                 FrameId::ExtendedText(description) => {
                     self.data.remove_extended_text(Some(description), None);
@@ -341,29 +428,37 @@ impl Tag for ID3v2Tag {
                     self.data
                         .remove_unique_file_identifier_by_owner_identifier(owner_id);
                 }
-                #[expect(unused_results)]
-                FrameId::MultiValuedText(id, desc) => {
-                    let new_value = self
-                        .get_multi_valued_texts(id)
-                        .filter(|(frame_desc, _)| frame_desc != &desc)
-                        .fold(String::new(), |acc: String, (desc, text)| {
-                            let sep = if acc.is_empty() { "" } else { "\0" };
-                            acc + sep + desc + "\0" + text
-                        });
-                    if new_value.is_empty() {
-                        self.data.remove(id);
-                    } else {
-                        self.data.set_text(id, new_value);
-                    }
-                }
                 FrameId::Comment(desc) => {
                     self.data.remove_comment(Some(desc), None);
+                }
+                FrameId::InvolvedPerson(id, involvement) => {
+                    let remaining_items = self
+                        .data
+                        .get(id)
+                        .and_then(|frame| frame.content().involved_people_list())
+                        .map(|people_list| {
+                            people_list
+                                .items
+                                .clone()
+                                .into_iter()
+                                .filter(|item| item.involvement.as_str() != involvement)
+                                .collect::<Vec<_>>()
+                        });
+                    let _unused = self.data.remove(id);
+                    if let Some(items) = remaining_items {
+                        if !items.is_empty() {
+                            let _unused = self.data.add_frame(Frame::with_content(
+                                id,
+                                Content::InvolvedPeopleList(InvolvedPeopleList { items }),
+                            ));
+                        }
+                    }
                 }
             }
         }
     }
 
-    fn set_multiple<'a>(&'a mut self, key: TagKey, values: &[Cow<'a, str>]) {
+    fn set_multiple<'a>(&'a mut self, key: &TagKey, values: &[Cow<'a, str>]) {
         if values.is_empty() {
             self.clear(key);
             return;
@@ -371,16 +466,34 @@ impl Tag for ID3v2Tag {
 
         let frame = self.tag_key_to_frame(key);
         match frame {
-            Some(FrameId::MultiValuedText(id, desc)) => {
-                let new_value = self
-                    .get_multi_valued_texts(id)
-                    .filter(|(frame_desc, _)| frame_desc != &desc)
-                    .chain(values.iter().map(|value| (desc, value.borrow())))
-                    .fold(String::new(), |acc: String, (desc, text)| {
-                        let sep = if acc.is_empty() { "" } else { "\0" };
-                        acc + sep + desc + "\0" + text
-                    });
-                self.data.set_text(id, new_value);
+            Some(FrameId::InvolvedPersonList(_)) => {
+                unreachable!();
+            }
+            Some(FrameId::InvolvedPerson(id, involvement)) => {
+                let items = self
+                    .data
+                    .get(id)
+                    .and_then(|frame| frame.content().involved_people_list())
+                    .into_iter()
+                    .flat_map(|people_list| {
+                        people_list
+                            .items
+                            .clone()
+                            .into_iter()
+                            .filter(|item| item.involvement.as_str() != involvement)
+                    })
+                    .chain(values.iter().map(|involvee| InvolvedPeopleListItem {
+                        involvement: involvement.to_owned(),
+                        involvee: involvee.to_string(),
+                    }))
+                    .collect::<Vec<_>>();
+                let _unused = self.data.remove(id);
+                if !items.is_empty() {
+                    let _unused = self.data.add_frame(Frame::with_content(
+                        id,
+                        Content::InvolvedPeopleList(InvolvedPeopleList { items }),
+                    ));
+                }
             }
             _ => {
                 self.set(key, values.join(" / ").into());
@@ -388,12 +501,31 @@ impl Tag for ID3v2Tag {
         }
     }
 
-    fn set(&mut self, key: TagKey, value: Cow<'_, str>) {
+    fn set(&mut self, key: &TagKey, value: Cow<'_, str>) {
         let frame = self.tag_key_to_frame(key);
         if let Some(frame) = frame {
             match frame {
                 FrameId::Text(id) => {
                     self.data.set_text(id, value);
+                }
+                FrameId::CombinedText(id, CombinedTextPart::First) => {
+                    let new_value = match self.get_combined_text_part(id, CombinedTextPart::Second)
+                    {
+                        Some(second_value) => Cow::from(format!("{value}/{second_value}")),
+                        None => value,
+                    };
+                    self.data.set_text(id, new_value);
+                }
+                FrameId::CombinedText(id, CombinedTextPart::Second) => {
+                    match self.get_combined_text_part(id, CombinedTextPart::First) {
+                        Some(first_value) => {
+                            let value = format!("{first_value}/{value}");
+                            self.data.set_text(id, value);
+                        }
+                        None => {
+                            let _frames = self.data.remove(id);
+                        }
+                    };
                 }
                 #[expect(unused_results)]
                 FrameId::ExtendedText(description) => {
@@ -401,17 +533,6 @@ impl Tag for ID3v2Tag {
                         description: description.to_string(),
                         value: value.into_owned(),
                     });
-                }
-                FrameId::MultiValuedText(id, desc) => {
-                    let new_value = self
-                        .get_multi_valued_texts(id)
-                        .filter(|(frame_desc, _)| frame_desc != &desc)
-                        .chain(iter::once((desc, value.borrow())))
-                        .fold(String::new(), |acc: String, (desc, text)| {
-                            let sep = if acc.is_empty() { "" } else { "\0" };
-                            acc + sep + desc + "\0" + text
-                        });
-                    self.data.set_text(id, new_value);
                 }
                 #[expect(unused_results)]
                 FrameId::UniqueFileIdentifier(owner_id) => {
@@ -428,6 +549,35 @@ impl Tag for ID3v2Tag {
                         text: value.to_string(),
                     });
                 }
+                FrameId::InvolvedPersonList(_) => {
+                    unreachable!();
+                }
+                FrameId::InvolvedPerson(id, involvement) => {
+                    let items = self
+                        .data
+                        .get(id)
+                        .and_then(|frame| frame.content().involved_people_list())
+                        .into_iter()
+                        .flat_map(|people_list| {
+                            people_list
+                                .items
+                                .clone()
+                                .into_iter()
+                                .filter(|item| item.involvement.as_str() != involvement)
+                        })
+                        .chain(iter::once(InvolvedPeopleListItem {
+                            involvement: involvement.to_owned(),
+                            involvee: value.to_string(),
+                        }))
+                        .collect::<Vec<_>>();
+                    let _unused = self.data.remove(id);
+                    if !items.is_empty() {
+                        let _unused = self.data.add_frame(Frame::with_content(
+                            id,
+                            Content::InvolvedPeopleList(InvolvedPeopleList { items }),
+                        ));
+                    }
+                }
             }
         }
     }
@@ -440,6 +590,31 @@ impl Tag for ID3v2Tag {
     fn maybe_as_id3v2_mut(&mut self) -> Option<&mut ID3v2Tag> {
         Some(self)
     }
+
+    fn performers(&self) -> Option<Vec<InvolvedPerson<'_>>> {
+        self.tag_key_to_frame(&TagKey::Performers)
+            .and_then(|frame_id| match frame_id {
+                FrameId::InvolvedPersonList(id) => self.data.get(id),
+                _ => None,
+            })
+            .and_then(|frame| frame.content().involved_people_list())
+            .map(|people_list| {
+                people_list
+                    .items
+                    .iter()
+                    .filter(|item| match self.data.version() {
+                        id3::Version::Id3v22 | id3::Version::Id3v23 => {
+                            !IPLS_NON_PERFORMER_INVOLVEMENTS.contains(&item.involvement.as_str())
+                        }
+                        id3::Version::Id3v24 => true,
+                    })
+                    .map(|item| InvolvedPerson {
+                        involvement: Cow::from(&item.involvement),
+                        involvee: Cow::from(&item.involvee),
+                    })
+                    .collect()
+            })
+    }
 }
 
 #[cfg(test)]
@@ -448,6 +623,7 @@ mod tests {
     use crate::tag::{Tag, TagKey};
     use id3::Version;
     use paste::paste;
+    use std::io::Cursor;
 
     #[test]
     fn test_tag_type_id3v22() {
@@ -470,75 +646,166 @@ mod tests {
     #[test]
     fn test_get_set_clear_multivalued_text() {
         let mut tag = ID3v2Tag::default();
-        assert!(tag.get(TagKey::Arranger).is_none());
-        assert!(tag.get(TagKey::Engineer).is_none());
-        assert!(tag.get(TagKey::DjMixer).is_none());
-        assert!(tag.get(TagKey::Mixer).is_none());
-        assert!(tag.get(TagKey::Producer).is_none());
+        assert!(tag.get(&TagKey::Arranger).is_none());
+        assert!(tag.get(&TagKey::Engineer).is_none());
+        assert!(tag.get(&TagKey::DjMixer).is_none());
+        assert!(tag.get(&TagKey::Mixer).is_none());
+        assert!(tag.get(&TagKey::Producer).is_none());
 
-        tag.set(TagKey::Arranger, Cow::from("An awesome Arranger"));
+        tag.set(&TagKey::Arranger, Cow::from("An awesome Arranger"));
 
-        assert_eq!(tag.get(TagKey::Arranger), Some("An awesome Arranger"));
-        assert!(tag.get(TagKey::Engineer).is_none());
-        assert!(tag.get(TagKey::DjMixer).is_none());
-        assert!(tag.get(TagKey::Mixer).is_none());
-        assert!(tag.get(TagKey::Producer).is_none());
+        assert_eq!(tag.get(&TagKey::Arranger), Some("An awesome Arranger"));
+        assert!(tag.get(&TagKey::Engineer).is_none());
+        assert!(tag.get(&TagKey::DjMixer).is_none());
+        assert!(tag.get(&TagKey::Mixer).is_none());
+        assert!(tag.get(&TagKey::Producer).is_none());
 
-        tag.set(TagKey::Engineer, Cow::from("Mrs. Engineer"));
+        tag.set(&TagKey::Engineer, Cow::from("Mrs. Engineer"));
 
-        assert_eq!(tag.get(TagKey::Arranger), Some("An awesome Arranger"));
-        assert_eq!(tag.get(TagKey::Engineer), Some("Mrs. Engineer"));
-        assert!(tag.get(TagKey::DjMixer).is_none());
-        assert!(tag.get(TagKey::Mixer).is_none());
-        assert!(tag.get(TagKey::Producer).is_none());
+        assert_eq!(tag.get(&TagKey::Arranger), Some("An awesome Arranger"));
+        assert_eq!(tag.get(&TagKey::Engineer), Some("Mrs. Engineer"));
+        assert!(tag.get(&TagKey::DjMixer).is_none());
+        assert!(tag.get(&TagKey::Mixer).is_none());
+        assert!(tag.get(&TagKey::Producer).is_none());
 
-        tag.set(TagKey::DjMixer, Cow::from("Mr. DJ"));
+        tag.set(&TagKey::DjMixer, Cow::from("Mr. DJ"));
 
-        assert_eq!(tag.get(TagKey::Arranger), Some("An awesome Arranger"));
-        assert_eq!(tag.get(TagKey::Engineer), Some("Mrs. Engineer"));
-        assert_eq!(tag.get(TagKey::DjMixer), Some("Mr. DJ"));
-        assert!(tag.get(TagKey::Mixer).is_none());
-        assert!(tag.get(TagKey::Producer).is_none());
+        assert_eq!(tag.get(&TagKey::Arranger), Some("An awesome Arranger"));
+        assert_eq!(tag.get(&TagKey::Engineer), Some("Mrs. Engineer"));
+        assert_eq!(tag.get(&TagKey::DjMixer), Some("Mr. DJ"));
+        assert!(tag.get(&TagKey::Mixer).is_none());
+        assert!(tag.get(&TagKey::Producer).is_none());
 
-        tag.set(TagKey::Mixer, Cow::from("Miss Mixer"));
+        tag.set(&TagKey::Mixer, Cow::from("Miss Mixer"));
 
-        assert_eq!(tag.get(TagKey::Arranger), Some("An awesome Arranger"));
-        assert_eq!(tag.get(TagKey::Engineer), Some("Mrs. Engineer"));
-        assert_eq!(tag.get(TagKey::DjMixer), Some("Mr. DJ"));
-        assert_eq!(tag.get(TagKey::Mixer), Some("Miss Mixer"));
-        assert!(tag.get(TagKey::Producer).is_none());
+        assert_eq!(tag.get(&TagKey::Arranger), Some("An awesome Arranger"));
+        assert_eq!(tag.get(&TagKey::Engineer), Some("Mrs. Engineer"));
+        assert_eq!(tag.get(&TagKey::DjMixer), Some("Mr. DJ"));
+        assert_eq!(tag.get(&TagKey::Mixer), Some("Miss Mixer"));
+        assert!(tag.get(&TagKey::Producer).is_none());
 
-        tag.set(TagKey::Producer, Cow::from("Producer Dude"));
+        tag.set(&TagKey::Producer, Cow::from("Producer Dude"));
 
-        assert_eq!(tag.get(TagKey::Arranger), Some("An awesome Arranger"));
-        assert_eq!(tag.get(TagKey::Engineer), Some("Mrs. Engineer"));
-        assert_eq!(tag.get(TagKey::DjMixer), Some("Mr. DJ"));
-        assert_eq!(tag.get(TagKey::Mixer), Some("Miss Mixer"));
-        assert_eq!(tag.get(TagKey::Producer), Some("Producer Dude"));
+        assert_eq!(tag.get(&TagKey::Arranger), Some("An awesome Arranger"));
+        assert_eq!(tag.get(&TagKey::Engineer), Some("Mrs. Engineer"));
+        assert_eq!(tag.get(&TagKey::DjMixer), Some("Mr. DJ"));
+        assert_eq!(tag.get(&TagKey::Mixer), Some("Miss Mixer"));
+        assert_eq!(tag.get(&TagKey::Producer), Some("Producer Dude"));
 
-        tag.clear(TagKey::DjMixer);
+        tag.clear(&TagKey::DjMixer);
 
-        assert_eq!(tag.get(TagKey::Arranger), Some("An awesome Arranger"));
-        assert_eq!(tag.get(TagKey::Engineer), Some("Mrs. Engineer"));
-        assert!(tag.get(TagKey::DjMixer).is_none());
-        assert_eq!(tag.get(TagKey::Mixer), Some("Miss Mixer"));
-        assert_eq!(tag.get(TagKey::Producer), Some("Producer Dude"));
+        assert_eq!(tag.get(&TagKey::Arranger), Some("An awesome Arranger"));
+        assert_eq!(tag.get(&TagKey::Engineer), Some("Mrs. Engineer"));
+        assert!(tag.get(&TagKey::DjMixer).is_none());
+        assert_eq!(tag.get(&TagKey::Mixer), Some("Miss Mixer"));
+        assert_eq!(tag.get(&TagKey::Producer), Some("Producer Dude"));
 
-        tag.clear(TagKey::Arranger);
+        tag.clear(&TagKey::Arranger);
 
-        assert!(tag.get(TagKey::Arranger).is_none());
-        assert_eq!(tag.get(TagKey::Engineer), Some("Mrs. Engineer"));
-        assert!(tag.get(TagKey::DjMixer).is_none());
-        assert_eq!(tag.get(TagKey::Mixer), Some("Miss Mixer"));
-        assert_eq!(tag.get(TagKey::Producer), Some("Producer Dude"));
+        assert!(tag.get(&TagKey::Arranger).is_none());
+        assert_eq!(tag.get(&TagKey::Engineer), Some("Mrs. Engineer"));
+        assert!(tag.get(&TagKey::DjMixer).is_none());
+        assert_eq!(tag.get(&TagKey::Mixer), Some("Miss Mixer"));
+        assert_eq!(tag.get(&TagKey::Producer), Some("Producer Dude"));
 
-        tag.set_or_clear(TagKey::Mixer, None);
+        tag.set_or_clear(&TagKey::Mixer, None);
 
-        assert!(tag.get(TagKey::Arranger).is_none());
-        assert_eq!(tag.get(TagKey::Engineer), Some("Mrs. Engineer"));
-        assert!(tag.get(TagKey::DjMixer).is_none());
-        assert!(tag.get(TagKey::Mixer).is_none());
-        assert_eq!(tag.get(TagKey::Producer), Some("Producer Dude"));
+        assert!(tag.get(&TagKey::Arranger).is_none());
+        assert_eq!(tag.get(&TagKey::Engineer), Some("Mrs. Engineer"));
+        assert!(tag.get(&TagKey::DjMixer).is_none());
+        assert!(tag.get(&TagKey::Mixer).is_none());
+        assert_eq!(tag.get(&TagKey::Producer), Some("Producer Dude"));
+    }
+
+    #[test]
+    fn test_id3v23_utf16_read() {
+        const MP3_DATA: &[u8] = include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/data/media/picard-2.12.3/track-id3v23-utf16.mp3"
+        ));
+        let cursor = Cursor::new(MP3_DATA);
+        let tag = ID3v2Tag {
+            data: id3::Tag::read_from2(cursor).unwrap(),
+        };
+        assert_eq!(tag.tag_type(), TagType::ID3v23);
+        assert_eq!(tag.get(&TagKey::TrackTitle), Some("But Not for Me"));
+        assert_eq!(tag.get(&TagKey::Artist), Some("The Ahmad Jamal Trio"));
+        assert_eq!(
+            tag.get(&TagKey::Album),
+            Some("Ahmad Jamal at the Pershing: But Not for Me")
+        );
+        assert_eq!(tag.get(&TagKey::TrackNumber), Some("1"));
+        assert_eq!(tag.get(&TagKey::ReleaseYear), Some("1958"));
+        assert_eq!(tag.get(&TagKey::AlbumArtist), Some("The Ahmad Jamal Trio"));
+        assert_eq!(
+            tag.get(&TagKey::AlbumArtistSortOrder),
+            Some("Jamal, Ahmad, Trio, The")
+        );
+        assert_eq!(tag.get(&TagKey::Artists), Some("The Ahmad Jamal Trio"));
+        assert_eq!(tag.get(&TagKey::CatalogNumber), Some("LP-628/LPS-628"));
+        assert_eq!(tag.get(&TagKey::Composer), Some("George Gershwin"));
+        assert_eq!(
+            tag.get(&TagKey::ComposerSortOrder),
+            Some("Gershwin, George")
+        );
+        assert_eq!(tag.get(&TagKey::DiscNumber), Some("1"));
+        assert_eq!(tag.get(&TagKey::Language), Some("zxx"));
+        assert_eq!(tag.get(&TagKey::Media), Some("12\" Vinyl"));
+        assert_eq!(
+            tag.get(&TagKey::MusicBrainzArtistId),
+            Some("9e7ca87b-4e3d-4d14-90f1-a74acb645fe2")
+        );
+        assert_eq!(
+            tag.get(&TagKey::MusicBrainzRecordingId),
+            Some("9d444787-3f25-4c16-9261-597b9ab021cc")
+        );
+        assert_eq!(
+            tag.get(&TagKey::MusicBrainzReleaseArtistId),
+            Some("9e7ca87b-4e3d-4d14-90f1-a74acb645fe2")
+        );
+        assert_eq!(
+            tag.get(&TagKey::MusicBrainzReleaseGroupId),
+            Some("0a8e97fd-457c-30bc-938a-2fba79cb04e7")
+        );
+        assert_eq!(
+            tag.get(&TagKey::MusicBrainzReleaseId),
+            Some("0008f765-032b-46cd-ab69-2220edab1837")
+        );
+        assert_eq!(
+            tag.get(&TagKey::MusicBrainzTrackId),
+            Some("cc9757af-8427-386e-aced-75b800feed77")
+        );
+        assert_eq!(
+            tag.get(&TagKey::MusicBrainzWorkId),
+            Some("f53d7dd0-fdbd-3901-adf8-9b1ab3121e9e")
+        );
+        assert_eq!(tag.get(&TagKey::OriginalReleaseDate), Some("1958"));
+        assert_eq!(
+            tag.performers(),
+            Some(vec![
+                InvolvedPerson {
+                    involvement: "double bass".into(),
+                    involvee: "Israel Crosby".into(),
+                },
+                InvolvedPerson {
+                    involvement: "drums (drum set)".into(),
+                    involvee: "Vernell Fournier".into(),
+                },
+                InvolvedPerson {
+                    involvement: "piano".into(),
+                    involvee: "Ahmad Jamal".into(),
+                }
+            ])
+        );
+        assert_eq!(tag.get(&TagKey::Producer), Some("Dave Usher"));
+        assert_eq!(tag.get(&TagKey::RecordLabel), Some("Argo"));
+        assert_eq!(tag.get(&TagKey::ReleaseCountry), Some("US"));
+        assert_eq!(tag.get(&TagKey::ReleaseStatus), Some("official"));
+        assert_eq!(tag.get(&TagKey::ReleaseType), Some("album/live"));
+        assert_eq!(tag.get(&TagKey::Script), Some("Latn"));
+        assert_eq!(tag.get(&TagKey::TotalDiscs), Some("1"));
+        assert_eq!(tag.get(&TagKey::TotalTracks), Some("8"));
+        assert_eq!(tag.get(&TagKey::WorkTitle), Some("But Not for Me"));
     }
 
     macro_rules! add_tests_with_id3_version {
@@ -592,113 +859,204 @@ mod tests {
         };
     }
 
-    add_tests_with_id3_versions_all!(TagKey::AcoustId, acoustid);
-    add_tests_with_id3_versions_all!(TagKey::AcoustIdFingerprint, acoustidfingerprint);
-    add_tests_with_id3_versions_all!(TagKey::Album, album);
-    add_tests_with_id3_versions_all!(TagKey::AlbumArtist, albumartist);
-    add_tests_with_id3_versions_all!(TagKey::AlbumArtistSortOrder, albumartistsortorder);
-    add_tests_with_id3_versions_all!(TagKey::AlbumSortOrder, albumsortorder);
-    add_tests_with_id3_versions_all!(TagKey::Artist, artist);
-    add_tests_with_id3_versions_all!(TagKey::ArtistSortOrder, artistsortorder);
-    add_tests_with_id3_versions_all!(TagKey::Artists, artists);
-    add_tests_with_id3_versions_all!(TagKey::Asin, asin);
-    add_tests_with_id3_versions_all!(TagKey::Barcode, barcode);
-    add_tests_with_id3_versions_all!(TagKey::Bpm, bpm);
-    add_tests_with_id3_versions_all!(TagKey::CatalogNumber, catalognumber);
-    add_tests_with_id3_versions_all!(TagKey::Comment, comment);
-    add_tests_with_id3_versions_all!(TagKey::Compilation, compilation);
-    add_tests_with_id3_versions_all!(TagKey::Composer, composer);
-    add_tests_with_id3_versions_all!(TagKey::ComposerSortOrder, composersortorder);
-    add_tests_with_id3_versions_all!(TagKey::Conductor, conductor);
-    add_tests_with_id3_versions_all!(TagKey::Copyright, copyright);
-    add_tests_with_id3_versions_all!(TagKey::Director, director);
-    add_tests_with_id3_versions_all!(TagKey::DiscNumber, discnumber);
-    add_tests_with_id3_version!(TagKey::DiscSubtitle, Version::Id3v24, discsubtitle_id3v24);
-    add_tests_with_id3_versions_all!(TagKey::EncodedBy, encodedby);
-    add_tests_with_id3_versions_all!(TagKey::EncoderSettings, encodersettings);
-    //add_tests_with_id3_versions_all!(TagKey::GaplessPlayback, gaplessplayback);
-    add_tests_with_id3_versions_all!(TagKey::Genre, genre);
-    add_tests_with_id3_versions_all!(TagKey::Grouping, grouping);
-    add_tests_with_id3_versions_all!(TagKey::InitialKey, initialkey);
-    add_tests_with_id3_versions_all!(TagKey::Isrc, isrc);
-    add_tests_with_id3_versions_all!(TagKey::Language, language);
-    //add_tests_with_id3_versions_all!(TagKey::License, license);
-    add_tests_with_id3_versions_all!(TagKey::Lyricist, lyricist);
-    //add_tests_with_id3_versions_all!(TagKey::Lyrics, lyrics);
-    add_tests_with_id3_versions_all!(TagKey::Media, media);
-    add_tests_with_id3_version!(TagKey::Mood, Version::Id3v24, mood_id3v24);
-    add_tests_with_id3_versions_all!(TagKey::Movement, movement);
-    add_tests_with_id3_versions_all!(TagKey::MovementCount, movementcount);
-    add_tests_with_id3_versions_all!(TagKey::MovementNumber, movementnumber);
-    add_tests_with_id3_versions_all!(TagKey::MusicBrainzArtistId, musicbrainzartistid);
-    add_tests_with_id3_versions_all!(TagKey::MusicBrainzDiscId, musicbrainzdiscid);
+    macro_rules! add_tests_with_id3_version_combinedtext {
+        ($tagkey1:expr, $tagkey2:expr, $version:expr, $fnsuffix:ident) => {
+            paste! {
+                #[test]
+                fn [<test_get_set_ $fnsuffix>]() {
+                    let mut tag = ID3v2Tag::with_version($version);
+                    assert!(tag.get($tagkey1).is_none());
+                    assert!(tag.get($tagkey2).is_none());
+
+                    tag.set($tagkey1, Cow::from("Example Value 1"));
+                    assert_eq!(tag.get($tagkey1), Some("Example Value 1"));
+                    assert!(tag.get($tagkey2).is_none());
+
+                    tag.set($tagkey2, Cow::from("Example Value 2"));
+                    assert_eq!(tag.get($tagkey1), Some("Example Value 1"));
+                    assert_eq!(tag.get($tagkey2), Some("Example Value 2"));
+
+                    tag.set($tagkey1, Cow::from("Example Value 3"));
+                    assert_eq!(tag.get($tagkey1), Some("Example Value 3"));
+                    assert_eq!(tag.get($tagkey2), Some("Example Value 2"));
+                }
+
+                #[test]
+                fn [<test_clear_ $fnsuffix>]() {
+                    let mut tag = ID3v2Tag::with_version($version);
+                    assert!(tag.get($tagkey1).is_none());
+                    assert!(tag.get($tagkey2).is_none());
+
+                    tag.set($tagkey1, Cow::from("Example Value 1"));
+                    tag.set($tagkey2, Cow::from("Example Value 2"));
+                    assert!(tag.get($tagkey1).is_some());
+                    assert!(tag.get($tagkey2).is_some());
+
+                    tag.clear($tagkey2);
+                    assert!(tag.get($tagkey1).is_some());
+                    assert!(tag.get($tagkey2).is_none());
+
+                    tag.clear($tagkey1);
+                    assert!(tag.get($tagkey1).is_none());
+                    assert!(tag.get($tagkey2).is_none());
+
+                    tag.set($tagkey1, Cow::from("Example Value 1"));
+                    tag.set($tagkey2, Cow::from("Example Value 2"));
+                    assert!(tag.get($tagkey1).is_some());
+                    assert!(tag.get($tagkey2).is_some());
+
+                    tag.clear($tagkey1);
+                    assert!(tag.get($tagkey1).is_none());
+                    assert!(tag.get($tagkey2).is_none());
+                }
+
+                #[test]
+                fn [<test_set_or_clear_ $fnsuffix>]() {
+                    let mut tag = ID3v2Tag::with_version($version);
+                    assert!(tag.get($tagkey1).is_none());
+
+                    tag.set_or_clear($tagkey1, Some(Cow::from("Example Value")));
+                    assert!(tag.get($tagkey1).is_some());
+
+                    tag.set_or_clear($tagkey2, Some(Cow::from("Other Value")));
+                    assert!(tag.get($tagkey1).is_some());
+                    assert!(tag.get($tagkey2).is_some());
+
+                    tag.set_or_clear($tagkey2, None);
+                    assert!(tag.get($tagkey1).is_some());
+                    assert!(tag.get($tagkey2).is_none());
+                }
+            }
+        };
+    }
+    macro_rules! add_tests_with_id3_versions_all_combinedtext {
+        ($tagkey1:pat_param, $tagkey2:pat_param, $fnsuffix:ident) => {
+            paste! {
+                add_tests_with_id3_version_combinedtext!($tagkey1, $tagkey2, Version::Id3v22, [< $fnsuffix _id3v22>]);
+                add_tests_with_id3_version_combinedtext!($tagkey1, $tagkey2, Version::Id3v23, [< $fnsuffix _id3v23>]);
+                add_tests_with_id3_version_combinedtext!($tagkey1, $tagkey2, Version::Id3v24, [< $fnsuffix _id3v24>]);
+            }
+        };
+    }
+
+    add_tests_with_id3_versions_all!(&TagKey::AcoustId, acoustid);
+    add_tests_with_id3_versions_all!(&TagKey::AcoustIdFingerprint, acoustidfingerprint);
+    add_tests_with_id3_versions_all!(&TagKey::Album, album);
+    add_tests_with_id3_versions_all!(&TagKey::AlbumArtist, albumartist);
+    add_tests_with_id3_versions_all!(&TagKey::AlbumArtistSortOrder, albumartistsortorder);
+    add_tests_with_id3_versions_all!(&TagKey::AlbumSortOrder, albumsortorder);
+    add_tests_with_id3_versions_all!(&TagKey::Artist, artist);
+    add_tests_with_id3_versions_all!(&TagKey::ArtistSortOrder, artistsortorder);
+    add_tests_with_id3_versions_all!(&TagKey::Artists, artists);
+    add_tests_with_id3_versions_all!(&TagKey::Asin, asin);
+    add_tests_with_id3_versions_all!(&TagKey::Barcode, barcode);
+    add_tests_with_id3_versions_all!(&TagKey::Bpm, bpm);
+    add_tests_with_id3_versions_all!(&TagKey::CatalogNumber, catalognumber);
+    add_tests_with_id3_versions_all!(&TagKey::Comment, comment);
+    add_tests_with_id3_versions_all!(&TagKey::Compilation, compilation);
+    add_tests_with_id3_versions_all!(&TagKey::Composer, composer);
+    add_tests_with_id3_versions_all!(&TagKey::ComposerSortOrder, composersortorder);
+    add_tests_with_id3_versions_all!(&TagKey::Conductor, conductor);
+    add_tests_with_id3_versions_all!(&TagKey::Copyright, copyright);
+    add_tests_with_id3_versions_all!(&TagKey::Director, director);
+    add_tests_with_id3_versions_all!(&TagKey::DiscNumber, discnumber);
+    add_tests_with_id3_version!(&TagKey::DiscSubtitle, Version::Id3v24, discsubtitle_id3v24);
+    add_tests_with_id3_versions_all!(&TagKey::EncodedBy, encodedby);
+    add_tests_with_id3_versions_all!(&TagKey::EncoderSettings, encodersettings);
+    //add_tests_with_id3_versions_all!(&TagKey::GaplessPlayback, gaplessplayback);
+    add_tests_with_id3_versions_all!(&TagKey::Genre, genre);
+    add_tests_with_id3_versions_all!(&TagKey::Grouping, grouping);
+    add_tests_with_id3_versions_all!(&TagKey::InitialKey, initialkey);
+    add_tests_with_id3_versions_all!(&TagKey::Isrc, isrc);
+    add_tests_with_id3_versions_all!(&TagKey::Language, language);
+    //add_tests_with_id3_versions_all!(&TagKey::License, license);
+    add_tests_with_id3_versions_all!(&TagKey::Lyricist, lyricist);
+    //add_tests_with_id3_versions_all!(&TagKey::Lyrics, lyrics);
+    add_tests_with_id3_versions_all!(&TagKey::Media, media);
+    add_tests_with_id3_version!(&TagKey::Mood, Version::Id3v24, mood_id3v24);
+    add_tests_with_id3_versions_all!(&TagKey::Movement, movement);
+    add_tests_with_id3_versions_all!(&TagKey::MovementCount, movementcount);
+    add_tests_with_id3_versions_all!(&TagKey::MovementNumber, movementnumber);
+    add_tests_with_id3_versions_all!(&TagKey::MusicBrainzArtistId, musicbrainzartistid);
+    add_tests_with_id3_versions_all!(&TagKey::MusicBrainzDiscId, musicbrainzdiscid);
     add_tests_with_id3_versions_all!(
-        TagKey::MusicBrainzOriginalArtistId,
+        &TagKey::MusicBrainzOriginalArtistId,
         musicbrainzoriginalartistid
     );
     add_tests_with_id3_versions_all!(
-        TagKey::MusicBrainzOriginalReleaseId,
+        &TagKey::MusicBrainzOriginalReleaseId,
         musicbrainzoriginalreleaseid
     );
-    add_tests_with_id3_versions_all!(TagKey::MusicBrainzRecordingId, musicbrainzrecordingid);
+    add_tests_with_id3_versions_all!(&TagKey::MusicBrainzRecordingId, musicbrainzrecordingid);
     add_tests_with_id3_versions_all!(
-        TagKey::MusicBrainzReleaseArtistId,
+        &TagKey::MusicBrainzReleaseArtistId,
         musicbrainzreleaseartistid
     );
-    add_tests_with_id3_versions_all!(TagKey::MusicBrainzReleaseGroupId, musicbrainzreleasegroupid);
-    add_tests_with_id3_versions_all!(TagKey::MusicBrainzReleaseId, musicbrainzreleaseid);
-    add_tests_with_id3_versions_all!(TagKey::MusicBrainzTrackId, musicbrainztrackid);
-    add_tests_with_id3_versions_all!(TagKey::MusicBrainzTrmId, musicbrainztrmid);
-    add_tests_with_id3_versions_all!(TagKey::MusicBrainzWorkId, musicbrainzworkid);
-    add_tests_with_id3_versions_all!(TagKey::MusicIpFingerprint, musicipfingerprint);
-    add_tests_with_id3_versions_all!(TagKey::MusicIpPuid, musicippuid);
-    add_tests_with_id3_versions_all!(TagKey::OriginalAlbum, originalalbum);
-    add_tests_with_id3_versions_all!(TagKey::OriginalArtist, originalartist);
-    add_tests_with_id3_versions_all!(TagKey::OriginalFilename, originalfilename);
+    add_tests_with_id3_versions_all!(
+        &TagKey::MusicBrainzReleaseGroupId,
+        musicbrainzreleasegroupid
+    );
+    add_tests_with_id3_versions_all!(&TagKey::MusicBrainzReleaseId, musicbrainzreleaseid);
+    add_tests_with_id3_versions_all!(&TagKey::MusicBrainzTrackId, musicbrainztrackid);
+    add_tests_with_id3_versions_all!(&TagKey::MusicBrainzTrmId, musicbrainztrmid);
+    add_tests_with_id3_versions_all!(&TagKey::MusicBrainzWorkId, musicbrainzworkid);
+    add_tests_with_id3_versions_all!(&TagKey::MusicIpFingerprint, musicipfingerprint);
+    add_tests_with_id3_versions_all!(&TagKey::MusicIpPuid, musicippuid);
+    add_tests_with_id3_versions_all!(&TagKey::OriginalAlbum, originalalbum);
+    add_tests_with_id3_versions_all!(&TagKey::OriginalArtist, originalartist);
+    add_tests_with_id3_versions_all!(&TagKey::OriginalFilename, originalfilename);
     add_tests_with_id3_version!(
-        TagKey::OriginalReleaseDate,
+        &TagKey::OriginalReleaseDate,
         Version::Id3v23,
         originalreleasedate_id3v23
     );
     add_tests_with_id3_version!(
-        TagKey::OriginalReleaseDate,
+        &TagKey::OriginalReleaseDate,
         Version::Id3v24,
         originalreleasedate_id3v24
     );
-    //add_tests_with_id3_versions_all!(TagKey::OriginalReleaseYear, originalreleaseyear);
-    //add_tests_with_id3_versions_all!(TagKey::Performer, performer);
-    //add_tests_with_id3_versions_all!(TagKey::Podcast, podcast);
-    //add_tests_with_id3_versions_all!(TagKey::PodcastUrl, podcasturl);
-    add_tests_with_id3_versions_all!(TagKey::Rating, rating);
-    add_tests_with_id3_versions_all!(TagKey::RecordLabel, recordlabel);
-    add_tests_with_id3_versions_all!(TagKey::ReleaseCountry, releasecountry);
-    add_tests_with_id3_version!(TagKey::ReleaseDate, Version::Id3v23, releasedate_id3v23);
-    add_tests_with_id3_version!(TagKey::ReleaseDate, Version::Id3v24, releasedate_id3v24);
-    add_tests_with_id3_version!(TagKey::ReleaseYear, Version::Id3v23, releaseyear_id3v23);
-    add_tests_with_id3_versions_all!(TagKey::ReleaseStatus, releasestatus);
-    add_tests_with_id3_versions_all!(TagKey::ReleaseType, releasetype);
-    add_tests_with_id3_versions_all!(TagKey::Remixer, remixer);
-    add_tests_with_id3_versions_all!(TagKey::ReplayGainAlbumGain, replaygainalbumgain);
-    add_tests_with_id3_versions_all!(TagKey::ReplayGainAlbumPeak, replaygainalbumpeak);
-    add_tests_with_id3_versions_all!(TagKey::ReplayGainAlbumRange, replaygainalbumrange);
+    //add_tests_with_id3_versions_all!(&TagKey::OriginalReleaseYear, originalreleaseyear);
+    //add_tests_with_id3_versions_all!(&TagKey::Performer, performers);
+    //add_tests_with_id3_versions_all!(&TagKey::Podcast, podcast);
+    //add_tests_with_id3_versions_all!(&TagKey::PodcastUrl, podcasturl);
+    add_tests_with_id3_versions_all!(&TagKey::Rating, rating);
+    add_tests_with_id3_versions_all!(&TagKey::RecordLabel, recordlabel);
+    add_tests_with_id3_versions_all!(&TagKey::ReleaseCountry, releasecountry);
+    add_tests_with_id3_version!(&TagKey::ReleaseDate, Version::Id3v23, releasedate_id3v23);
+    add_tests_with_id3_version!(&TagKey::ReleaseDate, Version::Id3v24, releasedate_id3v24);
+    add_tests_with_id3_version!(&TagKey::ReleaseYear, Version::Id3v23, releaseyear_id3v23);
+    add_tests_with_id3_versions_all!(&TagKey::ReleaseStatus, releasestatus);
+    add_tests_with_id3_versions_all!(&TagKey::ReleaseType, releasetype);
+    add_tests_with_id3_versions_all!(&TagKey::Remixer, remixer);
+    add_tests_with_id3_versions_all!(&TagKey::ReplayGainAlbumGain, replaygainalbumgain);
+    add_tests_with_id3_versions_all!(&TagKey::ReplayGainAlbumPeak, replaygainalbumpeak);
+    add_tests_with_id3_versions_all!(&TagKey::ReplayGainAlbumRange, replaygainalbumrange);
     add_tests_with_id3_versions_all!(
-        TagKey::ReplayGainReferenceLoudness,
+        &TagKey::ReplayGainReferenceLoudness,
         replaygainreferenceloudness
     );
-    add_tests_with_id3_versions_all!(TagKey::ReplayGainTrackGain, replaygaintrackgain);
-    add_tests_with_id3_versions_all!(TagKey::ReplayGainTrackPeak, replaygaintrackpeak);
-    add_tests_with_id3_versions_all!(TagKey::ReplayGainTrackRange, replaygaintrackrange);
-    add_tests_with_id3_versions_all!(TagKey::Script, script);
-    //add_tests_with_id3_versions_all!(TagKey::ShowName, showname);
-    //add_tests_with_id3_versions_all!(TagKey::ShowNameSortOrder, shownamesortorder);
-    add_tests_with_id3_versions_all!(TagKey::ShowMovement, showmovement);
-    add_tests_with_id3_versions_all!(TagKey::Subtitle, subtitle);
-    add_tests_with_id3_versions_all!(TagKey::TotalDiscs, totaldiscs);
-    add_tests_with_id3_versions_all!(TagKey::TotalTracks, totaltracks);
-    add_tests_with_id3_versions_all!(TagKey::TrackNumber, tracknumber);
-    add_tests_with_id3_versions_all!(TagKey::TrackTitle, tracktitle);
-    add_tests_with_id3_versions_all!(TagKey::TrackTitleSortOrder, tracktitlesortorder);
-    add_tests_with_id3_versions_all!(TagKey::ArtistWebsite, artistwebsite);
-    add_tests_with_id3_versions_all!(TagKey::WorkTitle, worktitle);
-    add_tests_with_id3_versions_all!(TagKey::Writer, writer);
+    add_tests_with_id3_versions_all!(&TagKey::ReplayGainTrackGain, replaygaintrackgain);
+    add_tests_with_id3_versions_all!(&TagKey::ReplayGainTrackPeak, replaygaintrackpeak);
+    add_tests_with_id3_versions_all!(&TagKey::ReplayGainTrackRange, replaygaintrackrange);
+    add_tests_with_id3_versions_all!(&TagKey::Script, script);
+    //add_tests_with_id3_versions_all!(&TagKey::ShowName, showname);
+    //add_tests_with_id3_versions_all!(&TagKey::ShowNameSortOrder, shownamesortorder);
+    add_tests_with_id3_versions_all!(&TagKey::ShowMovement, showmovement);
+    add_tests_with_id3_versions_all!(&TagKey::Subtitle, subtitle);
+    add_tests_with_id3_versions_all_combinedtext!(
+        &TagKey::DiscNumber,
+        &TagKey::TotalDiscs,
+        totaldiscs
+    );
+    add_tests_with_id3_versions_all_combinedtext!(
+        &TagKey::TrackNumber,
+        &TagKey::TotalTracks,
+        totaltracks
+    );
+    add_tests_with_id3_versions_all!(&TagKey::TrackNumber, tracknumber);
+    add_tests_with_id3_versions_all!(&TagKey::TrackTitle, tracktitle);
+    add_tests_with_id3_versions_all!(&TagKey::TrackTitleSortOrder, tracktitlesortorder);
+    add_tests_with_id3_versions_all!(&TagKey::ArtistWebsite, artistwebsite);
+    add_tests_with_id3_versions_all!(&TagKey::WorkTitle, worktitle);
+    add_tests_with_id3_versions_all!(&TagKey::Writer, writer);
 }

@@ -9,6 +9,7 @@
 //! Support for FLAC tags.
 
 use crate::tag::{Tag, TagKey, TagType};
+use crate::track::InvolvedPerson;
 use std::borrow::Cow;
 use std::path::Path;
 
@@ -33,7 +34,7 @@ impl FlacTag {
     }
 
     /// Get the vorbis key name for a tag key.
-    fn tag_key_to_frame(key: TagKey) -> Option<&'static str> {
+    fn tag_key_to_frame(key: &TagKey) -> Option<&'static str> {
         #[expect(clippy::match_same_arms)]
         match key {
             TagKey::AcoustId => "ACOUSTID_ID".into(),
@@ -96,7 +97,8 @@ impl FlacTag {
             TagKey::OriginalFilename => "ORIGINALFILENAME".into(),
             TagKey::OriginalReleaseDate => "ORIGINALDATE".into(),
             TagKey::OriginalReleaseYear => "ORIGINALYEAR".into(),
-            TagKey::Performer => "PERFORMER".into(), // This should be in "PERFORMER={artist} (instrument)" format.
+            TagKey::Performers => "PERFORMER".into(),
+            TagKey::Performer(_) => "PERFORMER".into(), // This should be in "PERFORMER={artist} (instrument)" format.
             TagKey::Podcast => None,
             TagKey::PodcastUrl => None,
             TagKey::Producer => "PRODUCER".into(),
@@ -137,25 +139,30 @@ impl Tag for FlacTag {
         TagType::Flac
     }
 
-    fn get(&self, key: TagKey) -> Option<&str> {
+    fn get<'a>(&'a self, key: &'a TagKey) -> Option<&'a str> {
         Self::tag_key_to_frame(key)
             .and_then(|key| self.data.get_vorbis(key))
             .and_then(|mut iterator| iterator.next())
     }
 
-    fn set(&mut self, key: TagKey, value: Cow<'_, str>) {
+    fn set(&mut self, key: &TagKey, value: Cow<'_, str>) {
         if let Some(frame) = Self::tag_key_to_frame(key) {
-            self.data.set_vorbis(frame, vec![value]);
+            if let TagKey::Performer(instrument) = &key {
+                self.data
+                    .set_vorbis(frame, vec![format!("{value} ({instrument}")]);
+            } else {
+                self.data.set_vorbis(frame, vec![value]);
+            }
         }
     }
 
-    fn set_multiple<'a>(&'a mut self, key: TagKey, values: &[Cow<'a, str>]) {
+    fn set_multiple<'a>(&'a mut self, key: &TagKey, values: &[Cow<'a, str>]) {
         if let Some(frame) = Self::tag_key_to_frame(key) {
             self.data.set_vorbis(frame, values.to_vec());
         }
     }
 
-    fn clear(&mut self, key: TagKey) {
+    fn clear(&mut self, key: &TagKey) {
         if let Some(frame) = Self::tag_key_to_frame(key) {
             self.data.remove_vorbis(frame);
         }
@@ -165,6 +172,32 @@ impl Tag for FlacTag {
         self.data.write_to_path(path)?;
         Ok(())
     }
+
+    fn performers(&self) -> Option<Vec<InvolvedPerson<'_>>> {
+        Self::tag_key_to_frame(&TagKey::Performers)
+            .and_then(|key| self.data.get_vorbis(key))
+            .map(|iterator| iterator.map(parse_performer_value).collect())
+    }
+}
+
+/// Parse a performer value in the form `involvee (involvement)`.
+fn parse_performer_value(value: &str) -> InvolvedPerson<'_> {
+    value
+        .split_once(" (")
+        .and_then(|(involvee, involvement)| {
+            involvement
+                .char_indices()
+                .next_back()
+                .and_then(|(i, character)| (character == ')').then_some(&involvement[..i]))
+                .map(|involvement| InvolvedPerson {
+                    involvement: Cow::from(involvement),
+                    involvee: Cow::from(involvee),
+                })
+        })
+        .unwrap_or_else(|| InvolvedPerson {
+            involvement: Cow::from(""),
+            involvee: Cow::from(value),
+        })
 }
 
 #[cfg(test)]
@@ -172,6 +205,63 @@ mod tests {
     use super::*;
     use crate::tag::{Tag, TagKey};
     use paste::paste;
+
+    #[test]
+    fn test_parse_performer_value_valid() {
+        assert_eq!(
+            parse_performer_value("foo (bar)"),
+            InvolvedPerson {
+                involvee: "foo".into(),
+                involvement: "bar".into()
+            }
+        );
+        assert_eq!(
+            parse_performer_value("Ahmad Jamal (piano)"),
+            InvolvedPerson {
+                involvee: "Ahmad Jamal".into(),
+                involvement: "piano".into()
+            }
+        );
+        assert_eq!(
+            parse_performer_value("Israel Crosby (double bass)"),
+            InvolvedPerson {
+                involvee: "Israel Crosby".into(),
+                involvement: "double bass".into()
+            }
+        );
+        assert_eq!(
+            parse_performer_value("Vernell Fournier (drums (drum set))"),
+            InvolvedPerson {
+                involvee: "Vernell Fournier".into(),
+                involvement: "drums (drum set)".into()
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_performer_value_invalid() {
+        assert_eq!(
+            parse_performer_value("foo"),
+            InvolvedPerson {
+                involvee: "foo".into(),
+                involvement: "".into()
+            }
+        );
+        assert_eq!(
+            parse_performer_value("foo bar"),
+            InvolvedPerson {
+                involvee: "foo bar".into(),
+                involvement: "".into()
+            }
+        );
+        assert_eq!(
+            parse_performer_value("Ahmad Jamal (piano"),
+            InvolvedPerson {
+                involvee: "Ahmad Jamal (piano".into(),
+                involvement: "".into()
+            }
+        );
+    }
 
     #[test]
     fn test_tag_type() {
@@ -221,108 +311,111 @@ mod tests {
         };
     }
 
-    add_tests!(TagKey::AcoustId, acoustid);
-    add_tests!(TagKey::AcoustIdFingerprint, acoustidfingerprint);
-    add_tests!(TagKey::Album, album);
-    add_tests!(TagKey::AlbumArtist, albumartist);
-    add_tests!(TagKey::AlbumArtistSortOrder, albumartistsortorder);
-    add_tests!(TagKey::AlbumSortOrder, albumsortorder);
-    add_tests!(TagKey::Arranger, arranger);
-    add_tests!(TagKey::Artist, artist);
-    add_tests!(TagKey::ArtistSortOrder, artistsortorder);
-    add_tests!(TagKey::Artists, artists);
-    add_tests!(TagKey::Asin, asin);
-    add_tests!(TagKey::Barcode, barcode);
-    add_tests!(TagKey::Bpm, bpm);
-    add_tests!(TagKey::CatalogNumber, catalognumber);
-    add_tests!(TagKey::Comment, comment);
-    add_tests!(TagKey::Compilation, compilation);
-    add_tests!(TagKey::Composer, composer);
-    add_tests!(TagKey::ComposerSortOrder, composersortorder);
-    add_tests!(TagKey::Conductor, conductor);
-    add_tests!(TagKey::Copyright, copyright);
-    add_tests!(TagKey::Director, director);
-    add_tests!(TagKey::DiscNumber, discnumber);
-    add_tests!(TagKey::DiscSubtitle, discsubtitle);
-    add_tests!(TagKey::EncodedBy, encodedby);
-    add_tests!(TagKey::EncoderSettings, encodersettings);
-    add_tests!(TagKey::Engineer, engineer);
-    //add_tests!(TagKey::GaplessPlayback, gaplessplayback);
-    add_tests!(TagKey::Genre, genre);
-    add_tests!(TagKey::Grouping, grouping);
-    add_tests!(TagKey::InitialKey, initialkey);
-    add_tests!(TagKey::Isrc, isrc);
-    add_tests!(TagKey::Language, language);
-    add_tests!(TagKey::License, license);
-    add_tests!(TagKey::Lyricist, lyricist);
-    add_tests!(TagKey::Lyrics, lyrics);
-    add_tests!(TagKey::Media, media);
-    add_tests!(TagKey::DjMixer, djmixer);
-    add_tests!(TagKey::Mixer, mixer);
-    add_tests!(TagKey::Mood, mood);
-    add_tests!(TagKey::Movement, movement);
-    add_tests!(TagKey::MovementCount, movementcount);
-    add_tests!(TagKey::MovementNumber, movementnumber);
-    add_tests!(TagKey::MusicBrainzArtistId, musicbrainzartistid);
-    add_tests!(TagKey::MusicBrainzDiscId, musicbrainzdiscid);
+    add_tests!(&TagKey::AcoustId, acoustid);
+    add_tests!(&TagKey::AcoustIdFingerprint, acoustidfingerprint);
+    add_tests!(&TagKey::Album, album);
+    add_tests!(&TagKey::AlbumArtist, albumartist);
+    add_tests!(&TagKey::AlbumArtistSortOrder, albumartistsortorder);
+    add_tests!(&TagKey::AlbumSortOrder, albumsortorder);
+    add_tests!(&TagKey::Arranger, arranger);
+    add_tests!(&TagKey::Artist, artist);
+    add_tests!(&TagKey::ArtistSortOrder, artistsortorder);
+    add_tests!(&TagKey::Artists, artists);
+    add_tests!(&TagKey::Asin, asin);
+    add_tests!(&TagKey::Barcode, barcode);
+    add_tests!(&TagKey::Bpm, bpm);
+    add_tests!(&TagKey::CatalogNumber, catalognumber);
+    add_tests!(&TagKey::Comment, comment);
+    add_tests!(&TagKey::Compilation, compilation);
+    add_tests!(&TagKey::Composer, composer);
+    add_tests!(&TagKey::ComposerSortOrder, composersortorder);
+    add_tests!(&TagKey::Conductor, conductor);
+    add_tests!(&TagKey::Copyright, copyright);
+    add_tests!(&TagKey::Director, director);
+    add_tests!(&TagKey::DiscNumber, discnumber);
+    add_tests!(&TagKey::DiscSubtitle, discsubtitle);
+    add_tests!(&TagKey::EncodedBy, encodedby);
+    add_tests!(&TagKey::EncoderSettings, encodersettings);
+    add_tests!(&TagKey::Engineer, engineer);
+    //add_tests!(&TagKey::GaplessPlayback, gaplessplayback);
+    add_tests!(&TagKey::Genre, genre);
+    add_tests!(&TagKey::Grouping, grouping);
+    add_tests!(&TagKey::InitialKey, initialkey);
+    add_tests!(&TagKey::Isrc, isrc);
+    add_tests!(&TagKey::Language, language);
+    add_tests!(&TagKey::License, license);
+    add_tests!(&TagKey::Lyricist, lyricist);
+    add_tests!(&TagKey::Lyrics, lyrics);
+    add_tests!(&TagKey::Media, media);
+    add_tests!(&TagKey::DjMixer, djmixer);
+    add_tests!(&TagKey::Mixer, mixer);
+    add_tests!(&TagKey::Mood, mood);
+    add_tests!(&TagKey::Movement, movement);
+    add_tests!(&TagKey::MovementCount, movementcount);
+    add_tests!(&TagKey::MovementNumber, movementnumber);
+    add_tests!(&TagKey::MusicBrainzArtistId, musicbrainzartistid);
+    add_tests!(&TagKey::MusicBrainzDiscId, musicbrainzdiscid);
     add_tests!(
-        TagKey::MusicBrainzOriginalArtistId,
+        &TagKey::MusicBrainzOriginalArtistId,
         musicbrainzoriginalartistid
     );
     add_tests!(
-        TagKey::MusicBrainzOriginalReleaseId,
+        &TagKey::MusicBrainzOriginalReleaseId,
         musicbrainzoriginalreleaseid
     );
-    add_tests!(TagKey::MusicBrainzRecordingId, musicbrainzrecordingid);
+    add_tests!(&TagKey::MusicBrainzRecordingId, musicbrainzrecordingid);
     add_tests!(
-        TagKey::MusicBrainzReleaseArtistId,
+        &TagKey::MusicBrainzReleaseArtistId,
         musicbrainzreleaseartistid
     );
-    add_tests!(TagKey::MusicBrainzReleaseGroupId, musicbrainzreleasegroupid);
-    add_tests!(TagKey::MusicBrainzReleaseId, musicbrainzreleaseid);
-    add_tests!(TagKey::MusicBrainzTrackId, musicbrainztrackid);
-    add_tests!(TagKey::MusicBrainzTrmId, musicbrainztrmid);
-    add_tests!(TagKey::MusicBrainzWorkId, musicbrainzworkid);
-    //add_tests!(TagKey::MusicIpFingerprint, musicipfingerprint);
-    add_tests!(TagKey::MusicIpPuid, musicippuid);
-    //add_tests!(TagKey::OriginalAlbum, originalalbum);
-    //add_tests!(TagKey::OriginalArtist, originalartist);
-    add_tests!(TagKey::OriginalFilename, originalfilename);
-    add_tests!(TagKey::OriginalReleaseDate, originalreleasedate);
-    add_tests!(TagKey::OriginalReleaseYear, originalreleaseyear);
-    add_tests!(TagKey::Performer, performer);
-    //add_tests!(TagKey::Podcast, podcast);
-    //add_tests!(TagKey::PodcastUrl, podcasturl);
-    add_tests!(TagKey::Producer, producer);
-    //add_tests!(TagKey::Rating, rating);
-    add_tests!(TagKey::RecordLabel, recordlabel);
-    add_tests!(TagKey::ReleaseCountry, releasecountry);
-    add_tests!(TagKey::ReleaseDate, releasedate);
-    //add_tests!(TagKey::ReleaseYear, releaseyear);
-    add_tests!(TagKey::ReleaseStatus, releasestatus);
-    add_tests!(TagKey::ReleaseType, releasetype);
-    add_tests!(TagKey::Remixer, remixer);
-    add_tests!(TagKey::ReplayGainAlbumGain, replaygainalbumgain);
-    add_tests!(TagKey::ReplayGainAlbumPeak, replaygainalbumpeak);
-    add_tests!(TagKey::ReplayGainAlbumRange, replaygainalbumrange);
     add_tests!(
-        TagKey::ReplayGainReferenceLoudness,
+        &TagKey::MusicBrainzReleaseGroupId,
+        musicbrainzreleasegroupid
+    );
+    add_tests!(&TagKey::MusicBrainzReleaseId, musicbrainzreleaseid);
+    add_tests!(&TagKey::MusicBrainzTrackId, musicbrainztrackid);
+    add_tests!(&TagKey::MusicBrainzTrmId, musicbrainztrmid);
+    add_tests!(&TagKey::MusicBrainzWorkId, musicbrainzworkid);
+    //add_tests!(&TagKey::MusicIpFingerprint, musicipfingerprint);
+    add_tests!(&TagKey::MusicIpPuid, musicippuid);
+    //add_tests!(&TagKey::OriginalAlbum, originalalbum);
+    //add_tests!(&TagKey::OriginalArtist, originalartist);
+    add_tests!(&TagKey::OriginalFilename, originalfilename);
+    add_tests!(&TagKey::OriginalReleaseDate, originalreleasedate);
+    add_tests!(&TagKey::OriginalReleaseYear, originalreleaseyear);
+    //add_tests!(&TagKey::Performer, performers);
+    //add_tests!(&TagKey::Podcast, podcast);
+    //add_tests!(&TagKey::PodcastUrl, podcasturl);
+    add_tests!(&TagKey::Producer, producer);
+    //add_tests!(&TagKey::Rating, rating);
+    add_tests!(&TagKey::RecordLabel, recordlabel);
+    add_tests!(&TagKey::ReleaseCountry, releasecountry);
+    add_tests!(&TagKey::ReleaseDate, releasedate);
+    //add_tests!(&TagKey::ReleaseYear, releaseyear);
+    add_tests!(&TagKey::ReleaseStatus, releasestatus);
+    add_tests!(&TagKey::ReleaseType, releasetype);
+    add_tests!(&TagKey::Remixer, remixer);
+    add_tests!(&TagKey::ReplayGainAlbumGain, replaygainalbumgain);
+    add_tests!(&TagKey::ReplayGainAlbumPeak, replaygainalbumpeak);
+    add_tests!(&TagKey::ReplayGainAlbumRange, replaygainalbumrange);
+    add_tests!(
+        &TagKey::ReplayGainReferenceLoudness,
         replaygainreferenceloudness
     );
-    add_tests!(TagKey::ReplayGainTrackGain, replaygaintrackgain);
-    add_tests!(TagKey::ReplayGainTrackPeak, replaygaintrackpeak);
-    add_tests!(TagKey::ReplayGainTrackRange, replaygaintrackrange);
-    add_tests!(TagKey::Script, script);
-    //add_tests!(TagKey::ShowName, showname);
-    //add_tests!(TagKey::ShowNameSortOrder, shownamesortorder);
-    add_tests!(TagKey::ShowMovement, showmovement);
-    add_tests!(TagKey::Subtitle, subtitle);
-    add_tests!(TagKey::TotalDiscs, totaldiscs);
-    add_tests!(TagKey::TotalTracks, totaltracks);
-    add_tests!(TagKey::TrackNumber, tracknumber);
-    add_tests!(TagKey::TrackTitle, tracktitle);
-    add_tests!(TagKey::TrackTitleSortOrder, tracktitlesortorder);
-    add_tests!(TagKey::ArtistWebsite, artistwebsite);
-    add_tests!(TagKey::WorkTitle, worktitle);
-    add_tests!(TagKey::Writer, writer);
+    add_tests!(&TagKey::ReplayGainTrackGain, replaygaintrackgain);
+    add_tests!(&TagKey::ReplayGainTrackPeak, replaygaintrackpeak);
+    add_tests!(&TagKey::ReplayGainTrackRange, replaygaintrackrange);
+    add_tests!(&TagKey::Script, script);
+    //add_tests!(&TagKey::ShowName, showname);
+    //add_tests!(&TagKey::ShowNameSortOrder, shownamesortorder);
+    add_tests!(&TagKey::ShowMovement, showmovement);
+    add_tests!(&TagKey::Subtitle, subtitle);
+    add_tests!(&TagKey::TotalDiscs, totaldiscs);
+    add_tests!(&TagKey::TotalTracks, totaltracks);
+    add_tests!(&TagKey::TrackNumber, tracknumber);
+    add_tests!(&TagKey::TrackTitle, tracktitle);
+    add_tests!(&TagKey::TrackTitleSortOrder, tracktitlesortorder);
+    add_tests!(&TagKey::ArtistWebsite, artistwebsite);
+    add_tests!(&TagKey::WorkTitle, worktitle);
+    add_tests!(&TagKey::Writer, writer);
 }

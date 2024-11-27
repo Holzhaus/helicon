@@ -211,7 +211,7 @@ impl Distance {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::track::TrackLike;
+    use crate::track::{InvolvedPerson, TrackLike};
     use float_eq::assert_float_eq;
 
     pub struct TestTrack(pub &'static str);
@@ -384,8 +384,8 @@ mod tests {
             None
         }
 
-        fn performer(&self) -> impl Iterator<Item = Cow<'_, str>> {
-            std::iter::empty()
+        fn performers(&self) -> Option<Vec<InvolvedPerson<'_>>> {
+            None
         }
 
         fn producer(&self) -> impl Iterator<Item = Cow<'_, str>> {
