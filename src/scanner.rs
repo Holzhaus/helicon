@@ -155,7 +155,7 @@ fn find_track_paths(input_path: PathBuf) -> impl Iterator<Item = (PathBuf, Vec<T
                 .filter_map(|path| match TaggedFile::read_from_path(path) {
                     Ok(file) => Some(file),
                     Err(err) => {
-                        log::warn!("Failed to read {}: {}", path.display(), err);
+                        log::warn!("Failed to read {}: {:?}", path.display(), err);
                         None
                     }
                 })
