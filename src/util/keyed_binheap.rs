@@ -84,7 +84,6 @@ where
     }
 
     /// Create a new binary heap with the given key function.
-    #[cfg(test)]
     pub const fn new(key_fn: F) -> Self {
         let heap = BinaryHeap::new();
         KeyedBinaryHeap { heap, key_fn }

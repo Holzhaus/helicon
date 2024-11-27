@@ -109,12 +109,15 @@ pub fn string_diff(
 }
 
 /// Similar to [`string_diff`], but also supports `None` values.
-pub fn string_diff_opt<'a, 'b>(
+pub fn string_diff_opt<'a, 'b, 'c>(
     lhs: Option<Cow<'a, str>>,
     rhs: Option<Cow<'b, str>>,
-    missing_value: &'static str,
+    missing_value: &'c str,
     config: &StringDiffStyleConfig,
-) -> (StyledContentList<'a>, StyledContentList<'b>) {
+) -> (StyledContentList<'a>, StyledContentList<'b>)
+where
+    'c: 'a + 'b,
+{
     match (lhs, rhs) {
         (Some(lhs_value), Some(rhs_value)) => {
             let (lhs_diff, rhs_diff) = string_diff(&lhs_value, &rhs_value, config);

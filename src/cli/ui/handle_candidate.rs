@@ -10,13 +10,13 @@
 
 use super::util::{self, LayoutItem, StyledContentList};
 use crate::config::{CandidateDetails, Config, UnmatchedTrackStyleConfig};
-use crate::distance::UnmatchedTracksSource;
+use crate::distance::{Distance, UnmatchedTracksSource};
 use crate::media::MediaLike;
 use crate::pathformat::PathFormatterValues;
 use crate::release::ReleaseLike;
 use crate::release_candidate::ReleaseCandidate;
-use crate::track::{AnalyzedTrackMetadata, TrackLike};
-use crate::util::FormattedDuration;
+use crate::track::{AnalyzedTrackMetadata, InvolvedPerson, TrackLike};
+use crate::util::{FormattedDuration, KeyedBinaryHeap};
 use crossterm::{
     style::{ContentStyle, Stylize},
     terminal,
@@ -24,8 +24,10 @@ use crossterm::{
 use expanduser::expanduser;
 use inquire::{InquireError, Select};
 use std::borrow::Cow;
-use std::collections::HashSet;
+use std::cmp::Ordering;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt;
+use std::iter::Peekable;
 
 /// The result of a `handle_candidate` all.
 pub enum HandleCandidateResult {
@@ -85,8 +87,8 @@ impl From<StyledHandleCandidateResult<'_>> for HandleCandidateResult {
 fn print_extra_metadata(
     lhs: Option<Cow<'_, str>>,
     rhs: Option<Cow<'_, str>>,
-    missing_str: &'static str,
-    suffix: &'static str,
+    missing_str: &str,
+    suffix: &str,
     candidate_details_config: &CandidateDetails,
     max_width: usize,
     max_height: usize,
@@ -343,6 +345,34 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
 
             if show_details {
                 // TODO: Add more metadata here.
+                let lhs_performers = lhs_track.performers();
+                let rhs_performers = rhs_track.performers();
+                if lhs_performers != rhs_performers {
+                    for (involvement, lhs_involvee, rhs_involvee) in match_involved_persons(
+                        Box::new(lhs_performers.into_iter().flatten()),
+                        Box::new(rhs_performers.into_iter().flatten()),
+                    ) {
+                        if Distance::between_options_or_minmax(
+                            lhs_involvee.as_deref(),
+                            rhs_involvee.as_deref(),
+                        )
+                        .is_equality()
+                        {
+                            continue;
+                        }
+
+                        let unknown_string = format!("<unknown performer[{involvement}]>");
+                        print_extra_metadata(
+                            lhs_involvee,
+                            rhs_involvee,
+                            unknown_string.as_str(),
+                            " (performer)",
+                            candidate_details_config,
+                            max_width,
+                            candidate_details_config.tracklist_extra_line_limit,
+                        );
+                    }
+                }
 
                 // Print the MusicBrain Recording ID (if different)
                 if !track_similarity.musicbrainz_recording_id.is_equal() {
@@ -637,5 +667,83 @@ fn print_unmatched_tracks(
                     .apply(if track_number.is_empty() { "" } else { ". " }),
             track_title = config.track_title_style.apply(track_title),
         );
+    }
+}
+
+/// Iterator struct that is returned by the [`match_involved_persons`] function.
+struct InvolvedPersonMatches<'a> {
+    /// A sorted, peekable iterator of involved persons for the left-hand side.
+    left_iter: Peekable<Box<dyn Iterator<Item = InvolvedPerson<'a>> + 'a>>,
+    /// A sorted, peekable iterator of involved persons for the left-hand side.
+    right_iter: Peekable<Box<dyn Iterator<Item = InvolvedPerson<'a>> + 'a>>,
+}
+
+impl<'a> Iterator for InvolvedPersonMatches<'a> {
+    type Item = (Cow<'a, str>, Option<Cow<'a, str>>, Option<Cow<'a, str>>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let order = match (self.left_iter.peek(), self.right_iter.peek()) {
+            (Some(l), Some(r)) => l.involvement.cmp(&r.involvement),
+            (Some(_), None) => Ordering::Less,
+            (None, Some(_)) => Ordering::Greater,
+            (None, None) => return None,
+        };
+
+        match order {
+            Ordering::Less => self
+                .left_iter
+                .next()
+                .map(|item| (item.involvement, Some(item.involvee), None)),
+            Ordering::Equal => {
+                let left = self.left_iter.next().unwrap();
+                let right = self.right_iter.next().unwrap();
+                Some((left.involvement, Some(left.involvee), Some(right.involvee)))
+            }
+            Ordering::Greater => self
+                .right_iter
+                .next()
+                .map(|item| (item.involvement, None, Some(item.involvee))),
+        }
+    }
+}
+
+/// Match involved persons from two unsorted iterators by their involvements.
+fn match_involved_persons<'a>(
+    lhs_persons: impl Iterator<Item = InvolvedPerson<'a>>,
+    rhs_persons: impl Iterator<Item = InvolvedPerson<'a>>,
+) -> InvolvedPersonMatches<'a> {
+    let mut left_map = BTreeMap::new();
+    for person in lhs_persons {
+        left_map
+            .entry(person.involvement.clone())
+            .or_insert(KeyedBinaryHeap::new(|x: &InvolvedPerson<'_>| {
+                x.involvee.clone()
+            }))
+            .push(person);
+    }
+
+    let mut right_map = BTreeMap::new();
+    for person in rhs_persons {
+        right_map
+            .entry(person.involvement.clone())
+            .or_insert(KeyedBinaryHeap::new(|x: &InvolvedPerson<'a>| {
+                x.involvee.clone()
+            }))
+            .push(person);
+    }
+
+    let left_iter: Box<dyn Iterator<Item = InvolvedPerson<'a>> + 'a> = Box::new(
+        left_map
+            .into_iter()
+            .flat_map(|(_left_key, heap)| heap.into_iter()),
+    );
+    let right_iter: Box<dyn Iterator<Item = InvolvedPerson<'a>> + 'a> = Box::new(
+        right_map
+            .into_iter()
+            .flat_map(|(_right_key, heap)| heap.into_iter()),
+    );
+    InvolvedPersonMatches {
+        left_iter: left_iter.peekable(),
+        right_iter: right_iter.peekable(),
     }
 }
