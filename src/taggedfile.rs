@@ -14,6 +14,7 @@ use crate::tag::{read_tags_from_path, Tag, TagKey, TagType};
 use crate::track::{AnalyzedTrackMetadata, InvolvedPerson, TrackLike};
 use std::borrow::Cow;
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fmt;
 use std::mem;
@@ -290,10 +291,26 @@ impl TaggedFile {
         self.set_tag_value(&TagKey::OriginalFilename, track.original_filename());
         self.set_tag_value(&TagKey::OriginalReleaseDate, track.original_release_date());
         self.set_tag_value(&TagKey::OriginalReleaseYear, track.original_release_year());
-        //self.set_tag_values(
-        //    &TagKey::Performer,
-        //    track.performer().collect::<Vec<_>>().as_slice(),
-        //);
+
+        self.content
+            .iter_mut()
+            .for_each(|tag| tag.set_or_clear(&TagKey::Performers, None));
+        let mut performers = HashMap::new();
+        for performer in track.performers().into_iter().flatten() {
+            performers
+                .entry(performer.involvement)
+                .or_insert_with(Vec::new)
+                .push(performer.involvee);
+        }
+        for (involvement, involvees) in performers.drain() {
+            self.content.iter_mut().for_each(|tag| {
+                tag.set_multiple(
+                    &TagKey::Performer(involvement.to_string()),
+                    involvees.as_slice(),
+                );
+            });
+        }
+
         self.set_tag_values(
             &TagKey::Producer,
             track.producer().collect::<Vec<_>>().as_slice(),
