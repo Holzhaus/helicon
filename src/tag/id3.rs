@@ -406,7 +406,9 @@ impl Tag for ID3v2Tag {
         let frame = self.tag_key_to_frame(key);
         if let Some(frame) = frame {
             match frame {
-                FrameId::Text(id) | FrameId::CombinedText(id, CombinedTextPart::First) => {
+                FrameId::Text(id)
+                | FrameId::CombinedText(id, CombinedTextPart::First)
+                | FrameId::InvolvedPersonList(id) => {
                     let _unused = self.data.remove(id);
                 }
                 FrameId::CombinedText(id, CombinedTextPart::Second) => {
@@ -428,9 +430,6 @@ impl Tag for ID3v2Tag {
                 }
                 FrameId::Comment(desc) => {
                     self.data.remove_comment(Some(desc), None);
-                }
-                FrameId::InvolvedPersonList(_) => {
-                    unreachable!();
                 }
                 FrameId::InvolvedPerson(id, involvement) => {
                     let remaining_items = self
