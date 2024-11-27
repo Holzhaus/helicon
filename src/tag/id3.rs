@@ -70,7 +70,13 @@ impl ID3v2Tag {
 
     /// Read the ID3 tag from the path
     pub fn read_from_path(path: impl AsRef<Path>) -> crate::Result<Self> {
-        let data = id3::Tag::read_from_path(path)?;
+        let data = id3::Tag::read_from_path(path).or_else(|err| {
+            if matches!(err.kind, id3::ErrorKind::NoTag) {
+                Ok(id3::Tag::new())
+            } else {
+                Err(err)
+            }
+        })?;
         Ok(ID3v2Tag { data })
     }
 
