@@ -10,6 +10,7 @@
 
 use crate::tag::{Tag, TagKey, TagType};
 use crate::track::InvolvedPerson;
+use crate::util::parse_year_from_str;
 use id3::{
     frame::{
         Comment, ExtendedText, Frame, InvolvedPeopleList, InvolvedPeopleListItem,
@@ -48,6 +49,8 @@ enum FrameId<'a> {
     InvolvedPersonList(&'a str),
     /// Involved Person in a `IPLS`/`TMCL`/`TIPL` frame.
     InvolvedPerson(&'a str, &'a str),
+    /// A valued derived from another tag.
+    DerivedValue(TagKey, fn(&str) -> Option<String>),
 }
 
 const IPLS_NON_PERFORMER_INVOLVEMENTS: [&str; 5] =
@@ -181,7 +184,9 @@ impl ID3v2Tag {
                 id3::Version::Id3v23 => FrameId::Text("TORY").into(),
                 id3::Version::Id3v24 => FrameId::Text("TDOR").into(),
             },
-            TagKey::OriginalReleaseYear => None,
+            TagKey::OriginalReleaseYear => {
+                FrameId::DerivedValue(TagKey::OriginalReleaseDate, parse_year_from_str).into()
+            }
             TagKey::Performers => match self.data.version() {
                 id3::Version::Id3v22 => None,
                 id3::Version::Id3v23 => FrameId::InvolvedPersonList("IPLS").into(),
@@ -404,6 +409,11 @@ impl Tag for ID3v2Tag {
                         })
                     })
                     .map(Cow::from),
+                FrameId::DerivedValue(original_key, derive_func) => self
+                    .get(&original_key)
+                    .as_deref()
+                    .and_then(derive_func)
+                    .map(Cow::from),
             })
     }
 
@@ -459,6 +469,7 @@ impl Tag for ID3v2Tag {
                         }
                     }
                 }
+                FrameId::DerivedValue(_, _) => (),
             }
         }
     }
@@ -583,6 +594,7 @@ impl Tag for ID3v2Tag {
                         ));
                     }
                 }
+                FrameId::DerivedValue(_, _) => (),
             }
         }
     }

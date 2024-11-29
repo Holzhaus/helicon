@@ -14,4 +14,4 @@ mod time;
 
 pub use fs::{move_file, walk_dir};
 pub use keyed_binheap::KeyedBinaryHeap;
-pub use time::FormattedDuration;
+pub use time::{parse_year_from_str, FormattedDuration};
