@@ -151,7 +151,7 @@ impl TaggedFileCollection {
     fn find_most_common_tag_value<'a>(
         &'a self,
         key: &'a TagKey,
-    ) -> Option<MostCommonItem<&'a str>> {
+    ) -> Option<MostCommonItem<Cow<'a, str>>> {
         MostCommonItem::find(
             self.tracks
                 .iter()
@@ -162,7 +162,7 @@ impl TaggedFileCollection {
     /// Finds the consensual value for a certain tag in an iterator of tagged files.
     ///
     /// Returns `None` if there is no consensual value.
-    fn find_consensual_tag_value<'a>(&'a self, key: &'a TagKey) -> Option<&'a str> {
+    fn find_consensual_tag_value<'a>(&'a self, key: &'a TagKey) -> Option<Cow<'a, str>> {
         self.find_most_common_tag_value(key)
             .and_then(MostCommonItem::into_concensus)
     }
@@ -341,18 +341,17 @@ impl ReleaseLike for TaggedFileCollection {
             .and_then(|most_common_artist| {
                 most_common_artist
                     .is_all_distinct()
-                    .then_some("Various Artists")
+                    .then_some(Cow::Borrowed("Various Artists"))
                     .or_else(|| {
                         let artist_name = most_common_artist.into_inner();
-                        if is_va_artist(artist_name) {
-                            "Various Artists"
+                        if is_va_artist(&artist_name) {
+                            Cow::Borrowed("Various Artists")
                         } else {
                             artist_name
                         }
                         .into()
                     })
             })
-            .map(Cow::from)
     }
 
     fn release_artist_sort_order(&self) -> Option<Cow<'_, str>> {

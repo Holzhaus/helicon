@@ -139,10 +139,11 @@ impl Tag for FlacTag {
         TagType::Flac
     }
 
-    fn get<'a>(&'a self, key: &'a TagKey) -> Option<&'a str> {
+    fn get<'a>(&'a self, key: &'a TagKey) -> Option<Cow<'a, str>> {
         Self::tag_key_to_frame(key)
             .and_then(|key| self.data.get_vorbis(key))
             .and_then(|mut iterator| iterator.next())
+            .map(Cow::from)
     }
 
     fn set(&mut self, key: &TagKey, value: Cow<'_, str>) {
@@ -295,7 +296,7 @@ mod tests {
                     assert!(tag.get($tagkey).is_none());
 
                     tag.set($tagkey, Cow::from("Example Value"));
-                    assert_eq!(tag.get($tagkey), Some("Example Value"));
+                    assert_eq!(tag.get($tagkey).as_deref(), Some("Example Value"));
                 }
 
                 #[test]

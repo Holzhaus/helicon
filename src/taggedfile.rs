@@ -152,7 +152,7 @@ impl TaggedFile {
     }
 
     /// Yields all values for the given [`TagKey`].
-    pub fn tag_values<'a>(&'a self, key: &'a TagKey) -> impl Iterator<Item = &'a str> {
+    pub fn tag_values<'a>(&'a self, key: &'a TagKey) -> impl Iterator<Item = Cow<'a, str>> {
         self.tags().iter().filter_map(move |tag| tag.get(key))
     }
 
@@ -173,7 +173,7 @@ impl TaggedFile {
 
     /// Returns the first value for the given [`TagKey`].
     #[must_use]
-    pub fn first_tag_value<'a>(&'a self, key: &'a TagKey) -> Option<&'a str> {
+    pub fn first_tag_value<'a>(&'a self, key: &'a TagKey) -> Option<Cow<'a, str>> {
         self.tag_values(key).next()
     }
 
@@ -387,189 +387,173 @@ impl PartialOrd for TaggedFile {
 
 impl TrackLike for TaggedFile {
     fn acoustid(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(&TagKey::AcoustId).map(Cow::from)
+        self.first_tag_value(&TagKey::AcoustId)
     }
 
     fn acoustid_fingerprint(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(&TagKey::AcoustIdFingerprint)
-            .map(Cow::from)
     }
 
     fn arranger(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(&TagKey::Arranger).map(Cow::from)
+        self.tag_values(&TagKey::Arranger)
     }
 
     fn track_artist(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(&TagKey::Artist)
             .or_else(|| self.first_tag_value(&TagKey::Artists))
             .or_else(|| self.first_tag_value(&TagKey::AlbumArtist))
-            .map(Cow::from)
     }
 
     fn track_artist_sort_order(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(&TagKey::ArtistSortOrder)
-            .map(Cow::from)
     }
 
     fn bpm(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(&TagKey::Bpm).map(Cow::from)
+        self.first_tag_value(&TagKey::Bpm)
     }
 
     fn comment(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(&TagKey::Comment).map(Cow::from)
+        self.first_tag_value(&TagKey::Comment)
     }
 
     fn composer(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(&TagKey::Composer).map(Cow::from)
+        self.tag_values(&TagKey::Composer)
     }
 
     fn composer_sort_order(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(&TagKey::ComposerSortOrder)
-            .map(Cow::from)
     }
 
     fn conductor(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(&TagKey::Conductor).map(Cow::from)
+        self.tag_values(&TagKey::Conductor)
     }
 
     fn copyright(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(&TagKey::Copyright).map(Cow::from)
+        self.first_tag_value(&TagKey::Copyright)
     }
 
     fn director(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(&TagKey::Director).map(Cow::from)
+        self.tag_values(&TagKey::Director)
     }
 
     fn dj_mixer(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(&TagKey::DjMixer).map(Cow::from)
+        self.tag_values(&TagKey::DjMixer)
     }
 
     fn encoded_by(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(&TagKey::EncodedBy).map(Cow::from)
+        self.first_tag_value(&TagKey::EncodedBy)
     }
 
     fn encoder_settings(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(&TagKey::EncoderSettings)
-            .map(Cow::from)
     }
 
     fn engineer(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(&TagKey::Engineer).map(Cow::from)
+        self.tag_values(&TagKey::Engineer)
     }
 
     fn genre(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(&TagKey::Genre).map(Cow::from)
+        self.tag_values(&TagKey::Genre)
     }
 
     fn initial_key(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(&TagKey::InitialKey).map(Cow::from)
+        self.first_tag_value(&TagKey::InitialKey)
     }
 
     fn isrc(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(&TagKey::Isrc).map(Cow::from)
+        self.tag_values(&TagKey::Isrc)
     }
 
     fn language(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(&TagKey::Language).map(Cow::from)
+        self.first_tag_value(&TagKey::Language)
     }
 
     fn license(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(&TagKey::License).map(Cow::from)
+        self.first_tag_value(&TagKey::License)
     }
 
     fn lyricist(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(&TagKey::Lyricist).map(Cow::from)
+        self.tag_values(&TagKey::Lyricist)
     }
 
     fn lyrics(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(&TagKey::Lyrics).map(Cow::from)
+        self.first_tag_value(&TagKey::Lyrics)
     }
 
     fn mixer(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(&TagKey::Mixer).map(Cow::from)
+        self.tag_values(&TagKey::Mixer)
     }
 
     fn mood(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(&TagKey::Mood).map(Cow::from)
+        self.first_tag_value(&TagKey::Mood)
     }
 
     fn movement(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(&TagKey::Movement).map(Cow::from)
+        self.first_tag_value(&TagKey::Movement)
     }
 
     fn movement_count(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(&TagKey::MovementCount).map(Cow::from)
+        self.first_tag_value(&TagKey::MovementCount)
     }
 
     fn movement_number(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(&TagKey::MovementNumber).map(Cow::from)
+        self.first_tag_value(&TagKey::MovementNumber)
     }
 
     fn musicbrainz_artist_id(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(&TagKey::MusicBrainzArtistId)
-            .map(Cow::from)
     }
 
     fn musicbrainz_original_artist_id(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(&TagKey::MusicBrainzOriginalArtistId)
-            .map(Cow::from)
     }
 
     fn musicbrainz_original_release_id(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(&TagKey::MusicBrainzOriginalReleaseId)
-            .map(Cow::from)
     }
 
     fn musicbrainz_recording_id(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(&TagKey::MusicBrainzRecordingId)
-            .map(Cow::from)
     }
 
     fn musicbrainz_track_id(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(&TagKey::MusicBrainzTrackId)
-            .map(Cow::from)
     }
 
     fn musicbrainz_trm_id(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(&TagKey::MusicBrainzTrmId)
-            .map(Cow::from)
     }
 
     fn musicbrainz_work_id(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(&TagKey::MusicBrainzWorkId)
-            .map(Cow::from)
     }
 
     fn musicip_fingerprint(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(&TagKey::MusicIpFingerprint)
-            .map(Cow::from)
     }
 
     fn musicip_puid(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(&TagKey::MusicIpPuid).map(Cow::from)
+        self.first_tag_value(&TagKey::MusicIpPuid)
     }
 
     fn original_album(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(&TagKey::OriginalAlbum).map(Cow::from)
+        self.first_tag_value(&TagKey::OriginalAlbum)
     }
 
     fn original_artist(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(&TagKey::OriginalArtist).map(Cow::from)
+        self.first_tag_value(&TagKey::OriginalArtist)
     }
 
     fn original_filename(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(&TagKey::OriginalFilename)
-            .map(Cow::from)
     }
 
     fn original_release_date(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(&TagKey::OriginalReleaseDate)
-            .map(Cow::from)
     }
 
     fn original_release_year(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(&TagKey::OriginalReleaseYear)
-            .map(Cow::from)
     }
 
     fn performers(&self) -> Option<Vec<InvolvedPerson<'_>>> {
@@ -577,75 +561,67 @@ impl TrackLike for TaggedFile {
     }
 
     fn producer(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(&TagKey::Producer).map(Cow::from)
+        self.tag_values(&TagKey::Producer)
     }
 
     fn rating(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(&TagKey::Rating).map(Cow::from)
+        self.first_tag_value(&TagKey::Rating)
     }
 
     fn remixer(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(&TagKey::Remixer).map(Cow::from)
+        self.tag_values(&TagKey::Remixer)
     }
 
     fn replay_gain_album_gain(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(&TagKey::ReplayGainAlbumGain)
-            .map(Cow::from)
     }
 
     fn replay_gain_album_peak(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(&TagKey::ReplayGainAlbumPeak)
-            .map(Cow::from)
     }
 
     fn replay_gain_album_range(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(&TagKey::ReplayGainAlbumRange)
-            .map(Cow::from)
     }
 
     fn replay_gain_reference_loudness(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(&TagKey::ReplayGainReferenceLoudness)
-            .map(Cow::from)
     }
 
     fn replay_gain_track_gain(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(&TagKey::ReplayGainTrackGain)
-            .map(Cow::from)
     }
 
     fn replay_gain_track_peak(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(&TagKey::ReplayGainTrackPeak)
-            .map(Cow::from)
     }
 
     fn replay_gain_track_range(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(&TagKey::ReplayGainTrackRange)
-            .map(Cow::from)
     }
 
     fn track_number(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(&TagKey::TrackNumber).map(Cow::from)
+        self.first_tag_value(&TagKey::TrackNumber)
     }
 
     fn track_title(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(&TagKey::TrackTitle).map(Cow::from)
+        self.first_tag_value(&TagKey::TrackTitle)
     }
 
     fn track_title_sort_order(&self) -> Option<Cow<'_, str>> {
         self.first_tag_value(&TagKey::TrackTitleSortOrder)
-            .map(Cow::from)
     }
 
     fn artist_website(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(&TagKey::ArtistWebsite).map(Cow::from)
+        self.first_tag_value(&TagKey::ArtistWebsite)
     }
 
     fn work_title(&self) -> Option<Cow<'_, str>> {
-        self.first_tag_value(&TagKey::WorkTitle).map(Cow::from)
+        self.first_tag_value(&TagKey::WorkTitle)
     }
 
     fn writer(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.tag_values(&TagKey::Writer).map(Cow::from)
+        self.tag_values(&TagKey::Writer)
     }
 
     fn track_length(&self) -> Option<chrono::TimeDelta> {

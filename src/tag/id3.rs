@@ -354,11 +354,13 @@ impl Tag for ID3v2Tag {
         }
     }
 
-    fn get<'a>(&'a self, key: &'a TagKey) -> Option<&'a str> {
+    fn get<'a>(&'a self, key: &'a TagKey) -> Option<Cow<'a, str>> {
         self.tag_key_to_frame(key)
             .and_then(|frame_id| match frame_id {
-                FrameId::Text(id) => self.get_frames(id).next(),
-                FrameId::CombinedText(id, part) => self.get_combined_text_part(id, part),
+                FrameId::Text(id) => self.get_frames(id).map(Cow::from).next(),
+                FrameId::CombinedText(id, part) => {
+                    self.get_combined_text_part(id, part).map(Cow::from)
+                }
                 FrameId::ExtendedText(id) => self
                     .get_extended_texts(id)
                     .map(|value| {
@@ -373,14 +375,16 @@ impl Tag for ID3v2Tag {
                                 }
                             })
                     })
+                    .map(Cow::from)
                     .next(),
                 FrameId::UniqueFileIdentifier(id) => self
                     .get_unique_file_identifiers(id)
                     .map(std::str::from_utf8)
-                    .find_map(Result::ok),
+                    .find_map(Result::ok)
+                    .map(Cow::from),
                 FrameId::Comment(desc) => self.data.comments().find_map(|comment| {
                     if comment.lang == "eng" && comment.description == desc {
-                        Some(comment.text.as_str())
+                        Some(Cow::from(comment.text.as_str()))
                     } else {
                         None
                     }
@@ -398,7 +402,8 @@ impl Tag for ID3v2Tag {
                             (item.involvement.as_str() == involvement)
                                 .then_some(item.involvee.as_str())
                         })
-                    }),
+                    })
+                    .map(Cow::from),
             })
     }
 
@@ -654,7 +659,10 @@ mod tests {
 
         tag.set(&TagKey::Arranger, Cow::from("An awesome Arranger"));
 
-        assert_eq!(tag.get(&TagKey::Arranger), Some("An awesome Arranger"));
+        assert_eq!(
+            tag.get(&TagKey::Arranger).as_deref(),
+            Some("An awesome Arranger")
+        );
         assert!(tag.get(&TagKey::Engineer).is_none());
         assert!(tag.get(&TagKey::DjMixer).is_none());
         assert!(tag.get(&TagKey::Mixer).is_none());
@@ -662,59 +670,74 @@ mod tests {
 
         tag.set(&TagKey::Engineer, Cow::from("Mrs. Engineer"));
 
-        assert_eq!(tag.get(&TagKey::Arranger), Some("An awesome Arranger"));
-        assert_eq!(tag.get(&TagKey::Engineer), Some("Mrs. Engineer"));
+        assert_eq!(
+            tag.get(&TagKey::Arranger).as_deref(),
+            Some("An awesome Arranger")
+        );
+        assert_eq!(tag.get(&TagKey::Engineer).as_deref(), Some("Mrs. Engineer"));
         assert!(tag.get(&TagKey::DjMixer).is_none());
         assert!(tag.get(&TagKey::Mixer).is_none());
         assert!(tag.get(&TagKey::Producer).is_none());
 
         tag.set(&TagKey::DjMixer, Cow::from("Mr. DJ"));
 
-        assert_eq!(tag.get(&TagKey::Arranger), Some("An awesome Arranger"));
-        assert_eq!(tag.get(&TagKey::Engineer), Some("Mrs. Engineer"));
-        assert_eq!(tag.get(&TagKey::DjMixer), Some("Mr. DJ"));
+        assert_eq!(
+            tag.get(&TagKey::Arranger).as_deref(),
+            Some("An awesome Arranger")
+        );
+        assert_eq!(tag.get(&TagKey::Engineer).as_deref(), Some("Mrs. Engineer"));
+        assert_eq!(tag.get(&TagKey::DjMixer).as_deref(), Some("Mr. DJ"));
         assert!(tag.get(&TagKey::Mixer).is_none());
         assert!(tag.get(&TagKey::Producer).is_none());
 
         tag.set(&TagKey::Mixer, Cow::from("Miss Mixer"));
 
-        assert_eq!(tag.get(&TagKey::Arranger), Some("An awesome Arranger"));
-        assert_eq!(tag.get(&TagKey::Engineer), Some("Mrs. Engineer"));
-        assert_eq!(tag.get(&TagKey::DjMixer), Some("Mr. DJ"));
-        assert_eq!(tag.get(&TagKey::Mixer), Some("Miss Mixer"));
+        assert_eq!(
+            tag.get(&TagKey::Arranger).as_deref(),
+            Some("An awesome Arranger")
+        );
+        assert_eq!(tag.get(&TagKey::Engineer).as_deref(), Some("Mrs. Engineer"));
+        assert_eq!(tag.get(&TagKey::DjMixer).as_deref(), Some("Mr. DJ"));
+        assert_eq!(tag.get(&TagKey::Mixer).as_deref(), Some("Miss Mixer"));
         assert!(tag.get(&TagKey::Producer).is_none());
 
         tag.set(&TagKey::Producer, Cow::from("Producer Dude"));
 
-        assert_eq!(tag.get(&TagKey::Arranger), Some("An awesome Arranger"));
-        assert_eq!(tag.get(&TagKey::Engineer), Some("Mrs. Engineer"));
-        assert_eq!(tag.get(&TagKey::DjMixer), Some("Mr. DJ"));
-        assert_eq!(tag.get(&TagKey::Mixer), Some("Miss Mixer"));
-        assert_eq!(tag.get(&TagKey::Producer), Some("Producer Dude"));
+        assert_eq!(
+            tag.get(&TagKey::Arranger).as_deref(),
+            Some("An awesome Arranger")
+        );
+        assert_eq!(tag.get(&TagKey::Engineer).as_deref(), Some("Mrs. Engineer"));
+        assert_eq!(tag.get(&TagKey::DjMixer).as_deref(), Some("Mr. DJ"));
+        assert_eq!(tag.get(&TagKey::Mixer).as_deref(), Some("Miss Mixer"));
+        assert_eq!(tag.get(&TagKey::Producer).as_deref(), Some("Producer Dude"));
 
         tag.clear(&TagKey::DjMixer);
 
-        assert_eq!(tag.get(&TagKey::Arranger), Some("An awesome Arranger"));
-        assert_eq!(tag.get(&TagKey::Engineer), Some("Mrs. Engineer"));
+        assert_eq!(
+            tag.get(&TagKey::Arranger).as_deref(),
+            Some("An awesome Arranger")
+        );
+        assert_eq!(tag.get(&TagKey::Engineer).as_deref(), Some("Mrs. Engineer"));
         assert!(tag.get(&TagKey::DjMixer).is_none());
-        assert_eq!(tag.get(&TagKey::Mixer), Some("Miss Mixer"));
-        assert_eq!(tag.get(&TagKey::Producer), Some("Producer Dude"));
+        assert_eq!(tag.get(&TagKey::Mixer).as_deref(), Some("Miss Mixer"));
+        assert_eq!(tag.get(&TagKey::Producer).as_deref(), Some("Producer Dude"));
 
         tag.clear(&TagKey::Arranger);
 
         assert!(tag.get(&TagKey::Arranger).is_none());
-        assert_eq!(tag.get(&TagKey::Engineer), Some("Mrs. Engineer"));
+        assert_eq!(tag.get(&TagKey::Engineer).as_deref(), Some("Mrs. Engineer"));
         assert!(tag.get(&TagKey::DjMixer).is_none());
-        assert_eq!(tag.get(&TagKey::Mixer), Some("Miss Mixer"));
-        assert_eq!(tag.get(&TagKey::Producer), Some("Producer Dude"));
+        assert_eq!(tag.get(&TagKey::Mixer).as_deref(), Some("Miss Mixer"));
+        assert_eq!(tag.get(&TagKey::Producer).as_deref(), Some("Producer Dude"));
 
         tag.set_or_clear(&TagKey::Mixer, None);
 
         assert!(tag.get(&TagKey::Arranger).is_none());
-        assert_eq!(tag.get(&TagKey::Engineer), Some("Mrs. Engineer"));
+        assert_eq!(tag.get(&TagKey::Engineer).as_deref(), Some("Mrs. Engineer"));
         assert!(tag.get(&TagKey::DjMixer).is_none());
         assert!(tag.get(&TagKey::Mixer).is_none());
-        assert_eq!(tag.get(&TagKey::Producer), Some("Producer Dude"));
+        assert_eq!(tag.get(&TagKey::Producer).as_deref(), Some("Producer Dude"));
     }
 
     #[test]
@@ -728,58 +751,79 @@ mod tests {
             data: id3::Tag::read_from2(cursor).unwrap(),
         };
         assert_eq!(tag.tag_type(), TagType::ID3v23);
-        assert_eq!(tag.get(&TagKey::TrackTitle), Some("But Not for Me"));
-        assert_eq!(tag.get(&TagKey::Artist), Some("The Ahmad Jamal Trio"));
         assert_eq!(
-            tag.get(&TagKey::Album),
+            tag.get(&TagKey::TrackTitle).as_deref(),
+            Some("But Not for Me")
+        );
+        assert_eq!(
+            tag.get(&TagKey::Artist).as_deref(),
+            Some("The Ahmad Jamal Trio")
+        );
+        assert_eq!(
+            tag.get(&TagKey::Album).as_deref(),
             Some("Ahmad Jamal at the Pershing: But Not for Me")
         );
-        assert_eq!(tag.get(&TagKey::TrackNumber), Some("1"));
-        assert_eq!(tag.get(&TagKey::ReleaseYear), Some("1958"));
-        assert_eq!(tag.get(&TagKey::AlbumArtist), Some("The Ahmad Jamal Trio"));
+        assert_eq!(tag.get(&TagKey::TrackNumber).as_deref(), Some("1"));
+        assert_eq!(tag.get(&TagKey::ReleaseYear).as_deref(), Some("1958"));
         assert_eq!(
-            tag.get(&TagKey::AlbumArtistSortOrder),
+            tag.get(&TagKey::AlbumArtist).as_deref(),
+            Some("The Ahmad Jamal Trio")
+        );
+        assert_eq!(
+            tag.get(&TagKey::AlbumArtistSortOrder).as_deref(),
             Some("Jamal, Ahmad, Trio, The")
         );
-        assert_eq!(tag.get(&TagKey::Artists), Some("The Ahmad Jamal Trio"));
-        assert_eq!(tag.get(&TagKey::CatalogNumber), Some("LP-628/LPS-628"));
-        assert_eq!(tag.get(&TagKey::Composer), Some("George Gershwin"));
         assert_eq!(
-            tag.get(&TagKey::ComposerSortOrder),
+            tag.get(&TagKey::Artists).as_deref(),
+            Some("The Ahmad Jamal Trio")
+        );
+        assert_eq!(
+            tag.get(&TagKey::CatalogNumber).as_deref(),
+            Some("LP-628/LPS-628")
+        );
+        assert_eq!(
+            tag.get(&TagKey::Composer).as_deref(),
+            Some("George Gershwin")
+        );
+        assert_eq!(
+            tag.get(&TagKey::ComposerSortOrder).as_deref(),
             Some("Gershwin, George")
         );
-        assert_eq!(tag.get(&TagKey::DiscNumber), Some("1"));
-        assert_eq!(tag.get(&TagKey::Language), Some("zxx"));
-        assert_eq!(tag.get(&TagKey::Media), Some("12\" Vinyl"));
+        assert_eq!(tag.get(&TagKey::DiscNumber).as_deref(), Some("1"));
+        assert_eq!(tag.get(&TagKey::Language).as_deref(), Some("zxx"));
+        assert_eq!(tag.get(&TagKey::Media).as_deref(), Some("12\" Vinyl"));
         assert_eq!(
-            tag.get(&TagKey::MusicBrainzArtistId),
+            tag.get(&TagKey::MusicBrainzArtistId).as_deref(),
             Some("9e7ca87b-4e3d-4d14-90f1-a74acb645fe2")
         );
         assert_eq!(
-            tag.get(&TagKey::MusicBrainzRecordingId),
+            tag.get(&TagKey::MusicBrainzRecordingId).as_deref(),
             Some("9d444787-3f25-4c16-9261-597b9ab021cc")
         );
         assert_eq!(
-            tag.get(&TagKey::MusicBrainzReleaseArtistId),
+            tag.get(&TagKey::MusicBrainzReleaseArtistId).as_deref(),
             Some("9e7ca87b-4e3d-4d14-90f1-a74acb645fe2")
         );
         assert_eq!(
-            tag.get(&TagKey::MusicBrainzReleaseGroupId),
+            tag.get(&TagKey::MusicBrainzReleaseGroupId).as_deref(),
             Some("0a8e97fd-457c-30bc-938a-2fba79cb04e7")
         );
         assert_eq!(
-            tag.get(&TagKey::MusicBrainzReleaseId),
+            tag.get(&TagKey::MusicBrainzReleaseId).as_deref(),
             Some("0008f765-032b-46cd-ab69-2220edab1837")
         );
         assert_eq!(
-            tag.get(&TagKey::MusicBrainzTrackId),
+            tag.get(&TagKey::MusicBrainzTrackId).as_deref(),
             Some("cc9757af-8427-386e-aced-75b800feed77")
         );
         assert_eq!(
-            tag.get(&TagKey::MusicBrainzWorkId),
+            tag.get(&TagKey::MusicBrainzWorkId).as_deref(),
             Some("f53d7dd0-fdbd-3901-adf8-9b1ab3121e9e")
         );
-        assert_eq!(tag.get(&TagKey::OriginalReleaseDate), Some("1958"));
+        assert_eq!(
+            tag.get(&TagKey::OriginalReleaseDate).as_deref(),
+            Some("1958")
+        );
         assert_eq!(
             tag.performers(),
             Some(vec![
@@ -797,15 +841,18 @@ mod tests {
                 }
             ])
         );
-        assert_eq!(tag.get(&TagKey::Producer), Some("Dave Usher"));
-        assert_eq!(tag.get(&TagKey::RecordLabel), Some("Argo"));
-        assert_eq!(tag.get(&TagKey::ReleaseCountry), Some("US"));
-        assert_eq!(tag.get(&TagKey::ReleaseStatus), Some("official"));
-        assert_eq!(tag.get(&TagKey::ReleaseType), Some("album/live"));
-        assert_eq!(tag.get(&TagKey::Script), Some("Latn"));
-        assert_eq!(tag.get(&TagKey::TotalDiscs), Some("1"));
-        assert_eq!(tag.get(&TagKey::TotalTracks), Some("8"));
-        assert_eq!(tag.get(&TagKey::WorkTitle), Some("But Not for Me"));
+        assert_eq!(tag.get(&TagKey::Producer).as_deref(), Some("Dave Usher"));
+        assert_eq!(tag.get(&TagKey::RecordLabel).as_deref(), Some("Argo"));
+        assert_eq!(tag.get(&TagKey::ReleaseCountry).as_deref(), Some("US"));
+        assert_eq!(tag.get(&TagKey::ReleaseStatus).as_deref(), Some("official"));
+        assert_eq!(tag.get(&TagKey::ReleaseType).as_deref(), Some("album/live"));
+        assert_eq!(tag.get(&TagKey::Script).as_deref(), Some("Latn"));
+        assert_eq!(tag.get(&TagKey::TotalDiscs).as_deref(), Some("1"));
+        assert_eq!(tag.get(&TagKey::TotalTracks).as_deref(), Some("8"));
+        assert_eq!(
+            tag.get(&TagKey::WorkTitle).as_deref(),
+            Some("But Not for Me")
+        );
     }
 
     macro_rules! add_tests_with_id3_version {
@@ -817,7 +864,7 @@ mod tests {
                     assert!(tag.get($tagkey).is_none());
 
                     tag.set($tagkey, Cow::from("Example Value"));
-                    assert_eq!(tag.get($tagkey), Some("Example Value"));
+                    assert_eq!(tag.get($tagkey).as_deref(), Some("Example Value"));
                 }
 
                 #[test]
@@ -869,16 +916,16 @@ mod tests {
                     assert!(tag.get($tagkey2).is_none());
 
                     tag.set($tagkey1, Cow::from("Example Value 1"));
-                    assert_eq!(tag.get($tagkey1), Some("Example Value 1"));
+                    assert_eq!(tag.get($tagkey1).as_deref(), Some("Example Value 1"));
                     assert!(tag.get($tagkey2).is_none());
 
                     tag.set($tagkey2, Cow::from("Example Value 2"));
-                    assert_eq!(tag.get($tagkey1), Some("Example Value 1"));
-                    assert_eq!(tag.get($tagkey2), Some("Example Value 2"));
+                    assert_eq!(tag.get($tagkey1).as_deref(), Some("Example Value 1"));
+                    assert_eq!(tag.get($tagkey2).as_deref(), Some("Example Value 2"));
 
                     tag.set($tagkey1, Cow::from("Example Value 3"));
-                    assert_eq!(tag.get($tagkey1), Some("Example Value 3"));
-                    assert_eq!(tag.get($tagkey2), Some("Example Value 2"));
+                    assert_eq!(tag.get($tagkey1).as_deref(), Some("Example Value 3"));
+                    assert_eq!(tag.get($tagkey2).as_deref(), Some("Example Value 2"));
                 }
 
                 #[test]
