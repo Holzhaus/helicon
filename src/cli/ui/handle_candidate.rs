@@ -21,7 +21,6 @@ use crossterm::{
     style::{ContentStyle, Stylize},
     terminal,
 };
-use expanduser::expanduser;
 use inquire::{InquireError, Select};
 use std::borrow::Cow;
 use std::cmp::Ordering;
@@ -124,7 +123,6 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
     show_details: bool,
 ) {
     let candidate_details_config = &config.user_interface.candidate_details;
-    let path_formatter = config.paths.format.formatter();
 
     let distance_color = util::distance_color(&candidate.distance(config));
 
@@ -501,32 +499,22 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                     }
                 }
                 if let Some(path) = lhs_track.track_path() {
-                    let old_path = path.to_str().map(Cow::from);
+                    let old_path = path;
+
                     let values = PathFormatterValues::default()
                         .with_release(base_release)
                         .with_release(release)
                         .with_media(media)
                         .with_track(*lhs_track_index + 1, *lhs_track)
                         .with_track(rhs_track_index + 1, rhs_track);
-                    let new_path = expanduser(&config.paths.library_path)
-                        .ok()
-                        .zip(
-                            path_formatter
-                                .format(&values)
-                                .inspect_err(|err| {
-                                    log::error!("Failed to format path: {err}");
-                                })
-                                .ok(),
-                        )
-                        .map(|(library_path, path)| library_path.join(path))
-                        .zip(lhs_track.track_file_extension())
-                        .map(|(path, ext)| {
-                            Cow::from(format!("{path}.{ext}", path = path.display()))
-                        });
-                    if old_path != new_path {
+                    let new_path = config
+                        .paths
+                        .format_path(&values, lhs_track.track_file_extension())
+                        .ok();
+                    if new_path.as_deref().is_none_or(|p| p != old_path) {
                         print_extra_metadata(
-                            old_path,
-                            new_path,
+                            old_path.to_str().map(Cow::from),
+                            new_path.as_deref().and_then(|x| x.to_str()).map(Cow::from),
                             "<unknown path>",
                             " (path)",
                             candidate_details_config,
