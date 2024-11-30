@@ -215,7 +215,10 @@ impl ID3v2Tag {
                 id3::Version::Id3v24 => FrameId::Text("TDRC").into(),
             },
             TagKey::ReleaseYear => match self.data.version() {
-                id3::Version::Id3v22 | id3::Version::Id3v24 => None,
+                id3::Version::Id3v22 => None,
+                id3::Version::Id3v24 => {
+                    FrameId::DerivedValue(TagKey::ReleaseDate, parse_year_from_str).into()
+                }
                 id3::Version::Id3v23 => FrameId::Text("TYER").into(),
             },
             TagKey::ReleaseStatus => FrameId::ExtendedText("MusicBrainz Album Status").into(),
