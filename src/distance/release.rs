@@ -80,6 +80,23 @@ pub struct TrackAssignment {
 }
 
 impl TrackAssignment {
+    #[cfg(test)]
+    pub fn new(track_count: usize) -> Self {
+        let matched_tracks = (0..track_count)
+            .map(|i| TrackMatchPair {
+                lhs: i,
+                rhs: i,
+                similarity: TrackSimilarity::new(),
+            })
+            .collect();
+        TrackAssignment {
+            matched_tracks,
+            unmatched_tracks: Vec::new(),
+            unmatched_tracks_source: UnmatchedTracksSource::Left,
+            matched_tracks_distance: Distance::MIN,
+        }
+    }
+
     /// Calculates the distance for this track assignment.
     pub fn to_distance(&self) -> Distance {
         let matched_tracks_weight = usize_to_f64(self.matched_tracks.len()).unwrap();
@@ -286,6 +303,20 @@ pub struct ReleaseSimilarity {
 }
 
 impl ReleaseSimilarity {
+    #[cfg(test)]
+    pub fn new(track_count: usize) -> Self {
+        ReleaseSimilarity {
+            release_title: Difference::Added,
+            release_artist: Difference::Added,
+            musicbrainz_release_id: Difference::Added,
+            media_format: Difference::Added,
+            record_label: Difference::Added,
+            catalog_number: Difference::Added,
+            barcode: Difference::Added,
+            track_assignment: TrackAssignment::new(track_count),
+        }
+    }
+
     /// Calculate the distance between two releases.
     pub fn detect<T1, T2>(config: &Config, lhs: &T1, rhs: &T2) -> Self
     where

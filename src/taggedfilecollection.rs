@@ -458,6 +458,14 @@ impl ReleaseLike for TaggedFileCollection {
 mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
+    use crate::distance::ReleaseSimilarity;
+    use crate::musicbrainz::MusicBrainzRelease;
+    use crate::tag::Tag;
+
+    const MUSICBRAINZ_RELEASE_JSON: &str = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/data/musicbrainz/release.json"
+    ));
 
     #[test]
     fn test_most_common_item_with_empty_string_iterator() {
@@ -538,5 +546,165 @@ mod tests {
         assert!(!most_common_item.is_all_distinct());
         assert_eq!(&2, most_common_item.clone().into_inner());
         assert_eq!(None, most_common_item.into_concensus());
+    }
+
+    fn make_collection_from_assignment(func: impl Fn() -> Box<dyn Tag>) -> TaggedFileCollection {
+        let release: MusicBrainzRelease = serde_json::from_str(MUSICBRAINZ_RELEASE_JSON).unwrap();
+        let release_track_count = release.release_track_count().unwrap();
+        let release_candidate =
+            ReleaseCandidate::new(release, ReleaseSimilarity::new(release_track_count));
+
+        let tracks = (0..release_track_count)
+            .map(|_| TaggedFile::new(vec![func()]))
+            .collect();
+        TaggedFileCollection::new(tracks).assign_tags(&release_candidate)
+    }
+
+    #[test]
+    #[cfg(feature = "id3")]
+    fn test_assign_tags_id3v23() {
+        use crate::tag::id3::ID3v2Tag;
+
+        let collection = make_collection_from_assignment(|| {
+            Box::new(ID3v2Tag::with_version(id3::Version::Id3v23))
+        });
+        assert_eq!(collection.release_track_count(), Some(8));
+        assert_eq!(
+            collection.release_title().as_deref(),
+            Some("Ahmad Jamal at the Pershing: But Not for Me")
+        );
+        assert_eq!(
+            collection.release_artist().as_deref(),
+            Some("The Ahmad Jamal Trio")
+        );
+        assert_eq!(
+            collection.release_artist_sort_order().as_deref(),
+            Some("Jamal, Ahmad, Trio, The")
+        );
+        assert_eq!(collection.release_sort_order(), None);
+
+        assert_eq!(collection.asin(), None);
+        assert_eq!(collection.barcode(), None);
+        assert_eq!(collection.catalog_number().as_deref(), Some("LP-628"));
+        assert_eq!(collection.compilation(), None);
+        assert_eq!(collection.grouping(), None);
+        assert_eq!(
+            collection.musicbrainz_release_artist_id().as_deref(),
+            Some("9e7ca87b-4e3d-4d14-90f1-a74acb645fe2")
+        );
+        assert_eq!(
+            collection.musicbrainz_release_group_id().as_deref(),
+            Some("0a8e97fd-457c-30bc-938a-2fba79cb04e7")
+        );
+        assert_eq!(
+            collection.musicbrainz_release_id().as_deref(),
+            Some("0008f765-032b-46cd-ab69-2220edab1837")
+        );
+        assert_eq!(collection.record_label().as_deref(), Some("Argo"));
+        assert_eq!(collection.release_country().as_deref(), Some("US"));
+        assert_eq!(collection.release_date().as_deref(), Some("1958-01-01"));
+        assert_eq!(collection.release_year().as_deref(), Some("1958"));
+        assert_eq!(collection.release_status().as_deref(), Some("official"));
+        assert_eq!(collection.release_type().as_deref(), Some("album"));
+        assert_eq!(collection.script().as_deref(), Some("Latn"));
+        assert_eq!(collection.total_discs().as_deref(), Some("1"));
+    }
+
+    #[test]
+    #[cfg(feature = "id3")]
+    fn test_assign_tags_id3v24() {
+        use crate::tag::id3::ID3v2Tag;
+
+        let collection = make_collection_from_assignment(|| {
+            Box::new(ID3v2Tag::with_version(id3::Version::Id3v24))
+        });
+        assert_eq!(collection.release_track_count(), Some(8));
+        assert_eq!(
+            collection.release_title().as_deref(),
+            Some("Ahmad Jamal at the Pershing: But Not for Me")
+        );
+        assert_eq!(
+            collection.release_artist().as_deref(),
+            Some("The Ahmad Jamal Trio")
+        );
+        assert_eq!(
+            collection.release_artist_sort_order().as_deref(),
+            Some("Jamal, Ahmad, Trio, The")
+        );
+        assert_eq!(collection.release_sort_order(), None);
+
+        assert_eq!(collection.asin(), None);
+        assert_eq!(collection.barcode(), None);
+        assert_eq!(collection.catalog_number().as_deref(), Some("LP-628"));
+        assert_eq!(collection.compilation(), None);
+        assert_eq!(collection.grouping(), None);
+        assert_eq!(
+            collection.musicbrainz_release_artist_id().as_deref(),
+            Some("9e7ca87b-4e3d-4d14-90f1-a74acb645fe2")
+        );
+        assert_eq!(
+            collection.musicbrainz_release_group_id().as_deref(),
+            Some("0a8e97fd-457c-30bc-938a-2fba79cb04e7")
+        );
+        assert_eq!(
+            collection.musicbrainz_release_id().as_deref(),
+            Some("0008f765-032b-46cd-ab69-2220edab1837")
+        );
+        assert_eq!(collection.record_label().as_deref(), Some("Argo"));
+        assert_eq!(collection.release_country().as_deref(), Some("US"));
+        assert_eq!(collection.release_date().as_deref(), Some("1958-01-01"));
+        assert_eq!(collection.release_year().as_deref(), Some("1958"));
+        assert_eq!(collection.release_status().as_deref(), Some("official"));
+        assert_eq!(collection.release_type().as_deref(), Some("album"));
+        assert_eq!(collection.script().as_deref(), Some("Latn"));
+        assert_eq!(collection.total_discs().as_deref(), Some("1"));
+    }
+
+    #[test]
+    #[cfg(feature = "flac")]
+    fn test_assign_tags_flac() {
+        use crate::tag::flac::FlacTag;
+
+        let collection = make_collection_from_assignment(|| Box::new(FlacTag::new()));
+        assert_eq!(collection.release_track_count(), Some(8));
+        assert_eq!(
+            collection.release_title().as_deref(),
+            Some("Ahmad Jamal at the Pershing: But Not for Me")
+        );
+        assert_eq!(
+            collection.release_artist().as_deref(),
+            Some("The Ahmad Jamal Trio")
+        );
+        assert_eq!(
+            collection.release_artist_sort_order().as_deref(),
+            Some("Jamal, Ahmad, Trio, The")
+        );
+        assert_eq!(collection.release_sort_order(), None);
+
+        assert_eq!(collection.asin(), None);
+        assert_eq!(collection.barcode(), None);
+        assert_eq!(collection.catalog_number().as_deref(), Some("LP-628"));
+        assert_eq!(collection.compilation(), None);
+        assert_eq!(collection.grouping(), None);
+        assert_eq!(
+            collection.musicbrainz_release_artist_id().as_deref(),
+            Some("9e7ca87b-4e3d-4d14-90f1-a74acb645fe2")
+        );
+        assert_eq!(
+            collection.musicbrainz_release_group_id().as_deref(),
+            Some("0a8e97fd-457c-30bc-938a-2fba79cb04e7")
+        );
+        assert_eq!(
+            collection.musicbrainz_release_id().as_deref(),
+            Some("0008f765-032b-46cd-ab69-2220edab1837")
+        );
+        assert_eq!(collection.record_label().as_deref(), Some("Argo"));
+        assert_eq!(collection.release_country().as_deref(), Some("US"));
+        assert_eq!(collection.release_date().as_deref(), Some("1958-01-01"));
+        assert_eq!(collection.release_year().as_deref(), Some("1958"));
+        assert_eq!(collection.release_status().as_deref(), Some("official"));
+        assert_eq!(collection.release_type().as_deref(), Some("album"));
+        assert_eq!(collection.script().as_deref(), Some("Latn"));
+        assert_eq!(collection.total_discs().as_deref(), Some("1"));
     }
 }
