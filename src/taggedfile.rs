@@ -9,6 +9,7 @@
 //! The [`TaggedFile`] struct represents a file that contains tags.
 
 use crate::analyzer::CompoundAnalyzerResult;
+use crate::media::MediaLike;
 use crate::release::ReleaseLike;
 use crate::tag::{read_tags_from_path, Tag, TagKey, TagType};
 use crate::track::{AnalyzedTrackMetadata, InvolvedPerson, TrackLike};
@@ -211,6 +212,26 @@ impl TaggedFile {
         self.set_tag_value(&TagKey::ReleaseType, release.release_type());
         self.set_tag_value(&TagKey::Script, release.script());
         self.set_tag_value(&TagKey::TotalDiscs, release.total_discs());
+    }
+
+    /// Assign metadata from a `MediaLike` struct (e.g. a disc of a MusicBrainz release).
+    pub fn assign_tags_from_media(&mut self, media: &impl MediaLike) {
+        //self.set_tag_value(&TagKey::DiscNumber, .media_title());
+        self.set_tag_value(&TagKey::DiscSubtitle, media.media_title());
+        self.set_tag_value(
+            &TagKey::GaplessPlayback,
+            media
+                .gapless_playback()
+                .map(|v| Cow::from(if v { "1" } else { "0" })),
+        );
+        self.set_tag_value(&TagKey::Media, media.media_format());
+        self.set_tag_value(&TagKey::MusicBrainzDiscId, media.musicbrainz_disc_id());
+        self.set_tag_value(
+            &TagKey::TotalTracks,
+            media
+                .media_track_count()
+                .map(|count| Cow::from(format!("{count}"))),
+        );
     }
 
     /// Assign metadata from another `TrackLike` struct (e.g. a MusicBrainz track).

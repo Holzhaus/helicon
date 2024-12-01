@@ -187,26 +187,44 @@ impl TaggedFileCollection {
             .enumerate()
             .filter_map(|(i, track)| {
                 matched_track_map.get(&i).map(|(j, _)| j).and_then(|j| {
-                    Some(track).zip(release_candidate.release().release_tracks().nth(*j))
+                    Some(track).zip(
+                        release_candidate
+                            .release()
+                            .media()
+                            .enumerate()
+                            .flat_map(|(media_index, media)| {
+                                media
+                                    .media_tracks()
+                                    .map(move |media_track| (media_index, media, media_track))
+                            })
+                            .nth(*j),
+                    )
                 })
             })
-            .map(move |(mut track, other_track)| {
-                track.assign_tags_from_release(release_candidate.release());
-                track.assign_tags_from_track(other_track);
-                track.set_tag_value(
-                    &TagKey::ReplayGainAlbumGain,
-                    album_gain_analyzed.as_ref().map(Cow::from),
-                );
-                track.set_tag_value(
-                    &TagKey::ReplayGainAlbumPeak,
-                    album_peak_analyzed.as_ref().map(Cow::from),
-                );
-                track.set_tag_value(
-                    &TagKey::ReplayGainAlbumRange,
-                    album_range_analyzed.as_ref().map(Cow::from),
-                );
-                track
-            })
+            .map(
+                move |(mut track, (media_index, other_media, other_track))| {
+                    track.assign_tags_from_track(other_track);
+                    track.set_tag_value(
+                        &TagKey::DiscNumber,
+                        Some(Cow::from(format!("{media_index}"))),
+                    );
+                    track.assign_tags_from_media(other_media);
+                    track.assign_tags_from_release(release_candidate.release());
+                    track.set_tag_value(
+                        &TagKey::ReplayGainAlbumGain,
+                        album_gain_analyzed.as_ref().map(Cow::from),
+                    );
+                    track.set_tag_value(
+                        &TagKey::ReplayGainAlbumPeak,
+                        album_peak_analyzed.as_ref().map(Cow::from),
+                    );
+                    track.set_tag_value(
+                        &TagKey::ReplayGainAlbumRange,
+                        album_range_analyzed.as_ref().map(Cow::from),
+                    );
+                    track
+                },
+            )
             .collect();
         self
     }
