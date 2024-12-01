@@ -10,6 +10,7 @@
 
 use crate::tag::{Tag, TagKey, TagType};
 use crate::track::InvolvedPerson;
+use crate::util::parse_year_from_str;
 use std::borrow::Cow;
 use std::path::Path;
 
@@ -144,6 +145,12 @@ impl Tag for FlacTag {
             .and_then(|key| self.data.get_vorbis(key))
             .and_then(|mut iterator| iterator.next())
             .map(Cow::from)
+            .or_else(|| match key {
+                TagKey::ReleaseYear => self
+                    .get(&TagKey::ReleaseDate)
+                    .and_then(|value| parse_year_from_str(&value).map(Cow::from)),
+                _ => None,
+            })
     }
 
     fn set(&mut self, key: &TagKey, value: Cow<'_, str>) {
