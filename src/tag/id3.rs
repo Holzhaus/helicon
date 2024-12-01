@@ -766,79 +766,160 @@ mod tests {
             data: id3::Tag::read_from2(cursor).unwrap(),
         };
         assert_eq!(tag.tag_type(), TagType::ID3v23);
+
+        // TIT2
         assert_eq!(
             tag.get(&TagKey::TrackTitle).as_deref(),
             Some("But Not for Me")
         );
+
+        // TPE1
         assert_eq!(
             tag.get(&TagKey::Artist).as_deref(),
             Some("The Ahmad Jamal Trio")
         );
+
+        // TRCK
+        assert_eq!(tag.get(&TagKey::TrackNumber).as_deref(), Some("1"));
+        assert_eq!(tag.get(&TagKey::TotalTracks).as_deref(), Some("8"));
+
+        // TALB
         assert_eq!(
             tag.get(&TagKey::Album).as_deref(),
             Some("Ahmad Jamal at the Pershing: But Not for Me")
         );
-        assert_eq!(tag.get(&TagKey::TrackNumber).as_deref(), Some("1"));
-        assert_eq!(tag.get(&TagKey::ReleaseYear).as_deref(), Some("1958"));
-        assert_eq!(
-            tag.get(&TagKey::AlbumArtist).as_deref(),
-            Some("The Ahmad Jamal Trio")
-        );
-        assert_eq!(
-            tag.get(&TagKey::AlbumArtistSortOrder).as_deref(),
-            Some("Jamal, Ahmad, Trio, The")
-        );
-        assert_eq!(
-            tag.get(&TagKey::Artists).as_deref(),
-            Some("The Ahmad Jamal Trio")
-        );
-        assert_eq!(
-            tag.get(&TagKey::CatalogNumber).as_deref(),
-            Some("LP-628/LPS-628")
-        );
-        assert_eq!(
-            tag.get(&TagKey::Composer).as_deref(),
-            Some("George Gershwin")
-        );
-        assert_eq!(
-            tag.get(&TagKey::ComposerSortOrder).as_deref(),
-            Some("Gershwin, George")
-        );
+
+        // TPOS
         assert_eq!(tag.get(&TagKey::DiscNumber).as_deref(), Some("1"));
+        assert_eq!(tag.get(&TagKey::TotalDiscs).as_deref(), Some("1"));
+
+        // TLAN
         assert_eq!(tag.get(&TagKey::Language).as_deref(), Some("zxx"));
-        assert_eq!(tag.get(&TagKey::Media).as_deref(), Some("12\" Vinyl"));
-        assert_eq!(
-            tag.get(&TagKey::MusicBrainzArtistId).as_deref(),
-            Some("9e7ca87b-4e3d-4d14-90f1-a74acb645fe2")
-        );
-        assert_eq!(
-            tag.get(&TagKey::MusicBrainzRecordingId).as_deref(),
-            Some("9d444787-3f25-4c16-9261-597b9ab021cc")
-        );
-        assert_eq!(
-            tag.get(&TagKey::MusicBrainzReleaseArtistId).as_deref(),
-            Some("9e7ca87b-4e3d-4d14-90f1-a74acb645fe2")
-        );
-        assert_eq!(
-            tag.get(&TagKey::MusicBrainzReleaseGroupId).as_deref(),
-            Some("0a8e97fd-457c-30bc-938a-2fba79cb04e7")
-        );
-        assert_eq!(
-            tag.get(&TagKey::MusicBrainzReleaseId).as_deref(),
-            Some("0008f765-032b-46cd-ab69-2220edab1837")
-        );
-        assert_eq!(
-            tag.get(&TagKey::MusicBrainzTrackId).as_deref(),
-            Some("cc9757af-8427-386e-aced-75b800feed77")
-        );
-        assert_eq!(
-            tag.get(&TagKey::MusicBrainzWorkId).as_deref(),
-            Some("f53d7dd0-fdbd-3901-adf8-9b1ab3121e9e")
-        );
+
+        // TORY
         assert_eq!(
             tag.get(&TagKey::OriginalReleaseDate).as_deref(),
             Some("1958")
         );
+        assert_eq!(
+            tag.get(&TagKey::OriginalReleaseYear).as_deref(),
+            Some("1958")
+        );
+
+        // TPUB
+        assert_eq!(tag.get(&TagKey::RecordLabel).as_deref(), Some("Argo"));
+
+        // TYER
+        assert_eq!(tag.get(&TagKey::ReleaseYear).as_deref(), Some("1958"));
+
+        // TMED
+        assert_eq!(tag.get(&TagKey::Media).as_deref(), Some("12\" Vinyl"));
+
+        // TXXX:SCRIPT
+        assert_eq!(tag.get(&TagKey::Script).as_deref(), Some("Latn"));
+
+        // TCOM
+        assert_eq!(
+            tag.get(&TagKey::Composer).as_deref(),
+            Some("George Gershwin")
+        );
+
+        // TSOC
+        assert_eq!(
+            tag.get(&TagKey::ComposerSortOrder).as_deref(),
+            Some("Gershwin, George")
+        );
+
+        // TODO: TXXX:originalyear
+
+        // TPE2
+        assert_eq!(
+            tag.get(&TagKey::AlbumArtist).as_deref(),
+            Some("The Ahmad Jamal Trio")
+        );
+
+        // TXXX:WORK
+        assert_eq!(
+            tag.get(&TagKey::WorkTitle).as_deref(),
+            Some("But Not for Me")
+        );
+
+        // TSO2
+        assert_eq!(
+            tag.get(&TagKey::AlbumArtistSortOrder).as_deref(),
+            Some("Jamal, Ahmad, Trio, The")
+        );
+
+        // TSOP
+        assert_eq!(
+            tag.get(&TagKey::ArtistSortOrder).as_deref(),
+            Some("Jamal, Ahmad, Trio, The")
+        );
+
+        // UFID:http://musicbrainz.org
+        assert_eq!(
+            tag.get(&TagKey::MusicBrainzRecordingId).as_deref(),
+            Some("9d444787-3f25-4c16-9261-597b9ab021cc")
+        );
+
+        // TXXX:ARTISTS
+        assert_eq!(
+            tag.get(&TagKey::Artists).as_deref(),
+            Some("The Ahmad Jamal Trio")
+        );
+
+        // TXXX:CATALOGNUMBER
+        assert_eq!(
+            tag.get(&TagKey::CatalogNumber).as_deref(),
+            Some("LP-628/LPS-628")
+        );
+
+        // TXXX:MusicBrainz Album Status
+        assert_eq!(tag.get(&TagKey::ReleaseStatus).as_deref(), Some("official"));
+
+        // TXXX:MusicBrainz Album Type
+        assert_eq!(tag.get(&TagKey::ReleaseType).as_deref(), Some("album/live"));
+
+        // TXXX:MusicBrainz Album Release Country
+        assert_eq!(tag.get(&TagKey::ReleaseCountry).as_deref(), Some("US"));
+
+        // TXXX:MusicBrainz Work Id
+        assert_eq!(
+            tag.get(&TagKey::MusicBrainzWorkId).as_deref(),
+            Some("f53d7dd0-fdbd-3901-adf8-9b1ab3121e9e")
+        );
+
+        // TXXX:MusicBrainz Album Id
+        assert_eq!(
+            tag.get(&TagKey::MusicBrainzReleaseId).as_deref(),
+            Some("0008f765-032b-46cd-ab69-2220edab1837")
+        );
+
+        // TXXX:MusicBrainz Artist Id
+        assert_eq!(
+            tag.get(&TagKey::MusicBrainzArtistId).as_deref(),
+            Some("9e7ca87b-4e3d-4d14-90f1-a74acb645fe2")
+        );
+
+        // TXXX:MusicBrainz Album Artist Id
+        assert_eq!(
+            tag.get(&TagKey::MusicBrainzReleaseArtistId).as_deref(),
+            Some("9e7ca87b-4e3d-4d14-90f1-a74acb645fe2")
+        );
+
+        // TXXX:MusicBrainz Release Group Id
+        assert_eq!(
+            tag.get(&TagKey::MusicBrainzReleaseGroupId).as_deref(),
+            Some("0a8e97fd-457c-30bc-938a-2fba79cb04e7")
+        );
+
+        // TXXX:MusicBrainz Release Track Id
+        assert_eq!(
+            tag.get(&TagKey::MusicBrainzTrackId).as_deref(),
+            Some("cc9757af-8427-386e-aced-75b800feed77")
+        );
+
+        // IPLS:instrument
         assert_eq!(
             tag.performers(),
             Some(vec![
@@ -856,20 +937,200 @@ mod tests {
                 }
             ])
         );
+
+        // IPLS:producer
         assert_eq!(tag.get(&TagKey::Producer).as_deref(), Some("Dave Usher"));
-        assert_eq!(tag.get(&TagKey::RecordLabel).as_deref(), Some("Argo"));
-        assert_eq!(tag.get(&TagKey::ReleaseCountry).as_deref(), Some("US"));
-        assert_eq!(tag.get(&TagKey::ReleaseStatus).as_deref(), Some("official"));
-        assert_eq!(tag.get(&TagKey::ReleaseType).as_deref(), Some("album/live"));
-        assert_eq!(tag.get(&TagKey::Script).as_deref(), Some("Latn"));
-        assert_eq!(tag.get(&TagKey::TotalDiscs).as_deref(), Some("1"));
+    }
+
+    #[test]
+    fn test_id3v24_read() {
+        const MP3_DATA: &[u8] = include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/data/media/picard-2.12.3/track-id3v24.mp3"
+        ));
+        let cursor = Cursor::new(MP3_DATA);
+        let tag = ID3v2Tag {
+            data: id3::Tag::read_from2(cursor).unwrap(),
+        };
+        assert_eq!(tag.tag_type(), TagType::ID3v24);
+
+        // TIT2
+        assert_eq!(
+            tag.get(&TagKey::TrackTitle).as_deref(),
+            Some("But Not for Me")
+        );
+
+        // TPE1
+        assert_eq!(
+            tag.get(&TagKey::Artist).as_deref(),
+            Some("The Ahmad Jamal Trio")
+        );
+
+        // TRCK
+        assert_eq!(tag.get(&TagKey::TrackNumber).as_deref(), Some("1"));
         assert_eq!(tag.get(&TagKey::TotalTracks).as_deref(), Some("8"));
+
+        // TALB
+        assert_eq!(
+            tag.get(&TagKey::Album).as_deref(),
+            Some("Ahmad Jamal at the Pershing: But Not for Me")
+        );
+
+        // TPOS
+        assert_eq!(tag.get(&TagKey::DiscNumber).as_deref(), Some("1"));
+        assert_eq!(tag.get(&TagKey::TotalDiscs).as_deref(), Some("1"));
+
+        // TDRC
+        assert_eq!(tag.get(&TagKey::ReleaseDate).as_deref(), Some("1958"));
+
+        // TLAN
+        assert_eq!(tag.get(&TagKey::Language).as_deref(), Some("zxx"));
+
+        // TDOR
+        assert_eq!(
+            tag.get(&TagKey::OriginalReleaseDate).as_deref(),
+            Some("1958")
+        );
+        assert_eq!(
+            tag.get(&TagKey::OriginalReleaseYear).as_deref(),
+            Some("1958")
+        );
+
+        // TPUB
+        assert_eq!(tag.get(&TagKey::RecordLabel).as_deref(), Some("Argo"));
+
+        // TMED
+        assert_eq!(tag.get(&TagKey::Media).as_deref(), Some("12\" Vinyl"));
+
+        // TXXX:SCRIPT
+        assert_eq!(tag.get(&TagKey::Script).as_deref(), Some("Latn"));
+
+        // TCOM
+        assert_eq!(
+            tag.get(&TagKey::Composer).as_deref(),
+            Some("George Gershwin")
+        );
+
+        // TSOC
+        assert_eq!(
+            tag.get(&TagKey::ComposerSortOrder).as_deref(),
+            Some("Gershwin, George")
+        );
+
+        // TODO: TXXX:originalyear
+
+        // TIPL:producer
+        assert_eq!(tag.get(&TagKey::Producer).as_deref(), Some("Dave Usher"));
+
+        // TXXX:WORK
         assert_eq!(
             tag.get(&TagKey::WorkTitle).as_deref(),
             Some("But Not for Me")
         );
-    }
 
+        // TPE2
+        assert_eq!(
+            tag.get(&TagKey::AlbumArtist).as_deref(),
+            Some("The Ahmad Jamal Trio")
+        );
+
+        // TSO2
+        assert_eq!(
+            tag.get(&TagKey::AlbumArtistSortOrder).as_deref(),
+            Some("Jamal, Ahmad, Trio, The")
+        );
+
+        // TSOP
+        assert_eq!(
+            tag.get(&TagKey::ArtistSortOrder).as_deref(),
+            Some("Jamal, Ahmad, Trio, The")
+        );
+
+        // TXXX:ARTISTS
+        assert_eq!(
+            tag.get(&TagKey::Artists).as_deref(),
+            Some("The Ahmad Jamal Trio")
+        );
+
+        // TXXX:CATALOGNUMBER
+        assert_eq!(
+            tag.get(&TagKey::CatalogNumber).as_deref(),
+            Some("LP-628\0LPS-628")
+        );
+
+        // TXXX:MusicBrainz Album Status
+        assert_eq!(tag.get(&TagKey::ReleaseStatus).as_deref(), Some("official"));
+
+        // TXXX:MusicBrainz Album Type
+        assert_eq!(
+            tag.get(&TagKey::ReleaseType).as_deref(),
+            Some("album\0live")
+        );
+
+        // TXXX:MusicBrainz Album Release Country
+        assert_eq!(tag.get(&TagKey::ReleaseCountry).as_deref(), Some("US"));
+
+        // TXXX:MusicBrainz Work Id
+        assert_eq!(
+            tag.get(&TagKey::MusicBrainzWorkId).as_deref(),
+            Some("f53d7dd0-fdbd-3901-adf8-9b1ab3121e9e")
+        );
+
+        // TXXX:MusicBrainz Album Id
+        assert_eq!(
+            tag.get(&TagKey::MusicBrainzReleaseId).as_deref(),
+            Some("0008f765-032b-46cd-ab69-2220edab1837")
+        );
+
+        // UFID:http://musicbrainz.org
+        assert_eq!(
+            tag.get(&TagKey::MusicBrainzRecordingId).as_deref(),
+            Some("9d444787-3f25-4c16-9261-597b9ab021cc")
+        );
+
+        // TXXX:MusicBrainz Artist Id
+        assert_eq!(
+            tag.get(&TagKey::MusicBrainzArtistId).as_deref(),
+            Some("9e7ca87b-4e3d-4d14-90f1-a74acb645fe2")
+        );
+
+        // TXXX:MusicBrainz Album Artist Id
+        assert_eq!(
+            tag.get(&TagKey::MusicBrainzReleaseArtistId).as_deref(),
+            Some("9e7ca87b-4e3d-4d14-90f1-a74acb645fe2")
+        );
+
+        // TXXX:MusicBrainz Release Group Id
+        assert_eq!(
+            tag.get(&TagKey::MusicBrainzReleaseGroupId).as_deref(),
+            Some("0a8e97fd-457c-30bc-938a-2fba79cb04e7")
+        );
+
+        // TXXX:MusicBrainz Release Track Id
+        assert_eq!(
+            tag.get(&TagKey::MusicBrainzTrackId).as_deref(),
+            Some("cc9757af-8427-386e-aced-75b800feed77")
+        );
+
+        // TMCL:instrument
+        assert_eq!(
+            tag.performers(),
+            Some(vec![
+                InvolvedPerson {
+                    involvement: "double bass".into(),
+                    involvee: "Israel Crosby".into(),
+                },
+                InvolvedPerson {
+                    involvement: "drums (drum set)".into(),
+                    involvee: "Vernell Fournier".into(),
+                },
+                InvolvedPerson {
+                    involvement: "piano".into(),
+                    involvee: "Ahmad Jamal".into(),
+                }
+            ])
+        );
+    }
     macro_rules! add_tests_with_id3_version {
         ($tagkey:expr, $version:expr, $fnsuffix:ident) => {
             paste! {
