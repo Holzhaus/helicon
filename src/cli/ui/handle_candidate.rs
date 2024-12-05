@@ -21,7 +21,6 @@ use crossterm::{
     style::{ContentStyle, Stylize},
     terminal,
 };
-use expanduser::expanduser;
 use inquire::{InquireError, Select};
 use std::borrow::Cow;
 use std::cmp::Ordering;
@@ -124,7 +123,6 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
     show_details: bool,
 ) {
     let candidate_details_config = &config.user_interface.candidate_details;
-    let path_formatter = config.paths.format.formatter();
 
     let distance_color = util::distance_color(&candidate.distance(config));
 
@@ -389,9 +387,9 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
 
                 // Print the AcoustID Fingerprint (if available/different)
                 if let Some(fingerprint) = lhs_track.analyzed_metadata().acoustid_fingerprint() {
-                    if !lhs_track
+                    if lhs_track
                         .acoustid_fingerprint()
-                        .is_some_and(|f| f == fingerprint)
+                        .is_none_or(|f| f != fingerprint)
                     {
                         print_extra_metadata(
                             lhs_track.acoustid_fingerprint(),
@@ -407,10 +405,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
 
                 // Print the ReplayGain 2.0 Track Gain (if available/different)
                 if let Some(gain) = lhs_track.analyzed_metadata().replay_gain_track_gain() {
-                    if !lhs_track
-                        .replay_gain_track_gain()
-                        .is_some_and(|g| g == gain)
-                    {
+                    if lhs_track.replay_gain_track_gain().is_none_or(|g| g != gain) {
                         print_extra_metadata(
                             lhs_track.replay_gain_track_gain(),
                             Some(gain),
@@ -425,10 +420,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
 
                 // Print the ReplayGain 2.0 Track Peak (if available/different)
                 if let Some(peak) = lhs_track.analyzed_metadata().replay_gain_track_peak() {
-                    if !lhs_track
-                        .replay_gain_track_peak()
-                        .is_some_and(|p| p == peak)
-                    {
+                    if lhs_track.replay_gain_track_peak().is_none_or(|p| p != peak) {
                         print_extra_metadata(
                             lhs_track.replay_gain_track_peak(),
                             Some(peak),
@@ -443,9 +435,9 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
 
                 // Print the ReplayGain 2.0 Track Range (if available/different)
                 if let Some(range) = lhs_track.analyzed_metadata().replay_gain_track_range() {
-                    if !lhs_track
+                    if lhs_track
                         .replay_gain_track_range()
-                        .is_some_and(|l| l == range)
+                        .is_none_or(|l| l != range)
                     {
                         print_extra_metadata(
                             lhs_track.replay_gain_track_range(),
@@ -461,10 +453,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
 
                 // Print the ReplayGain 2.0 Album Gain (if available/different)
                 if let Some(gain) = base_release.replay_gain_album_gain_analyzed() {
-                    if !lhs_track
-                        .replay_gain_album_gain()
-                        .is_some_and(|g| g == gain)
-                    {
+                    if lhs_track.replay_gain_album_gain().is_none_or(|g| g != gain) {
                         print_extra_metadata(
                             lhs_track.replay_gain_track_gain(),
                             Some(gain),
@@ -479,10 +468,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
 
                 // Print the ReplayGain 2.0 Album Peak (if available/different)
                 if let Some(peak) = base_release.replay_gain_album_peak_analyzed() {
-                    if !lhs_track
-                        .replay_gain_album_peak()
-                        .is_some_and(|p| p == peak)
-                    {
+                    if lhs_track.replay_gain_album_peak().is_none_or(|p| p != peak) {
                         print_extra_metadata(
                             lhs_track.replay_gain_track_peak(),
                             Some(peak),
@@ -497,9 +483,9 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
 
                 // Print the ReplayGain 2.0 Album Range (if available/different)
                 if let Some(range) = base_release.replay_gain_album_range_analyzed() {
-                    if !lhs_track
+                    if lhs_track
                         .replay_gain_album_range()
-                        .is_some_and(|l| l == range)
+                        .is_none_or(|l| l != range)
                     {
                         print_extra_metadata(
                             lhs_track.replay_gain_track_range(),
@@ -513,32 +499,22 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                     }
                 }
                 if let Some(path) = lhs_track.track_path() {
-                    let old_path = path.to_str().map(Cow::from);
+                    let old_path = path;
+
                     let values = PathFormatterValues::default()
                         .with_release(base_release)
                         .with_release(release)
                         .with_media(media)
                         .with_track(*lhs_track_index + 1, *lhs_track)
                         .with_track(rhs_track_index + 1, rhs_track);
-                    let new_path = expanduser(&config.paths.library_path)
-                        .ok()
-                        .zip(
-                            path_formatter
-                                .format(&values)
-                                .inspect_err(|err| {
-                                    log::error!("Failed to format path: {err}");
-                                })
-                                .ok(),
-                        )
-                        .map(|(library_path, path)| library_path.join(path))
-                        .zip(lhs_track.track_file_extension())
-                        .map(|(path, ext)| {
-                            Cow::from(format!("{path}.{ext}", path = path.display()))
-                        });
-                    if old_path != new_path {
+                    let new_path = config
+                        .paths
+                        .format_path(&values, lhs_track.track_file_extension())
+                        .ok();
+                    if new_path.as_deref().is_none_or(|p| p != old_path) {
                         print_extra_metadata(
-                            old_path,
-                            new_path,
+                            old_path.to_str().map(Cow::from),
+                            new_path.as_deref().and_then(|x| x.to_str()).map(Cow::from),
                             "<unknown path>",
                             " (path)",
                             candidate_details_config,

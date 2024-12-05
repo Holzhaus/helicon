@@ -18,10 +18,9 @@ use crate::track::TrackLike;
 use crate::util;
 use crate::Config;
 use crate::TaggedFile;
-use expanduser::expanduser;
+use itertools::Itertools;
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::path::PathBuf;
 
 /// Represents the the count of a specific item and the first index at which that item was found.
 ///
@@ -117,11 +116,20 @@ fn is_va_artist(value: &str) -> bool {
     )
 }
 
+/// Finds the most common value for a certain tag in an iterator of tagged files.
+fn find_most_common_tag_value<'a>(
+    tracks: impl Iterator<Item = &'a TaggedFile> + 'a,
+    key: &'a TagKey,
+) -> Option<MostCommonItem<Cow<'a, str>>> {
+    MostCommonItem::find(tracks.filter_map(|tagged_file| tagged_file.first_tag_value(key)))
+}
+
 /// A collection of tracks on the local disk.
 #[derive(Debug)]
 pub struct TaggedFileCollection {
-    /// List of tracks in this collection.
-    tracks: Vec<TaggedFile>,
+    /// List of media in this collection. These are determined by the "disc number" value of each
+    /// track.
+    media: Vec<TaggedFileMedia>,
     /// EBU R128 Album Result
     ebur128_album_result: Option<EbuR128AlbumResult>,
 }
@@ -129,7 +137,7 @@ pub struct TaggedFileCollection {
 impl TaggedFileCollection {
     /// Creates a new collection from a `Vec` of `TaggedFile` instances.
     #[must_use]
-    pub fn new(tracks: Vec<TaggedFile>) -> Self {
+    pub fn new(mut tracks: Vec<TaggedFile>) -> Self {
         let ebur128_album_result = tracks
             .iter()
             .map(|track| {
@@ -141,29 +149,39 @@ impl TaggedFileCollection {
             .map(|opt| opt.and_then(|res| res.as_ref().ok()))
             .collect::<Option<Vec<_>>>()
             .and_then(|ebur128_results| EbuR128AlbumResult::from_iter(ebur128_results.into_iter()));
+
+        tracks.sort_by_cached_key(|track| {
+            (
+                track
+                    .first_tag_value(&TagKey::DiscNumber)
+                    .map_or_else(String::new, |n| n.to_string()),
+                track.path.clone(),
+            )
+        });
+        let media = tracks
+            .into_iter()
+            .chunk_by(|track| {
+                track
+                    .first_tag_value(&TagKey::DiscNumber)
+                    .map(|x| x.to_string())
+            })
+            .into_iter()
+            .map(|(_key, tracks)| TaggedFileMedia {
+                tracks: tracks.collect::<Vec<_>>(),
+            })
+            .collect();
+
         Self {
-            tracks,
+            media,
             ebur128_album_result,
         }
-    }
-
-    /// Finds the most common value for a certain tag in an iterator of tagged files.
-    fn find_most_common_tag_value<'a>(
-        &'a self,
-        key: &'a TagKey,
-    ) -> Option<MostCommonItem<&'a str>> {
-        MostCommonItem::find(
-            self.tracks
-                .iter()
-                .filter_map(|tagged_file| tagged_file.first_tag_value(key)),
-        )
     }
 
     /// Finds the consensual value for a certain tag in an iterator of tagged files.
     ///
     /// Returns `None` if there is no consensual value.
-    fn find_consensual_tag_value<'a>(&'a self, key: &'a TagKey) -> Option<&'a str> {
-        self.find_most_common_tag_value(key)
+    fn find_consensual_tag_value<'a>(&'a self, key: &'a TagKey) -> Option<Cow<'a, str>> {
+        find_most_common_tag_value(self.media.iter().flat_map(|media| media.tracks.iter()), key)
             .and_then(MostCommonItem::into_concensus)
     }
 
@@ -183,33 +201,53 @@ impl TaggedFileCollection {
         let album_range_analyzed = self
             .replay_gain_album_range_analyzed()
             .map(|value| value.to_string());
-        self.tracks = self
-            .tracks
+        let tracks = self
+            .media
             .into_iter()
+            .flat_map(|media| media.tracks.into_iter())
             .enumerate()
             .filter_map(|(i, track)| {
                 matched_track_map.get(&i).map(|(j, _)| j).and_then(|j| {
-                    Some(track).zip(release_candidate.release().release_tracks().nth(*j))
+                    Some(track).zip(
+                        release_candidate
+                            .release()
+                            .media()
+                            .enumerate()
+                            .flat_map(|(media_index, media)| {
+                                media
+                                    .media_tracks()
+                                    .map(move |media_track| (media_index + 1, media, media_track))
+                            })
+                            .nth(*j),
+                    )
                 })
             })
-            .map(move |(mut track, other_track)| {
-                track.assign_tags_from_release(release_candidate.release());
-                track.assign_tags_from_track(other_track);
-                track.set_tag_value(
-                    &TagKey::ReplayGainAlbumGain,
-                    album_gain_analyzed.as_ref().map(Cow::from),
-                );
-                track.set_tag_value(
-                    &TagKey::ReplayGainAlbumPeak,
-                    album_peak_analyzed.as_ref().map(Cow::from),
-                );
-                track.set_tag_value(
-                    &TagKey::ReplayGainAlbumRange,
-                    album_range_analyzed.as_ref().map(Cow::from),
-                );
-                track
-            })
+            .map(
+                move |(mut track, (media_index, other_media, other_track))| {
+                    track.assign_tags_from_track(other_track);
+                    track.set_tag_value(
+                        &TagKey::DiscNumber,
+                        Some(Cow::from(format!("{media_index}"))),
+                    );
+                    track.assign_tags_from_media(other_media);
+                    track.assign_tags_from_release(release_candidate.release());
+                    track.set_tag_value(
+                        &TagKey::ReplayGainAlbumGain,
+                        album_gain_analyzed.as_ref().map(Cow::from),
+                    );
+                    track.set_tag_value(
+                        &TagKey::ReplayGainAlbumPeak,
+                        album_peak_analyzed.as_ref().map(Cow::from),
+                    );
+                    track.set_tag_value(
+                        &TagKey::ReplayGainAlbumRange,
+                        album_range_analyzed.as_ref().map(Cow::from),
+                    );
+                    track
+                },
+            )
             .collect();
+        self = TaggedFileCollection::new(tracks);
         self
     }
 
@@ -219,40 +257,27 @@ impl TaggedFileCollection {
     ///
     /// Returns an error if moving any of the files fails.
     pub fn move_files(&mut self, config: &Config) -> crate::Result<()> {
-        let library_path = expanduser(&config.paths.library_path).map_err(crate::Error::Io)?;
         let paths = self
-            .tracks
-            .iter()
+            .media()
+            .flat_map(|media| media.media_tracks().map(move |track| (media, track)))
             .enumerate()
-            .map(|(i, track)| {
+            .map(|(i, (media, track))| {
                 let values = PathFormatterValues::default()
                     .with_release(self)
-                    .with_media(self)
+                    .with_media(media)
                     .with_track(i + 1, track);
-                let file_extension = track.path.extension();
                 config
                     .paths
-                    .format
-                    .formatter()
-                    .format(&values)
-                    .map(|path| library_path.join(path))
-                    .map(|path| match file_extension {
-                        Some(ext) => {
-                            // We cannot use `PathBuf::set_extension(ext)` here, because if there
-                            // already is an extension (e.g., if the track title contains a dot),
-                            // that extension would be replaced instead of appended.
-                            let mut path_with_ext = path.into_os_string();
-                            path_with_ext.push(".");
-                            path_with_ext.push(ext);
-                            PathBuf::from(path_with_ext)
-                        }
-                        None => path,
-                    })
-                    .map_err(crate::Error::TemplateFormattingFailed)
+                    .format_path(&values, track.track_file_extension())
             })
             .collect::<crate::Result<Vec<_>>>()?;
 
-        for (track, dest_path) in self.tracks.iter_mut().zip(paths) {
+        for (track, dest_path) in self
+            .media
+            .iter_mut()
+            .flat_map(|media| media.tracks.iter_mut())
+            .zip(paths)
+        {
             util::move_file(&track.path, &dest_path)?;
             track.path = dest_path;
         }
@@ -266,7 +291,11 @@ impl TaggedFileCollection {
     ///
     /// Returns an error if any of the underlying tags fail to write.
     pub fn write_tags(&mut self) -> crate::Result<()> {
-        for track in &mut self.tracks {
+        for track in &mut self
+            .media
+            .iter_mut()
+            .flat_map(|media| media.tracks.iter_mut())
+        {
             track.write_tags()?;
         }
 
@@ -276,55 +305,22 @@ impl TaggedFileCollection {
 
 impl IntoIterator for TaggedFileCollection {
     type Item = TaggedFile;
-    type IntoIter = std::vec::IntoIter<Self::Item>;
+    type IntoIter = std::iter::FlatMap<
+        std::vec::IntoIter<TaggedFileMedia>,
+        std::vec::IntoIter<TaggedFile>,
+        fn(TaggedFileMedia) -> std::vec::IntoIter<Self::Item>,
+    >;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.tracks.into_iter()
+        self.media
+            .into_iter()
+            .flat_map(|media| media.tracks.into_iter())
     }
 }
 
 impl FromIterator<TaggedFile> for TaggedFileCollection {
     fn from_iter<I: IntoIterator<Item = TaggedFile>>(iter: I) -> Self {
         Self::new(iter.into_iter().collect::<Vec<TaggedFile>>())
-    }
-}
-
-impl MediaLike for TaggedFileCollection {
-    fn disc_number(&self) -> Option<u32> {
-        self.find_consensual_tag_value(&TagKey::DiscNumber)
-            .and_then(|number| number.parse::<u32>().ok())
-    }
-
-    fn media_title(&self) -> Option<Cow<'_, str>> {
-        self.find_consensual_tag_value(&TagKey::DiscSubtitle)
-            .map(Cow::from)
-    }
-
-    fn media_format(&self) -> Option<Cow<'_, str>> {
-        self.find_consensual_tag_value(&TagKey::Media)
-            .map(Cow::from)
-    }
-
-    fn musicbrainz_disc_id(&self) -> Option<Cow<'_, str>> {
-        self.find_consensual_tag_value(&TagKey::MusicBrainzDiscId)
-            .map(Cow::from)
-    }
-
-    fn media_track_count(&self) -> Option<usize> {
-        self.tracks.len().into()
-    }
-
-    fn gapless_playback(&self) -> Option<bool> {
-        self.find_consensual_tag_value(&TagKey::GaplessPlayback)
-            .map(|value| {
-                let value_lower = value.to_ascii_lowercase();
-                let result = &["1", "on", "true", "yes"].contains(&value_lower.as_str());
-                *result
-            })
-    }
-
-    fn media_tracks(&self) -> impl Iterator<Item = &(impl TrackLike + '_)> {
-        self.tracks.iter()
     }
 }
 
@@ -337,22 +333,26 @@ impl ReleaseLike for TaggedFileCollection {
     fn release_artist(&self) -> Option<Cow<'_, str>> {
         [&TagKey::AlbumArtist, &TagKey::Artist]
             .into_iter()
-            .find_map(|key| self.find_most_common_tag_value(key))
+            .find_map(|key| {
+                find_most_common_tag_value(
+                    self.media.iter().flat_map(|media| media.tracks.iter()),
+                    key,
+                )
+            })
             .and_then(|most_common_artist| {
                 most_common_artist
                     .is_all_distinct()
-                    .then_some("Various Artists")
+                    .then_some(Cow::Borrowed("Various Artists"))
                     .or_else(|| {
                         let artist_name = most_common_artist.into_inner();
-                        if is_va_artist(artist_name) {
-                            "Various Artists"
+                        if is_va_artist(&artist_name) {
+                            Cow::Borrowed("Various Artists")
                         } else {
                             artist_name
                         }
                         .into()
                     })
             })
-            .map(Cow::from)
     }
 
     fn release_artist_sort_order(&self) -> Option<Cow<'_, str>> {
@@ -441,7 +441,7 @@ impl ReleaseLike for TaggedFileCollection {
     }
 
     fn media(&self) -> impl Iterator<Item = &(impl MediaLike + '_)> {
-        std::iter::once(self)
+        self.media.iter()
     }
 
     fn replay_gain_album_gain_analyzed(&self) -> Option<Cow<'_, str>> {
@@ -457,10 +457,76 @@ impl ReleaseLike for TaggedFileCollection {
     }
 }
 
+/// Media inside a tagged file collection.
+#[derive(Debug, PartialEq)]
+pub struct TaggedFileMedia {
+    /// Tracks on this media.
+    tracks: Vec<TaggedFile>,
+}
+
+impl TaggedFileMedia {
+    /// Finds the consensual value for a certain tag in an iterator of tagged files.
+    ///
+    /// Returns `None` if there is no consensual value.
+    fn find_consensual_tag_value<'a, 'b>(&'a self, key: &'b TagKey) -> Option<Cow<'a, str>>
+    where
+        'b: 'a,
+    {
+        find_most_common_tag_value(self.tracks.iter(), key).and_then(MostCommonItem::into_concensus)
+    }
+}
+
+impl MediaLike for TaggedFileMedia {
+    fn disc_number(&self) -> Option<u32> {
+        self.find_consensual_tag_value(&TagKey::DiscNumber)
+            .and_then(|number| number.parse::<u32>().ok())
+    }
+
+    fn media_title(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(&TagKey::DiscSubtitle)
+            .map(Cow::from)
+    }
+
+    fn media_format(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(&TagKey::Media)
+            .map(Cow::from)
+    }
+
+    fn musicbrainz_disc_id(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(&TagKey::MusicBrainzDiscId)
+            .map(Cow::from)
+    }
+
+    fn media_track_count(&self) -> Option<usize> {
+        self.tracks.len().into()
+    }
+
+    fn gapless_playback(&self) -> Option<bool> {
+        self.find_consensual_tag_value(&TagKey::GaplessPlayback)
+            .map(|value| {
+                let value_lower = value.to_ascii_lowercase();
+                let result = &["1", "on", "true", "yes"].contains(&value_lower.as_str());
+                *result
+            })
+    }
+
+    fn media_tracks(&self) -> impl Iterator<Item = &(impl TrackLike + '_)> {
+        self.tracks.iter()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
+    use crate::distance::ReleaseSimilarity;
+    use crate::musicbrainz::MusicBrainzRelease;
+    use crate::tag::Tag;
+
+    const MUSICBRAINZ_RELEASE_JSON: &str = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/data/musicbrainz/release.json"
+    ));
 
     #[test]
     fn test_most_common_item_with_empty_string_iterator() {
@@ -541,5 +607,165 @@ mod tests {
         assert!(!most_common_item.is_all_distinct());
         assert_eq!(&2, most_common_item.clone().into_inner());
         assert_eq!(None, most_common_item.into_concensus());
+    }
+
+    fn make_collection_from_assignment(func: impl Fn() -> Box<dyn Tag>) -> TaggedFileCollection {
+        let release: MusicBrainzRelease = serde_json::from_str(MUSICBRAINZ_RELEASE_JSON).unwrap();
+        let release_track_count = release.release_track_count().unwrap();
+        let release_candidate =
+            ReleaseCandidate::new(release, ReleaseSimilarity::new(release_track_count));
+
+        let tracks = (0..release_track_count)
+            .map(|_| TaggedFile::new(vec![func()]))
+            .collect();
+        TaggedFileCollection::new(tracks).assign_tags(&release_candidate)
+    }
+
+    #[test]
+    #[cfg(feature = "id3")]
+    fn test_assign_tags_id3v23() {
+        use crate::tag::id3::ID3v2Tag;
+
+        let collection = make_collection_from_assignment(|| {
+            Box::new(ID3v2Tag::with_version(id3::Version::Id3v23))
+        });
+        assert_eq!(collection.release_track_count(), Some(8));
+        assert_eq!(
+            collection.release_title().as_deref(),
+            Some("Ahmad Jamal at the Pershing: But Not for Me")
+        );
+        assert_eq!(
+            collection.release_artist().as_deref(),
+            Some("The Ahmad Jamal Trio")
+        );
+        assert_eq!(
+            collection.release_artist_sort_order().as_deref(),
+            Some("Jamal, Ahmad, Trio, The")
+        );
+        assert_eq!(collection.release_sort_order(), None);
+
+        assert_eq!(collection.asin(), None);
+        assert_eq!(collection.barcode(), None);
+        assert_eq!(collection.catalog_number().as_deref(), Some("LP-628"));
+        assert_eq!(collection.compilation(), None);
+        assert_eq!(collection.grouping(), None);
+        assert_eq!(
+            collection.musicbrainz_release_artist_id().as_deref(),
+            Some("9e7ca87b-4e3d-4d14-90f1-a74acb645fe2")
+        );
+        assert_eq!(
+            collection.musicbrainz_release_group_id().as_deref(),
+            Some("0a8e97fd-457c-30bc-938a-2fba79cb04e7")
+        );
+        assert_eq!(
+            collection.musicbrainz_release_id().as_deref(),
+            Some("0008f765-032b-46cd-ab69-2220edab1837")
+        );
+        assert_eq!(collection.record_label().as_deref(), Some("Argo"));
+        assert_eq!(collection.release_country().as_deref(), Some("US"));
+        assert_eq!(collection.release_date().as_deref(), Some("1958-01-01"));
+        assert_eq!(collection.release_year().as_deref(), Some("1958"));
+        assert_eq!(collection.release_status().as_deref(), Some("official"));
+        assert_eq!(collection.release_type().as_deref(), Some("album"));
+        assert_eq!(collection.script().as_deref(), Some("Latn"));
+        assert_eq!(collection.total_discs().as_deref(), Some("1"));
+    }
+
+    #[test]
+    #[cfg(feature = "id3")]
+    fn test_assign_tags_id3v24() {
+        use crate::tag::id3::ID3v2Tag;
+
+        let collection = make_collection_from_assignment(|| {
+            Box::new(ID3v2Tag::with_version(id3::Version::Id3v24))
+        });
+        assert_eq!(collection.release_track_count(), Some(8));
+        assert_eq!(
+            collection.release_title().as_deref(),
+            Some("Ahmad Jamal at the Pershing: But Not for Me")
+        );
+        assert_eq!(
+            collection.release_artist().as_deref(),
+            Some("The Ahmad Jamal Trio")
+        );
+        assert_eq!(
+            collection.release_artist_sort_order().as_deref(),
+            Some("Jamal, Ahmad, Trio, The")
+        );
+        assert_eq!(collection.release_sort_order(), None);
+
+        assert_eq!(collection.asin(), None);
+        assert_eq!(collection.barcode(), None);
+        assert_eq!(collection.catalog_number().as_deref(), Some("LP-628"));
+        assert_eq!(collection.compilation(), None);
+        assert_eq!(collection.grouping(), None);
+        assert_eq!(
+            collection.musicbrainz_release_artist_id().as_deref(),
+            Some("9e7ca87b-4e3d-4d14-90f1-a74acb645fe2")
+        );
+        assert_eq!(
+            collection.musicbrainz_release_group_id().as_deref(),
+            Some("0a8e97fd-457c-30bc-938a-2fba79cb04e7")
+        );
+        assert_eq!(
+            collection.musicbrainz_release_id().as_deref(),
+            Some("0008f765-032b-46cd-ab69-2220edab1837")
+        );
+        assert_eq!(collection.record_label().as_deref(), Some("Argo"));
+        assert_eq!(collection.release_country().as_deref(), Some("US"));
+        assert_eq!(collection.release_date().as_deref(), Some("1958-01-01"));
+        assert_eq!(collection.release_year().as_deref(), Some("1958"));
+        assert_eq!(collection.release_status().as_deref(), Some("official"));
+        assert_eq!(collection.release_type().as_deref(), Some("album"));
+        assert_eq!(collection.script().as_deref(), Some("Latn"));
+        assert_eq!(collection.total_discs().as_deref(), Some("1"));
+    }
+
+    #[test]
+    #[cfg(feature = "flac")]
+    fn test_assign_tags_flac() {
+        use crate::tag::flac::FlacTag;
+
+        let collection = make_collection_from_assignment(|| Box::new(FlacTag::new()));
+        assert_eq!(collection.release_track_count(), Some(8));
+        assert_eq!(
+            collection.release_title().as_deref(),
+            Some("Ahmad Jamal at the Pershing: But Not for Me")
+        );
+        assert_eq!(
+            collection.release_artist().as_deref(),
+            Some("The Ahmad Jamal Trio")
+        );
+        assert_eq!(
+            collection.release_artist_sort_order().as_deref(),
+            Some("Jamal, Ahmad, Trio, The")
+        );
+        assert_eq!(collection.release_sort_order(), None);
+
+        assert_eq!(collection.asin(), None);
+        assert_eq!(collection.barcode(), None);
+        assert_eq!(collection.catalog_number().as_deref(), Some("LP-628"));
+        assert_eq!(collection.compilation(), None);
+        assert_eq!(collection.grouping(), None);
+        assert_eq!(
+            collection.musicbrainz_release_artist_id().as_deref(),
+            Some("9e7ca87b-4e3d-4d14-90f1-a74acb645fe2")
+        );
+        assert_eq!(
+            collection.musicbrainz_release_group_id().as_deref(),
+            Some("0a8e97fd-457c-30bc-938a-2fba79cb04e7")
+        );
+        assert_eq!(
+            collection.musicbrainz_release_id().as_deref(),
+            Some("0008f765-032b-46cd-ab69-2220edab1837")
+        );
+        assert_eq!(collection.record_label().as_deref(), Some("Argo"));
+        assert_eq!(collection.release_country().as_deref(), Some("US"));
+        assert_eq!(collection.release_date().as_deref(), Some("1958-01-01"));
+        assert_eq!(collection.release_year().as_deref(), Some("1958"));
+        assert_eq!(collection.release_status().as_deref(), Some("official"));
+        assert_eq!(collection.release_type().as_deref(), Some("album"));
+        assert_eq!(collection.script().as_deref(), Some("Latn"));
+        assert_eq!(collection.total_discs().as_deref(), Some("1"));
     }
 }

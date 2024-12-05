@@ -8,8 +8,11 @@
 
 //! Configuration utils.
 
+use crate::pathformat::PathFormatterValues;
 use crate::pathformat::PathTemplate;
+use expanduser::expanduser;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use thiserror::Error;
 
 /// Encountered when the configuration cannot be loaded.
@@ -328,6 +331,34 @@ pub struct PathConfig {
     /// Formats for file paths.
     #[serde(flatten)]
     pub format: PathTemplate,
+}
+
+impl PathConfig {
+    /// Convenience method to format a path based on the current path configuration.
+    pub fn format_path(
+        &self,
+        values: &PathFormatterValues<'_>,
+        file_extension: Option<impl AsRef<str>>,
+    ) -> crate::Result<PathBuf> {
+        let library_path = expanduser(&self.library_path).map_err(crate::Error::Io)?;
+        self.format
+            .formatter()
+            .format(values)
+            .map(|path| library_path.join(path))
+            .map(|path| match file_extension {
+                Some(ext) => {
+                    // We cannot use `PathBuf::set_extension(ext)` here, because if there
+                    // already is an extension (e.g., if the track title contains a dot),
+                    // that extension would be replaced instead of appended.
+                    let mut path_with_ext = path.into_os_string();
+                    path_with_ext.push(".");
+                    path_with_ext.push(ext.as_ref());
+                    PathBuf::from(path_with_ext)
+                }
+                None => path,
+            })
+            .map_err(crate::Error::TemplateFormattingFailed)
+    }
 }
 
 /// Configuration for the [`PathFormatter`] object.

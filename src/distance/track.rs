@@ -28,6 +28,18 @@ pub struct TrackSimilarity {
 }
 
 impl TrackSimilarity {
+    #[cfg(test)]
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
+        TrackSimilarity {
+            track_title: Difference::Added,
+            track_artist: Difference::Added,
+            track_number: Difference::Added,
+            track_length: Difference::Added,
+            musicbrainz_recording_id: Difference::Added,
+        }
+    }
+
     /// Returns the overall distance of the two tracks.
     pub fn total_distance(&self, config: &Config) -> Distance {
         let weights = &config.weights.track;

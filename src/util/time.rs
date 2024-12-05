@@ -8,7 +8,10 @@
 
 //! Time-related utility functions.
 
-use chrono::TimeDelta;
+use chrono::{
+    format::{parse, Parsed, StrftimeItems},
+    NaiveDate, TimeDelta,
+};
 
 /// Indicates that a value can be represent a duration as a formatted string.
 pub trait FormattedDuration {
@@ -26,5 +29,65 @@ impl FormattedDuration for TimeDelta {
         } else {
             format!("{minutes}:{seconds:02}")
         }
+    }
+}
+
+/// Allowed date formats (as specified in a tag field).
+const PARTIAL_DATE_FORMATS: [&str; 5] = ["%Y-%m-%d", "%Y-%m", "%Y%m%d", "%Y%m", "%Y"];
+
+/// Parse a date from a [`str`] slice by trying various common formats.
+fn parse_partial_date_from_str(value: impl AsRef<str>) -> Option<NaiveDate> {
+    for fmt in PARTIAL_DATE_FORMATS {
+        let mut parsed = Parsed::new();
+        if parse(&mut parsed, value.as_ref(), StrftimeItems::new(fmt)).is_err() {
+            continue;
+        }
+
+        if let Some(date) = parsed
+            .year()
+            .map(|year| {
+                parsed
+                    .month
+                    .map_or((year, 1, 1), |month| (year, month, parsed.day.unwrap_or(1)))
+            })
+            .and_then(|(year, month, day)| NaiveDate::from_ymd_opt(year, month, day))
+        {
+            return Some(date);
+        }
+    }
+
+    None
+}
+
+/// Parse the year from a [`str`] slice and return a [`String`] if found.
+pub fn parse_year_from_str(value: &str) -> Option<String> {
+    parse_partial_date_from_str(value).map(|date| date.format("%Y").to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_parse_date_from_str() {
+        assert_eq!(
+            parse_partial_date_from_str("1962-01-17"),
+            Some(NaiveDate::from_ymd_opt(1962, 1, 17).unwrap())
+        );
+        assert_eq!(
+            parse_partial_date_from_str("19620117"),
+            Some(NaiveDate::from_ymd_opt(1962, 1, 17).unwrap())
+        );
+        assert_eq!(
+            parse_partial_date_from_str("1986-04"),
+            Some(NaiveDate::from_ymd_opt(1986, 4, 1).unwrap())
+        );
+        assert_eq!(
+            parse_partial_date_from_str("198604"),
+            Some(NaiveDate::from_ymd_opt(1986, 4, 1).unwrap())
+        );
+        assert_eq!(
+            parse_partial_date_from_str("1986"),
+            Some(NaiveDate::from_ymd_opt(1986, 1, 1).unwrap())
+        );
     }
 }

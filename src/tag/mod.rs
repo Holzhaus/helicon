@@ -260,7 +260,7 @@ pub trait Tag: Send + Sync {
     /// Get the tag type.
     fn tag_type(&self) -> TagType;
     /// Get the string value for the tag key.
-    fn get<'a>(&'a self, key: &'a TagKey) -> Option<&'a str>;
+    fn get<'a>(&'a self, key: &'a TagKey) -> Option<Cow<'a, str>>;
     /// Set the value for tag key..
     fn set(&mut self, key: &TagKey, value: Cow<'_, str>);
     /// Set the value for tag key to multiple values.
