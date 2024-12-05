@@ -42,6 +42,7 @@ impl fmt::Debug for TaggedFile {
 }
 
 impl TaggedFile {
+    /// Create a new tagged file with an empty path from the given tag.
     #[cfg(test)]
     #[must_use]
     pub fn new(content: Vec<Box<dyn Tag>>) -> Self {

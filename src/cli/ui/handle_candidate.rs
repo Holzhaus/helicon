@@ -389,9 +389,9 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
 
                 // Print the AcoustID Fingerprint (if available/different)
                 if let Some(fingerprint) = lhs_track.analyzed_metadata().acoustid_fingerprint() {
-                    if !lhs_track
+                    if lhs_track
                         .acoustid_fingerprint()
-                        .is_some_and(|f| f == fingerprint)
+                        .is_none_or(|f| f != fingerprint)
                     {
                         print_extra_metadata(
                             lhs_track.acoustid_fingerprint(),
@@ -407,10 +407,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
 
                 // Print the ReplayGain 2.0 Track Gain (if available/different)
                 if let Some(gain) = lhs_track.analyzed_metadata().replay_gain_track_gain() {
-                    if !lhs_track
-                        .replay_gain_track_gain()
-                        .is_some_and(|g| g == gain)
-                    {
+                    if lhs_track.replay_gain_track_gain().is_none_or(|g| g != gain) {
                         print_extra_metadata(
                             lhs_track.replay_gain_track_gain(),
                             Some(gain),
@@ -425,10 +422,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
 
                 // Print the ReplayGain 2.0 Track Peak (if available/different)
                 if let Some(peak) = lhs_track.analyzed_metadata().replay_gain_track_peak() {
-                    if !lhs_track
-                        .replay_gain_track_peak()
-                        .is_some_and(|p| p == peak)
-                    {
+                    if lhs_track.replay_gain_track_peak().is_none_or(|p| p != peak) {
                         print_extra_metadata(
                             lhs_track.replay_gain_track_peak(),
                             Some(peak),
@@ -443,9 +437,9 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
 
                 // Print the ReplayGain 2.0 Track Range (if available/different)
                 if let Some(range) = lhs_track.analyzed_metadata().replay_gain_track_range() {
-                    if !lhs_track
+                    if lhs_track
                         .replay_gain_track_range()
-                        .is_some_and(|l| l == range)
+                        .is_none_or(|l| l != range)
                     {
                         print_extra_metadata(
                             lhs_track.replay_gain_track_range(),
@@ -461,10 +455,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
 
                 // Print the ReplayGain 2.0 Album Gain (if available/different)
                 if let Some(gain) = base_release.replay_gain_album_gain_analyzed() {
-                    if !lhs_track
-                        .replay_gain_album_gain()
-                        .is_some_and(|g| g == gain)
-                    {
+                    if lhs_track.replay_gain_album_gain().is_none_or(|g| g != gain) {
                         print_extra_metadata(
                             lhs_track.replay_gain_track_gain(),
                             Some(gain),
@@ -479,10 +470,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
 
                 // Print the ReplayGain 2.0 Album Peak (if available/different)
                 if let Some(peak) = base_release.replay_gain_album_peak_analyzed() {
-                    if !lhs_track
-                        .replay_gain_album_peak()
-                        .is_some_and(|p| p == peak)
-                    {
+                    if lhs_track.replay_gain_album_peak().is_none_or(|p| p != peak) {
                         print_extra_metadata(
                             lhs_track.replay_gain_track_peak(),
                             Some(peak),
@@ -497,9 +485,9 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
 
                 // Print the ReplayGain 2.0 Album Range (if available/different)
                 if let Some(range) = base_release.replay_gain_album_range_analyzed() {
-                    if !lhs_track
+                    if lhs_track
                         .replay_gain_album_range()
-                        .is_some_and(|l| l == range)
+                        .is_none_or(|l| l != range)
                     {
                         print_extra_metadata(
                             lhs_track.replay_gain_track_range(),

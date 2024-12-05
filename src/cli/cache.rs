@@ -21,7 +21,6 @@ use musicbrainz_rs_nova::entity::{
 pub struct Args;
 
 /// Run the `cache` command.
-#[expect(clippy::needless_pass_by_value)]
 pub fn run(_config: &Config, cache: Option<&Cache>, _args: Args) -> crate::Result<()> {
     let Some(cache) = cache else {
         return Err(crate::Error::CacheNotAvailable);
