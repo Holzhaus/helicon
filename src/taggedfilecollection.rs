@@ -216,7 +216,7 @@ impl TaggedFileCollection {
                             .flat_map(|(media_index, media)| {
                                 media
                                     .media_tracks()
-                                    .map(move |media_track| (media_index, media, media_track))
+                                    .map(move |media_track| (media_index + 1, media, media_track))
                             })
                             .nth(*j),
                     )
