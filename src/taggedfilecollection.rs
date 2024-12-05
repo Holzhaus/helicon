@@ -18,6 +18,7 @@ use crate::track::TrackLike;
 use crate::util;
 use crate::Config;
 use crate::TaggedFile;
+use itertools::Itertools;
 use std::borrow::Cow;
 use std::collections::HashMap;
 
@@ -115,11 +116,20 @@ fn is_va_artist(value: &str) -> bool {
     )
 }
 
+/// Finds the most common value for a certain tag in an iterator of tagged files.
+fn find_most_common_tag_value<'a>(
+    tracks: impl Iterator<Item = &'a TaggedFile> + 'a,
+    key: &'a TagKey,
+) -> Option<MostCommonItem<Cow<'a, str>>> {
+    MostCommonItem::find(tracks.filter_map(|tagged_file| tagged_file.first_tag_value(key)))
+}
+
 /// A collection of tracks on the local disk.
 #[derive(Debug)]
 pub struct TaggedFileCollection {
-    /// List of tracks in this collection.
-    tracks: Vec<TaggedFile>,
+    /// List of media in this collection. These are determined by the "disc number" value of each
+    /// track.
+    media: Vec<TaggedFileMedia>,
     /// EBU R128 Album Result
     ebur128_album_result: Option<EbuR128AlbumResult>,
 }
@@ -127,7 +137,7 @@ pub struct TaggedFileCollection {
 impl TaggedFileCollection {
     /// Creates a new collection from a `Vec` of `TaggedFile` instances.
     #[must_use]
-    pub fn new(tracks: Vec<TaggedFile>) -> Self {
+    pub fn new(mut tracks: Vec<TaggedFile>) -> Self {
         let ebur128_album_result = tracks
             .iter()
             .map(|track| {
@@ -139,29 +149,39 @@ impl TaggedFileCollection {
             .map(|opt| opt.and_then(|res| res.as_ref().ok()))
             .collect::<Option<Vec<_>>>()
             .and_then(|ebur128_results| EbuR128AlbumResult::from_iter(ebur128_results.into_iter()));
+
+        tracks.sort_by_cached_key(|track| {
+            (
+                track
+                    .first_tag_value(&TagKey::DiscNumber)
+                    .map_or_else(String::new, |n| n.to_string()),
+                track.path.clone(),
+            )
+        });
+        let media = tracks
+            .into_iter()
+            .chunk_by(|track| {
+                track
+                    .first_tag_value(&TagKey::DiscNumber)
+                    .map(|x| x.to_string())
+            })
+            .into_iter()
+            .map(|(_key, tracks)| TaggedFileMedia {
+                tracks: tracks.collect::<Vec<_>>(),
+            })
+            .collect();
+
         Self {
-            tracks,
+            media,
             ebur128_album_result,
         }
-    }
-
-    /// Finds the most common value for a certain tag in an iterator of tagged files.
-    fn find_most_common_tag_value<'a>(
-        &'a self,
-        key: &'a TagKey,
-    ) -> Option<MostCommonItem<Cow<'a, str>>> {
-        MostCommonItem::find(
-            self.tracks
-                .iter()
-                .filter_map(|tagged_file| tagged_file.first_tag_value(key)),
-        )
     }
 
     /// Finds the consensual value for a certain tag in an iterator of tagged files.
     ///
     /// Returns `None` if there is no consensual value.
     fn find_consensual_tag_value<'a>(&'a self, key: &'a TagKey) -> Option<Cow<'a, str>> {
-        self.find_most_common_tag_value(key)
+        find_most_common_tag_value(self.media.iter().flat_map(|media| media.tracks.iter()), key)
             .and_then(MostCommonItem::into_concensus)
     }
 
@@ -181,9 +201,10 @@ impl TaggedFileCollection {
         let album_range_analyzed = self
             .replay_gain_album_range_analyzed()
             .map(|value| value.to_string());
-        self.tracks = self
-            .tracks
+        let tracks = self
+            .media
             .into_iter()
+            .flat_map(|media| media.tracks.into_iter())
             .enumerate()
             .filter_map(|(i, track)| {
                 matched_track_map.get(&i).map(|(j, _)| j).and_then(|j| {
@@ -226,6 +247,7 @@ impl TaggedFileCollection {
                 },
             )
             .collect();
+        self = TaggedFileCollection::new(tracks);
         self
     }
 
@@ -236,13 +258,13 @@ impl TaggedFileCollection {
     /// Returns an error if moving any of the files fails.
     pub fn move_files(&mut self, config: &Config) -> crate::Result<()> {
         let paths = self
-            .tracks
-            .iter()
+            .media()
+            .flat_map(|media| media.media_tracks().map(move |track| (media, track)))
             .enumerate()
-            .map(|(i, track)| {
+            .map(|(i, (media, track))| {
                 let values = PathFormatterValues::default()
                     .with_release(self)
-                    .with_media(self)
+                    .with_media(media)
                     .with_track(i + 1, track);
                 config
                     .paths
@@ -250,7 +272,12 @@ impl TaggedFileCollection {
             })
             .collect::<crate::Result<Vec<_>>>()?;
 
-        for (track, dest_path) in self.tracks.iter_mut().zip(paths) {
+        for (track, dest_path) in self
+            .media
+            .iter_mut()
+            .flat_map(|media| media.tracks.iter_mut())
+            .zip(paths)
+        {
             util::move_file(&track.path, &dest_path)?;
             track.path = dest_path;
         }
@@ -264,7 +291,11 @@ impl TaggedFileCollection {
     ///
     /// Returns an error if any of the underlying tags fail to write.
     pub fn write_tags(&mut self) -> crate::Result<()> {
-        for track in &mut self.tracks {
+        for track in &mut self
+            .media
+            .iter_mut()
+            .flat_map(|media| media.tracks.iter_mut())
+        {
             track.write_tags()?;
         }
 
@@ -274,55 +305,22 @@ impl TaggedFileCollection {
 
 impl IntoIterator for TaggedFileCollection {
     type Item = TaggedFile;
-    type IntoIter = std::vec::IntoIter<Self::Item>;
+    type IntoIter = std::iter::FlatMap<
+        std::vec::IntoIter<TaggedFileMedia>,
+        std::vec::IntoIter<TaggedFile>,
+        fn(TaggedFileMedia) -> std::vec::IntoIter<Self::Item>,
+    >;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.tracks.into_iter()
+        self.media
+            .into_iter()
+            .flat_map(|media| media.tracks.into_iter())
     }
 }
 
 impl FromIterator<TaggedFile> for TaggedFileCollection {
     fn from_iter<I: IntoIterator<Item = TaggedFile>>(iter: I) -> Self {
         Self::new(iter.into_iter().collect::<Vec<TaggedFile>>())
-    }
-}
-
-impl MediaLike for TaggedFileCollection {
-    fn disc_number(&self) -> Option<u32> {
-        self.find_consensual_tag_value(&TagKey::DiscNumber)
-            .and_then(|number| number.parse::<u32>().ok())
-    }
-
-    fn media_title(&self) -> Option<Cow<'_, str>> {
-        self.find_consensual_tag_value(&TagKey::DiscSubtitle)
-            .map(Cow::from)
-    }
-
-    fn media_format(&self) -> Option<Cow<'_, str>> {
-        self.find_consensual_tag_value(&TagKey::Media)
-            .map(Cow::from)
-    }
-
-    fn musicbrainz_disc_id(&self) -> Option<Cow<'_, str>> {
-        self.find_consensual_tag_value(&TagKey::MusicBrainzDiscId)
-            .map(Cow::from)
-    }
-
-    fn media_track_count(&self) -> Option<usize> {
-        self.tracks.len().into()
-    }
-
-    fn gapless_playback(&self) -> Option<bool> {
-        self.find_consensual_tag_value(&TagKey::GaplessPlayback)
-            .map(|value| {
-                let value_lower = value.to_ascii_lowercase();
-                let result = &["1", "on", "true", "yes"].contains(&value_lower.as_str());
-                *result
-            })
-    }
-
-    fn media_tracks(&self) -> impl Iterator<Item = &(impl TrackLike + '_)> {
-        self.tracks.iter()
     }
 }
 
@@ -335,7 +333,12 @@ impl ReleaseLike for TaggedFileCollection {
     fn release_artist(&self) -> Option<Cow<'_, str>> {
         [&TagKey::AlbumArtist, &TagKey::Artist]
             .into_iter()
-            .find_map(|key| self.find_most_common_tag_value(key))
+            .find_map(|key| {
+                find_most_common_tag_value(
+                    self.media.iter().flat_map(|media| media.tracks.iter()),
+                    key,
+                )
+            })
             .and_then(|most_common_artist| {
                 most_common_artist
                     .is_all_distinct()
@@ -438,7 +441,7 @@ impl ReleaseLike for TaggedFileCollection {
     }
 
     fn media(&self) -> impl Iterator<Item = &(impl MediaLike + '_)> {
-        std::iter::once(self)
+        self.media.iter()
     }
 
     fn replay_gain_album_gain_analyzed(&self) -> Option<Cow<'_, str>> {
@@ -451,6 +454,64 @@ impl ReleaseLike for TaggedFileCollection {
         self.ebur128_album_result
             .as_ref()
             .map(|result| Cow::from(result.replaygain_album_peak_string()))
+    }
+}
+
+/// Media inside a tagged file collection.
+#[derive(Debug, PartialEq)]
+pub struct TaggedFileMedia {
+    /// Tracks on this media.
+    tracks: Vec<TaggedFile>,
+}
+
+impl TaggedFileMedia {
+    /// Finds the consensual value for a certain tag in an iterator of tagged files.
+    ///
+    /// Returns `None` if there is no consensual value.
+    fn find_consensual_tag_value<'a, 'b>(&'a self, key: &'b TagKey) -> Option<Cow<'a, str>>
+    where
+        'b: 'a,
+    {
+        find_most_common_tag_value(self.tracks.iter(), key).and_then(MostCommonItem::into_concensus)
+    }
+}
+
+impl MediaLike for TaggedFileMedia {
+    fn disc_number(&self) -> Option<u32> {
+        self.find_consensual_tag_value(&TagKey::DiscNumber)
+            .and_then(|number| number.parse::<u32>().ok())
+    }
+
+    fn media_title(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(&TagKey::DiscSubtitle)
+            .map(Cow::from)
+    }
+
+    fn media_format(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(&TagKey::Media)
+            .map(Cow::from)
+    }
+
+    fn musicbrainz_disc_id(&self) -> Option<Cow<'_, str>> {
+        self.find_consensual_tag_value(&TagKey::MusicBrainzDiscId)
+            .map(Cow::from)
+    }
+
+    fn media_track_count(&self) -> Option<usize> {
+        self.tracks.len().into()
+    }
+
+    fn gapless_playback(&self) -> Option<bool> {
+        self.find_consensual_tag_value(&TagKey::GaplessPlayback)
+            .map(|value| {
+                let value_lower = value.to_ascii_lowercase();
+                let result = &["1", "on", "true", "yes"].contains(&value_lower.as_str());
+                *result
+            })
+    }
+
+    fn media_tracks(&self) -> impl Iterator<Item = &(impl TrackLike + '_)> {
+        self.tracks.iter()
     }
 }
 
