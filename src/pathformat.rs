@@ -93,7 +93,7 @@ impl From<PathTemplate> for PathTemplateConfig {
 handlebars_helper!(helper_zfill: |value: Value, { width: usize = 0 }| {
     match value {
         Value::Number(number) => {
-            format!("{number:0>width$}")
+            format!("{number:0>width$}", number = number.to_string())
         }
         Value::String(string) => {
             format!("{string:0>width$}")
@@ -190,6 +190,7 @@ impl<'a> PathFormatterValues<'a> {
 mod tests {
     use super::*;
     use crate::Config;
+    use serde_json::json;
 
     use musicbrainz_rs_nova::entity::release::Release as MusicBrainzRelease;
 
@@ -197,6 +198,35 @@ mod tests {
         env!("CARGO_MANIFEST_DIR"),
         "/tests/data/musicbrainz/release.json"
     ));
+
+    #[test]
+    fn test_helper_zfill() {
+        let mut handlebars = Handlebars::new();
+        handlebars.set_strict_mode(true);
+        handlebars.register_helper("zfill", Box::new(helper_zfill));
+        handlebars.register_template(
+            "test",
+            Template::compile("{{zfill index width=width}}").unwrap(),
+        );
+        assert_eq!(
+            handlebars
+                .render("test", &json!({ "index": 8, "width": 1}))
+                .unwrap(),
+            "8".to_string()
+        );
+        assert_eq!(
+            handlebars
+                .render("test", &json!({ "index": 8, "width": 2}))
+                .unwrap(),
+            "08".to_string()
+        );
+        assert_eq!(
+            handlebars
+                .render("test", &json!({ "index": 8, "width": 3}))
+                .unwrap(),
+            "008".to_string()
+        );
+    }
 
     #[test]
     fn test_usize_width() {
