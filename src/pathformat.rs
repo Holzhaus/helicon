@@ -41,6 +41,15 @@ fn escape_path_chars(data: &str) -> String {
         .collect::<String>()
 }
 
+/// Return the width of a base-10 `usize` integer as usize (if possible).
+fn usize_width(integer: usize) -> Option<usize> {
+    if integer == 0 {
+        return Some(1);
+    }
+
+    usize::try_from(integer.ilog10() + 1).ok()
+}
+
 /// Configuration for the [`PathFormatter`] object.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(try_from = "PathTemplateConfig")]
@@ -155,11 +164,7 @@ impl<'a> PathFormatterValues<'a> {
         self.date = release.release_date();
         self.year = release.release_year();
         self.disc_count = Some(release.media().count());
-        self.disc_count_width = self
-            .disc_count
-            .filter(|&count| count != 0)
-            .map(|count| count.ilog10() + 1)
-            .and_then(|count| usize::try_from(count).ok());
+        self.disc_count_width = self.disc_count.and_then(usize_width);
         self
     }
 
@@ -167,11 +172,7 @@ impl<'a> PathFormatterValues<'a> {
     pub fn with_media(mut self, media: &'a impl MediaLike) -> Self {
         self.disc_number = media.disc_number();
         self.track_count = Some(media.media_tracks().count());
-        self.track_count_width = self
-            .track_count
-            .filter(|&count| count != 0)
-            .map(|count| count.ilog10() + 1)
-            .and_then(|count| usize::try_from(count).ok());
+        self.track_count_width = self.track_count.and_then(usize_width);
         self
     }
 
@@ -196,6 +197,28 @@ mod tests {
         env!("CARGO_MANIFEST_DIR"),
         "/tests/data/musicbrainz/release.json"
     ));
+
+    #[test]
+    fn test_usize_width() {
+        for i in 0..=9 {
+            assert_eq!(usize_width(i), Some(1));
+        }
+        assert_eq!(usize_width(10), Some(2));
+        assert_eq!(usize_width(50), Some(2));
+        assert_eq!(usize_width(99), Some(2));
+        assert_eq!(usize_width(100), Some(3));
+        assert_eq!(usize_width(250), Some(3));
+        assert_eq!(usize_width(512), Some(3));
+        assert_eq!(usize_width(768), Some(3));
+        assert_eq!(usize_width(999), Some(3));
+        assert_eq!(usize_width(1000), Some(4));
+        assert_eq!(usize_width(1111), Some(4));
+        assert_eq!(usize_width(1250), Some(4));
+        assert_eq!(usize_width(4567), Some(4));
+        assert_eq!(usize_width(8901), Some(4));
+        assert_eq!(usize_width(9999), Some(4));
+        assert_eq!(usize_width(10000), Some(5));
+    }
 
     #[test]
     fn test_album_path() {
