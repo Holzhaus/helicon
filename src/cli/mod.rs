@@ -83,10 +83,6 @@ pub async fn main() -> crate::Result<()> {
         .expect("Failed to initialize logging");
 
     // Load configuration
-    //
-    // FIXME: Remove this `allow` directive when
-    // https://github.com/rust-lang/rust-clippy/issues/10095 has been fixed.
-    #[allow(clippy::redundant_closure_for_method_calls)]
     let config = base_dirs
         .find_config_files("config.toml")
         .map(Cow::from)
