@@ -105,27 +105,8 @@ impl<'a> MusicBrainzClient<'a> {
         limit: u8,
         offset: u16,
     ) -> crate::Result<Vec<String>> {
-        let mut query = MusicBrainzReleaseSearchQuery::query_builder();
-        let mut query = query.tracks(
-            &base_release
-                .release_track_count()
-                .map(|track_count| track_count.to_string())
-                .unwrap_or_default(),
-        );
-        if let Some(v) = base_release.release_artist() {
-            query = query.and().artist(v.borrow());
-        };
-        if let Some(v) = base_release.release_title() {
-            query = query.and().release(v.borrow());
-        };
-        if let Some(v) = base_release.catalog_number() {
-            query = query.and().catalog_number(v.borrow());
-        };
-        if let Some(v) = base_release.barcode() {
-            query = query.and().barcode(v.borrow());
-        }
-
-        let search_query = query.build();
+        let search_query = build_search_query(base_release);
+        log::debug!("Querying MusicBrainz: {search_query}");
         let response = if let Some(cached_response) = self.cache.and_then(|cache| cache.get_item((search_query.as_ref(), limit, offset))
                 .inspect_err(|err| {
                     log::debug!("Failed to get release search result for query {search_query} (limit {limit}) from cache: {err}");
@@ -395,6 +376,32 @@ impl<'a> MusicBrainzId<'a> {
         };
         None
     }
+}
+
+/// Build a MusicBrainz search query from the given release.
+fn build_search_query(release: &impl ReleaseLike) -> String {
+    let mut query = MusicBrainzReleaseSearchQuery::query_builder();
+    let mut query = query.tracks(
+        release
+            .release_track_count()
+            .map(|track_count| track_count.to_string())
+            .unwrap_or_default()
+            .as_str(),
+    );
+    if let Some(v) = release.release_artist() {
+        query = query.and().artist(v.borrow());
+    };
+    if let Some(v) = release.release_title() {
+        query = query.and().release(v.borrow());
+    };
+    if let Some(v) = release.catalog_number() {
+        query = query.and().catalog_number(v.borrow());
+    };
+    if let Some(v) = release.barcode() {
+        query = query.and().barcode(v.borrow());
+    }
+
+    query.build()
 }
 
 #[cfg(test)]
