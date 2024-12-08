@@ -179,40 +179,8 @@ pub fn select_candidate<'a, T: ReleaseLike>(
                 break Ok(ReleaseCandidateSelectionResult::Candidate(candidate))
             }
             Ok(ReleaseCandidateSelectionOption::EnterMusicBrainzId) => {
-                let result = Text::new("Enter MusicBrainz ID or URL: ")
-                    .with_validator(|input: &str| {
-                        if input.is_empty() {
-                            return Ok(Validation::Valid);
-                        }
-                        match MusicBrainzId::find(input) {
-                            Some(MusicBrainzId::Release(_) | MusicBrainzId::ReleaseGroup(_)) => {
-                                Ok(Validation::Valid)
-                            }
-                            Some(id) => Ok(Validation::Invalid(
-                                format!(
-                                    "This is a MusicBrainz {} ID, not a release ID.",
-                                    id.entity_name()
-                                )
-                                .into(),
-                            )),
-                            None => Ok(Validation::Invalid("Not a valid MusicBrainz ID.".into())),
-                        }
-                    })
-                    .prompt();
-                if let Ok(text) = result {
-                    match MusicBrainzId::find(&text) {
-                        Some(MusicBrainzId::Release(id)) => {
-                            break Ok(ReleaseCandidateSelectionResult::FetchCandidateRelease(
-                                id.to_string(),
-                            ))
-                        }
-                        Some(MusicBrainzId::ReleaseGroup(id)) => {
-                            break Ok(ReleaseCandidateSelectionResult::FetchCandidateReleaseGroup(
-                                id.to_string(),
-                            ))
-                        }
-                        _ => (),
-                    }
+                if let Some(option) = enter_musicbrainz_id() {
+                    break Ok(option);
                 }
             }
             Ok(ReleaseCandidateSelectionOption::SkipItem)
@@ -221,5 +189,46 @@ pub fn select_candidate<'a, T: ReleaseLike>(
             }
             Err(err) => Err(err)?,
         }
+    }
+}
+
+/// Prompt the user to enter a MusicBrainz Release or Release Group ID.
+fn enter_musicbrainz_id<'a, T: ReleaseLike>() -> Option<ReleaseCandidateSelectionResult<'a, T>> {
+    let result = Text::new("Enter MusicBrainz ID or URL: ")
+        .with_validator(validate_musicbrainz_id)
+        .prompt();
+    if let Ok(text) = result {
+        match MusicBrainzId::find(&text) {
+            Some(MusicBrainzId::Release(id)) => Some(
+                ReleaseCandidateSelectionResult::FetchCandidateRelease(id.to_string()),
+            ),
+            Some(MusicBrainzId::ReleaseGroup(id)) => Some(
+                ReleaseCandidateSelectionResult::FetchCandidateReleaseGroup(id.to_string()),
+            ),
+            _ => None,
+        }
+    } else {
+        None
+    }
+}
+
+/// Validator function for MusicBrainz Release and Release Group IDs.
+#[expect(clippy::unnecessary_wraps)]
+fn validate_musicbrainz_id(
+    input: &str,
+) -> Result<Validation, Box<dyn std::error::Error + Send + Sync>> {
+    if input.is_empty() {
+        return Ok(Validation::Valid);
+    }
+    match MusicBrainzId::find(input) {
+        Some(MusicBrainzId::Release(_) | MusicBrainzId::ReleaseGroup(_)) => Ok(Validation::Valid),
+        Some(id) => Ok(Validation::Invalid(
+            format!(
+                "This is a MusicBrainz {} ID, not a release ID.",
+                id.entity_name()
+            )
+            .into(),
+        )),
+        None => Ok(Validation::Invalid("Not a valid MusicBrainz ID.".into())),
     }
 }
