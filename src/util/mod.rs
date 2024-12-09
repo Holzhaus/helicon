@@ -10,8 +10,14 @@
 
 mod fs;
 mod keyed_binheap;
+#[cfg(any(test, feature = "dev"))]
+mod testing;
 mod time;
 
 pub use fs::{move_file, walk_dir};
 pub use keyed_binheap::KeyedBinaryHeap;
+#[cfg(feature = "dev")]
+pub use testing::FakeRelease;
+#[cfg(test)]
+pub use testing::FakeTrack;
 pub use time::{parse_year_from_str, FormattedDuration};

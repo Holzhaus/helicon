@@ -49,5 +49,6 @@ paste = "1"
 
 [features]
 default = ["flac", "id3"]
+dev = []
 flac = ["dep:metaflac"]
 id3 = ["dep:id3"]
