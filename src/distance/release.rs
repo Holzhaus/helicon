@@ -398,18 +398,18 @@ impl ReleaseSimilarity {
 #[cfg(test)]
 mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
-    use super::super::tests::TestTrack;
     use super::*;
+    use crate::util::FakeTrack;
     use float_eq::assert_float_eq;
 
     #[test]
     fn test_track_assignment_exact() {
         let tracks = [
-            TestTrack("foo"),
-            TestTrack("bar"),
-            TestTrack("uvw"),
-            TestTrack("qrst"),
-            TestTrack("xyz"),
+            FakeTrack::with_title("foo"),
+            FakeTrack::with_title("bar"),
+            FakeTrack::with_title("uvw"),
+            FakeTrack::with_title("qrst"),
+            FakeTrack::with_title("xyz"),
         ];
 
         let config = Config::default();
@@ -426,18 +426,18 @@ mod tests {
     #[test]
     fn test_track_assignment_shuffled() {
         let lhs = [
-            TestTrack("foo"),
-            TestTrack("bar"),
-            TestTrack("uvw"),
-            TestTrack("qrst"),
-            TestTrack("xyz"),
+            FakeTrack::with_title("foo"),
+            FakeTrack::with_title("bar"),
+            FakeTrack::with_title("uvw"),
+            FakeTrack::with_title("qrst"),
+            FakeTrack::with_title("xyz"),
         ];
         let rhs = [
-            TestTrack("xyz"),
-            TestTrack("qrst"),
-            TestTrack("foo"),
-            TestTrack("bar"),
-            TestTrack("uvw"),
+            FakeTrack::with_title("xyz"),
+            FakeTrack::with_title("qrst"),
+            FakeTrack::with_title("foo"),
+            FakeTrack::with_title("bar"),
+            FakeTrack::with_title("uvw"),
         ];
 
         let config = Config::default();
@@ -453,8 +453,8 @@ mod tests {
 
     #[test]
     fn test_track_assignment_distinct() {
-        let lhs = [TestTrack("foo"), TestTrack("bar")];
-        let rhs = [TestTrack("qrst"), TestTrack("xyz")];
+        let lhs = [FakeTrack::with_title("foo"), FakeTrack::with_title("bar")];
+        let rhs = [FakeTrack::with_title("qrst"), FakeTrack::with_title("xyz")];
 
         let config = Config::default();
         let assignment = TrackAssignment::compute_from(&config, lhs.iter(), rhs.iter());
@@ -470,8 +470,12 @@ mod tests {
 
     #[test]
     fn test_track_assignment_lhs_unmatched() {
-        let lhs = [TestTrack("foo"), TestTrack("bar"), TestTrack("uvw")];
-        let rhs = [TestTrack("qrst"), TestTrack("xyz")];
+        let lhs = [
+            FakeTrack::with_title("foo"),
+            FakeTrack::with_title("bar"),
+            FakeTrack::with_title("uvw"),
+        ];
+        let rhs = [FakeTrack::with_title("qrst"), FakeTrack::with_title("xyz")];
 
         let config = Config::default();
         let assignment = TrackAssignment::compute_from(&config, lhs.iter(), rhs.iter());
@@ -491,8 +495,12 @@ mod tests {
 
     #[test]
     fn test_track_assignment_rhs_unmatched() {
-        let lhs = [TestTrack("foo"), TestTrack("bar")];
-        let rhs = [TestTrack("uvw"), TestTrack("qrst"), TestTrack("xyz")];
+        let lhs = [FakeTrack::with_title("foo"), FakeTrack::with_title("bar")];
+        let rhs = [
+            FakeTrack::with_title("uvw"),
+            FakeTrack::with_title("qrst"),
+            FakeTrack::with_title("xyz"),
+        ];
 
         let config = Config::default();
         let assignment = TrackAssignment::compute_from(&config, lhs.iter(), rhs.iter());

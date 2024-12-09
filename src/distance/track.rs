@@ -102,13 +102,13 @@ impl TrackSimilarity {
 #[cfg(test)]
 mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
-    use super::super::tests::TestTrack;
     use super::*;
+    use crate::util::FakeTrack;
     use float_eq::assert_float_eq;
 
     #[test]
     fn test_track_distance_title_exact() {
-        let track = TestTrack("foo");
+        let track = FakeTrack::with_title("foo");
         let config = Config::default();
         let distance = TrackSimilarity::detect(&track, &track).total_distance(&config);
         assert_float_eq!(distance.as_f64(), 0.0, abs <= 0.000_1);
@@ -116,8 +116,8 @@ mod tests {
 
     #[test]
     fn test_track_distance_title_distinct() {
-        let track1 = TestTrack("foo");
-        let track2 = TestTrack("bar");
+        let track1 = FakeTrack::with_title("foo");
+        let track2 = FakeTrack::with_title("bar");
         let config = Config::default();
         let distance = TrackSimilarity::detect(&track1, &track2).total_distance(&config);
         assert_float_eq!(distance.as_f64(), 1.0, abs <= 0.000_1);
@@ -125,8 +125,8 @@ mod tests {
 
     #[test]
     fn test_track_distance_title_similar() {
-        let track1 = TestTrack("foo");
-        let track2 = TestTrack("barfoo");
+        let track1 = FakeTrack::with_title("foo");
+        let track2 = FakeTrack::with_title("barfoo");
         let config = Config::default();
         let distance = TrackSimilarity::detect(&track1, &track2).total_distance(&config);
         assert_float_eq!(distance.as_f64(), 0.5, abs <= 0.000_1);

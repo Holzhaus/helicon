@@ -85,6 +85,54 @@ async fn select_release<'a>(
                         })
                         .await;
                 }
+                #[cfg(feature = "dev")]
+                ui::ReleaseCandidateSelectionResult::DumpReleaseInfo => {
+                    use crate::util::FakeRelease;
+                    use std::fs::File;
+
+                    let tmp_dir = tempfile::Builder::new()
+                        .prefix("helicon-release-info-dump-")
+                        .tempdir()?;
+                    let mut saved_anything = false;
+                    'save_debuginfo: for (path, release) in std::iter::once((
+                        tmp_dir.path().join("release.json"),
+                        FakeRelease::from(&track_collection),
+                    ))
+                    .chain(candidates.iter().enumerate().map(|(i, candidate)| {
+                        (
+                            tmp_dir.path().join(format!("candidate_{i}.json")),
+                            FakeRelease::from(candidate.release()),
+                        )
+                    })) {
+                        let file = match File::create(path.as_path()) {
+                            Ok(f) => f,
+                            Err(err) => {
+                                eprintln!(
+                                    "Failed to open {path} for writing: {err}",
+                                    path = path.display()
+                                );
+                                continue 'save_debuginfo;
+                            }
+                        };
+
+                        if let Err(err) = serde_json::to_writer_pretty(file, &release) {
+                            eprintln!(
+                                "Failed to write debug info to {path}: {err}",
+                                path = path.display()
+                            );
+                            continue 'save_debuginfo;
+                        }
+                        saved_anything = true;
+                    }
+
+                    if saved_anything {
+                        eprintln!("Saved debug info to {}", tmp_dir.into_path().display());
+                    } else {
+                        eprintln!("Nothing to do");
+                    }
+
+                    continue 'select_candidate;
+                }
                 ui::ReleaseCandidateSelectionResult::Skipped => {
                     return Ok(SelectionResult::Skipped)
                 }

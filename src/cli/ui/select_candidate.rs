@@ -27,6 +27,9 @@ pub enum ReleaseCandidateSelectionResult<'a, T: ReleaseLike> {
     FetchCandidateReleaseGroup(String),
     /// The item was skipped.
     Skipped,
+    /// Save release information to file (for debugging).
+    #[cfg(feature = "dev")]
+    DumpReleaseInfo,
 }
 
 /// An option presented when selecting a release.
@@ -35,6 +38,9 @@ enum ReleaseCandidateSelectionOption<'a, T: ReleaseLike> {
     Candidate(&'a ReleaseCandidate<T>),
     /// Enter a customer MusicBrainz release ID.
     EnterMusicBrainzId,
+    /// DumpReleaseInfo release for debugging.
+    #[cfg(feature = "dev")]
+    DumpReleaseInfo,
     /// Skip this item.
     SkipItem,
 }
@@ -45,6 +51,8 @@ impl<T: ReleaseLike> Clone for ReleaseCandidateSelectionOption<'_, T> {
         match &self {
             Self::Candidate(candidate) => Self::Candidate(candidate),
             Self::EnterMusicBrainzId => Self::EnterMusicBrainzId,
+            #[cfg(feature = "dev")]
+            Self::DumpReleaseInfo => Self::DumpReleaseInfo,
             Self::SkipItem => Self::SkipItem,
         }
     }
@@ -65,63 +73,61 @@ impl<T: ReleaseLike> Clone for StyledReleaseCandidateSelectionOption<'_, T> {
 
 impl<T: ReleaseLike> fmt::Display for StyledReleaseCandidateSelectionOption<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.1 {
-            ReleaseCandidateSelectionOption::Candidate(candidate) => {
-                let release_artist_and_title =
-                    util::format_release_artist_and_title(candidate.release());
-                let similarity = util::format_similarity(&candidate.distance(self.0));
-                write!(
-                    f,
-                    "{release_artist_and_title}{similarity_prefix}{similarity}{similarity_suffix}",
-                    similarity = self
-                        .0
-                        .user_interface
-                        .candidate_details
-                        .candidate_similarity_style
-                        .apply(similarity),
-                    similarity_prefix = self
-                        .0
-                        .user_interface
-                        .candidate_details
-                        .candidate_similarity_prefix_style
-                        .apply(
-                            &self
-                                .0
-                                .user_interface
-                                .candidate_details
-                                .candidate_similarity_prefix
-                        ),
-                    similarity_suffix = self
-                        .0
-                        .user_interface
-                        .candidate_details
-                        .candidate_similarity_suffix_style
-                        .apply(
-                            &self
-                                .0
-                                .user_interface
-                                .candidate_details
-                                .candidate_similarity_suffix
-                        ),
-                )
-            }
-            ReleaseCandidateSelectionOption::EnterMusicBrainzId
-            | ReleaseCandidateSelectionOption::SkipItem => {
-                let text = match &self.1 {
-                    ReleaseCandidateSelectionOption::EnterMusicBrainzId => "Enter MusicBrainz ID",
-                    ReleaseCandidateSelectionOption::SkipItem => "Skip Item",
-                    ReleaseCandidateSelectionOption::Candidate(_) => unreachable!(),
-                };
-                write!(
-                    f,
-                    "{}",
-                    self.0
-                        .user_interface
-                        .candidate_details
-                        .action_style
-                        .apply(text)
-                )
-            }
+        if let ReleaseCandidateSelectionOption::Candidate(candidate) = &self.1 {
+            let release_artist_and_title =
+                util::format_release_artist_and_title(candidate.release());
+            let similarity = util::format_similarity(&candidate.distance(self.0));
+            write!(
+                f,
+                "{release_artist_and_title}{similarity_prefix}{similarity}{similarity_suffix}",
+                similarity = self
+                    .0
+                    .user_interface
+                    .candidate_details
+                    .candidate_similarity_style
+                    .apply(similarity),
+                similarity_prefix = self
+                    .0
+                    .user_interface
+                    .candidate_details
+                    .candidate_similarity_prefix_style
+                    .apply(
+                        &self
+                            .0
+                            .user_interface
+                            .candidate_details
+                            .candidate_similarity_prefix
+                    ),
+                similarity_suffix = self
+                    .0
+                    .user_interface
+                    .candidate_details
+                    .candidate_similarity_suffix_style
+                    .apply(
+                        &self
+                            .0
+                            .user_interface
+                            .candidate_details
+                            .candidate_similarity_suffix
+                    ),
+            )
+        } else {
+            let text = match &self.1 {
+                ReleaseCandidateSelectionOption::EnterMusicBrainzId => "Enter MusicBrainz ID",
+                ReleaseCandidateSelectionOption::SkipItem => "Skip Item",
+                #[cfg(feature = "dev")]
+                ReleaseCandidateSelectionOption::DumpReleaseInfo => "Dump Releases for Debugging",
+                ReleaseCandidateSelectionOption::Candidate(_) => unreachable!(),
+            };
+            write!(
+                f,
+                "{}",
+                self.0
+                    .user_interface
+                    .candidate_details
+                    .action_style
+                    .apply(text)
+            )
         }
     }
 }
@@ -158,6 +164,8 @@ pub fn select_candidate<'a, T: ReleaseLike>(
 
     let additional_options = [
         ReleaseCandidateSelectionOption::EnterMusicBrainzId,
+        #[cfg(feature = "dev")]
+        ReleaseCandidateSelectionOption::DumpReleaseInfo,
         ReleaseCandidateSelectionOption::SkipItem,
     ];
     let options: Vec<StyledReleaseCandidateSelectionOption<'a, T>> = candidates
@@ -182,6 +190,10 @@ pub fn select_candidate<'a, T: ReleaseLike>(
                 if let Some(option) = enter_musicbrainz_id() {
                     break Ok(option);
                 }
+            }
+            #[cfg(feature = "dev")]
+            Ok(ReleaseCandidateSelectionOption::DumpReleaseInfo) => {
+                break Ok(ReleaseCandidateSelectionResult::DumpReleaseInfo);
             }
             Ok(ReleaseCandidateSelectionOption::SkipItem)
             | Err(InquireError::OperationCanceled) => {
