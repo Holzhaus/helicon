@@ -197,7 +197,7 @@ async fn join_analysis_tasks_to_collection_and_find_release_candidates(
             musicbrainz
                 .find_releases_by_similarity(&track_collection)
                 .await
-                .map(ReleaseCandidateCollection::new)
+                .map(ReleaseCandidateCollection::from)
                 .map(|candidates| (track_collection, candidates))
         })
         .await

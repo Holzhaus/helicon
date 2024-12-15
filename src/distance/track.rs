@@ -50,16 +50,16 @@ impl TrackSimilarity {
                 .to_weighted(weights.track_title)
                 .into(),
             self.track_artist
-                .to_distance_opt()
+                .to_distance_if_both_present()
                 .map(|dist| dist.to_weighted(weights.track_artist)),
             self.track_number
-                .to_distance_opt()
+                .to_distance_if_both_present()
                 .map(|dist| dist.to_weighted(weights.track_number)),
             self.track_length
-                .to_distance_opt()
+                .to_distance_if_both_present()
                 .map(|dist| dist.to_weighted(weights.track_length)),
             self.musicbrainz_recording_id
-                .to_distance_opt()
+                .to_distance_if_both_present()
                 .map(|dist| dist.to_weighted(weights.musicbrainz_recording_id)),
         ]
         .into_iter()

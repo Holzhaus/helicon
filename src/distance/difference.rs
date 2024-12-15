@@ -58,12 +58,11 @@ impl Difference {
         }
     }
 
-    /// Get the distance as [`Option`]. This method will return `None` in case that that both
-    /// values are missing, otherwise this returns the same distances as [`Self::to_distance`].
-    pub const fn to_distance_opt(&self) -> Option<&Distance> {
+    /// Get the distance as [`Option`]. This method will return the distance in case that that both
+    /// values are present, otherwise it will return `None`.
+    pub const fn to_distance_if_both_present(&self) -> Option<&Distance> {
         match &self {
-            Self::BothMissing => None,
-            Self::Added | Self::Removed => Some(&Distance::MAX),
+            Self::BothMissing | Self::Added | Self::Removed => None,
             Self::BothPresent(dist) => Some(dist),
         }
     }
@@ -132,21 +131,21 @@ mod tests {
     fn test_to_distance_both_missing() {
         let diff = Difference::BothMissing;
         debug_assert_eq!(diff.to_distance(), &Distance::MIN);
-        debug_assert_eq!(diff.to_distance_opt(), None);
+        debug_assert_eq!(diff.to_distance_if_both_present(), None);
     }
 
     #[test]
     fn test_to_distance_added() {
         let diff = Difference::Added;
         debug_assert_eq!(diff.to_distance(), &Distance::MAX);
-        debug_assert_eq!(diff.to_distance_opt(), Some(diff.to_distance()));
+        debug_assert_eq!(diff.to_distance_if_both_present(), None);
     }
 
     #[test]
     fn test_to_distance_removed() {
         let diff = Difference::Removed;
         debug_assert_eq!(diff.to_distance(), &Distance::MAX);
-        debug_assert_eq!(diff.to_distance_opt(), Some(diff.to_distance()));
+        debug_assert_eq!(diff.to_distance_if_both_present(), None);
     }
 
     #[test]
@@ -154,6 +153,6 @@ mod tests {
         let dist = Distance::from(0.5);
         let diff = Difference::BothPresent(dist.clone());
         debug_assert_eq!(diff.to_distance(), &dist);
-        debug_assert_eq!(diff.to_distance_opt(), Some(diff.to_distance()));
+        debug_assert_eq!(diff.to_distance_if_both_present(), Some(diff.to_distance()));
     }
 }

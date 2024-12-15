@@ -112,7 +112,13 @@ impl<T> MostCommonItem<T> {
 fn is_va_artist(value: &str) -> bool {
     matches!(
         value.to_lowercase().as_str(),
-        "" | "various artists" | "various" | "va" | "unknown"
+        "" | "various artists"
+            | "various"
+            | "va"
+            | "v.a."
+            | "[various]"
+            | "[various artists]"
+            | "unknown"
     )
 }
 
@@ -339,20 +345,7 @@ impl ReleaseLike for TaggedFileCollection {
                     key,
                 )
             })
-            .and_then(|most_common_artist| {
-                most_common_artist
-                    .is_all_distinct()
-                    .then_some(Cow::Borrowed("Various Artists"))
-                    .or_else(|| {
-                        let artist_name = most_common_artist.into_inner();
-                        if is_va_artist(&artist_name) {
-                            Cow::Borrowed("Various Artists")
-                        } else {
-                            artist_name
-                        }
-                        .into()
-                    })
-            })
+            .map(MostCommonItem::into_inner)
     }
 
     fn release_artist_sort_order(&self) -> Option<Cow<'_, str>> {
@@ -454,6 +447,15 @@ impl ReleaseLike for TaggedFileCollection {
         self.ebur128_album_result
             .as_ref()
             .map(|result| Cow::from(result.replaygain_album_peak_string()))
+    }
+
+    fn is_compilation(&self) -> bool {
+        self.release_artist().as_deref().is_some_and(is_va_artist)
+            || find_most_common_tag_value(
+                self.media.iter().flat_map(|media| media.tracks.iter()),
+                &TagKey::Artist,
+            )
+            .is_some_and(|most_common_artist| most_common_artist.is_all_distinct())
     }
 }
 
@@ -613,7 +615,7 @@ mod tests {
         let release: MusicBrainzRelease = serde_json::from_str(MUSICBRAINZ_RELEASE_JSON).unwrap();
         let release_track_count = release.release_track_count().unwrap();
         let release_candidate =
-            ReleaseCandidate::new(release, ReleaseSimilarity::new(release_track_count));
+            ReleaseCandidate::with_similarity(release, ReleaseSimilarity::new(release_track_count));
 
         let tracks = (0..release_track_count)
             .map(|_| TaggedFile::new(vec![func()]))

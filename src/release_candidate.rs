@@ -24,7 +24,7 @@ pub struct ReleaseCandidate<T: ReleaseLike> {
 impl<T: ReleaseLike> ReleaseCandidate<T> {
     /// Create a new candidate from a musicbrainz release and a precalculated similarity to the
     /// base release.
-    pub fn new(release: T, similarity: ReleaseSimilarity) -> Self {
+    pub fn with_similarity(release: T, similarity: ReleaseSimilarity) -> Self {
         Self {
             release,
             similarity,
@@ -33,13 +33,13 @@ impl<T: ReleaseLike> ReleaseCandidate<T> {
 
     /// Create a new candidate from a musicbrainz release and compute it's similarity to the base
     /// release on the fly.
-    pub fn new_with_base_release<S: ReleaseLike>(
+    pub fn with_base_release<S: ReleaseLike>(
         release: T,
         base_release: &S,
         config: &Config,
     ) -> Self {
         let similarity = base_release.similarity_to(&release, config);
-        Self::new(release, similarity)
+        Self::with_similarity(release, similarity)
     }
 
     /// Get a reference to the inner release,
@@ -61,19 +61,13 @@ impl<T: ReleaseLike> ReleaseCandidate<T> {
 /// A collection of release candidates.
 ///
 /// Has convenience methods to add new candidates in sorted order.
+#[derive(Debug, Clone, Default)]
 pub struct ReleaseCandidateCollection<T: ReleaseLike> {
     /// Ordered list of candidates.
     candidates: Vec<ReleaseCandidate<T>>,
 }
 
 impl<T: ReleaseLike> ReleaseCandidateCollection<T> {
-    /// Create a new release candidate collections.
-    ///
-    /// The supplied candidates needs to be in the correct order.
-    pub fn new(candidates: Vec<ReleaseCandidate<T>>) -> Self {
-        Self { candidates }
-    }
-
     /// Find the index of the candidate.
     pub fn find_index(&self, selected_candidate: &ReleaseCandidate<T>) -> usize {
         self.candidates
@@ -119,7 +113,7 @@ impl<T: ReleaseLike> ReleaseCandidateCollection<T> {
 
     /// Add a new release to this collection. Create a new candidate internally.
     pub fn add_release<R: ReleaseLike>(&mut self, release: T, base_release: &R, config: &Config) {
-        let candidate = ReleaseCandidate::new_with_base_release(release, base_release, config);
+        let candidate = ReleaseCandidate::with_base_release(release, base_release, config);
         self.add_candidate(candidate, config);
     }
 
@@ -131,5 +125,14 @@ impl<T: ReleaseLike> ReleaseCandidateCollection<T> {
     /// Return the number of the candidates in this collection.
     pub fn len(&self) -> usize {
         self.candidates.len()
+    }
+}
+
+impl<T: ReleaseLike> From<Vec<ReleaseCandidate<T>>> for ReleaseCandidateCollection<T> {
+    /// Create a new release candidate collections.
+    ///
+    /// The supplied candidates needs to be in the correct order.
+    fn from(candidates: Vec<ReleaseCandidate<T>>) -> Self {
+        Self { candidates }
     }
 }

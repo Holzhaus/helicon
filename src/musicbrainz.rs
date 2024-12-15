@@ -24,7 +24,12 @@ use musicbrainz_rs_nova::{
     entity::release::ReleaseSearchQuery as MusicBrainzReleaseSearchQuery, Fetch, Search,
 };
 use regex::Regex;
-use std::borrow::{Borrow, Cow};
+use std::borrow::Cow;
+
+/// MusicBrainz Artist ID of the "Various Artist" compilation artist.
+///
+/// See <https://musicbrainz.org/artist/89ad4ac3-39f7-470e-963a-56509c546377>.
+pub const VARIOUS_ARTISTS_ID: &str = "89ad4ac3-39f7-470e-963a-56509c546377";
 
 /// Configurable MusicBrainz API client with caching support.
 #[derive(Debug)]
@@ -50,7 +55,7 @@ impl<'a> MusicBrainzClient<'a> {
             match self.find_release_by_id(release_id.into_owned()).await {
                 Ok(release) => {
                     let candidate =
-                        ReleaseCandidate::new_with_base_release(release, base_release, self.config);
+                        ReleaseCandidate::with_base_release(release, base_release, self.config);
                     return Ok(vec![candidate]);
                 }
                 Err(err) => {
@@ -81,7 +86,7 @@ impl<'a> MusicBrainzClient<'a> {
                 };
 
                 let candidate =
-                    ReleaseCandidate::new_with_base_release(release, base_release, self.config);
+                    ReleaseCandidate::with_base_release(release, base_release, self.config);
 
                 log::debug!(
                     "Release '{}' has distance to track collection: {}",
@@ -381,25 +386,45 @@ impl<'a> MusicBrainzId<'a> {
 /// Build a MusicBrainz search query from the given release.
 fn build_search_query(release: &impl ReleaseLike) -> String {
     let mut query = MusicBrainzReleaseSearchQuery::query_builder();
-    let mut query = query.tracks(
-        release
-            .release_track_count()
-            .map(|track_count| track_count.to_string())
-            .unwrap_or_default()
-            .as_str(),
-    );
-    if let Some(v) = release.release_artist() {
-        query = query.and().artist(v.borrow());
+    let mut is_empty = true;
+
+    // Track count
+    if let Some(track_count) = release.release_track_count() {
+        let _ = query.tracks(&track_count.to_string());
+        is_empty = false;
     };
-    if let Some(v) = release.release_title() {
-        query = query.and().release(v.borrow());
-    };
-    if let Some(v) = release.catalog_number() {
-        query = query.and().catalog_number(v.borrow());
-    };
-    if let Some(v) = release.barcode() {
-        query = query.and().barcode(v.borrow());
+
+    // Artist
+    if release.is_compilation() {
+        if !is_empty {
+            let _ = query.and();
+        };
+        if let Some(v) = release.release_artist() {
+            let _ = query.expr(
+                MusicBrainzReleaseSearchQuery::query_builder()
+                    .artist(v.as_ref().trim())
+                    .or()
+                    .arid(VARIOUS_ARTISTS_ID),
+            );
+        } else {
+            let _ = query.arid(VARIOUS_ARTISTS_ID);
+        }
+        is_empty = false;
+    } else if let Some(v) = release.release_artist() {
+        if !is_empty {
+            let _ = query.and();
+        };
+        let _ = query.artist(v.as_ref().trim());
+        is_empty = false;
     }
+
+    // Title
+    if let Some(v) = release.release_title() {
+        if !is_empty {
+            let _ = query.and();
+        };
+        let _ = query.release(v.as_ref().trim());
+    };
 
     query.build()
 }

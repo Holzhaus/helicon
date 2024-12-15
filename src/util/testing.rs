@@ -43,6 +43,7 @@ pub struct FakeRelease {
     replay_gain_album_gain_analyzed: Option<String>,
     replay_gain_album_peak_analyzed: Option<String>,
     media: Vec<FakeMedia>,
+    is_compilation: bool,
 }
 
 impl<T> From<&T> for FakeRelease
@@ -98,6 +99,7 @@ where
                 .as_deref()
                 .map(ToString::to_string),
             media: release.media().map(FakeMedia::from).collect(),
+            is_compilation: release.is_compilation(),
         }
     }
 }
@@ -197,6 +199,10 @@ impl ReleaseLike for FakeRelease {
         self.replay_gain_album_peak_analyzed
             .as_deref()
             .map(Cow::from)
+    }
+
+    fn is_compilation(&self) -> bool {
+        self.is_compilation
     }
 }
 
