@@ -19,7 +19,7 @@ use clap::{Parser, Subcommand};
 use log::LevelFilter;
 use simplelog::{Config as LogConfig, WriteLogger};
 use std::borrow::Cow;
-use std::fs::File;
+use std::fs::OpenOptions;
 use std::path::PathBuf;
 use xdg::BaseDirectories;
 
@@ -78,7 +78,8 @@ pub async fn main() -> crate::Result<()> {
     let base_dirs = BaseDirectories::with_prefix(env!("CARGO_PKG_NAME"))?;
 
     // Initialize logging
-    let logfile = File::create(base_dirs.place_state_file("helicon.log")?)?;
+    let logfile_path = base_dirs.place_state_file("helicon.log")?;
+    let logfile = OpenOptions::new().append(true).open(logfile_path)?;
     WriteLogger::init(args.log_level_filter(), LogConfig::default(), logfile)
         .expect("Failed to initialize logging");
 
