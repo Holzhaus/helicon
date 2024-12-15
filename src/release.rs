@@ -9,6 +9,7 @@
 //! Generic release implementations.
 use crate::distance::ReleaseSimilarity;
 use crate::media::MediaLike;
+use crate::musicbrainz;
 use crate::track::TrackLike;
 use crate::Config;
 use itertools::Itertools;
@@ -112,6 +113,9 @@ pub trait ReleaseLike {
     fn replay_gain_album_range_analyzed(&self) -> Option<Cow<'_, str>> {
         None
     }
+
+    /// Returns true if this release is likely a compilation.
+    fn is_compilation(&self) -> bool;
 
     /// Yields the media contained in the release.
     fn media(&self) -> impl Iterator<Item = &(impl MediaLike + '_)>;
@@ -349,5 +353,13 @@ impl ReleaseLike for MusicBrainzRelease {
         self.media
             .as_ref()
             .map(|media| Cow::from(media.len().to_string()))
+    }
+
+    fn is_compilation(&self) -> bool {
+        self.artist_credit.as_deref().is_some_and(|artist_credits| {
+            artist_credits.iter().any(|artist_credit| {
+                artist_credit.artist.id.as_str() == musicbrainz::VARIOUS_ARTISTS_ID
+            })
+        })
     }
 }
