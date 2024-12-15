@@ -61,19 +61,13 @@ impl<T: ReleaseLike> ReleaseCandidate<T> {
 /// A collection of release candidates.
 ///
 /// Has convenience methods to add new candidates in sorted order.
+#[derive(Debug, Clone, Default)]
 pub struct ReleaseCandidateCollection<T: ReleaseLike> {
     /// Ordered list of candidates.
     candidates: Vec<ReleaseCandidate<T>>,
 }
 
 impl<T: ReleaseLike> ReleaseCandidateCollection<T> {
-    /// Create a new release candidate collections.
-    ///
-    /// The supplied candidates needs to be in the correct order.
-    pub fn new(candidates: Vec<ReleaseCandidate<T>>) -> Self {
-        Self { candidates }
-    }
-
     /// Find the index of the candidate.
     pub fn find_index(&self, selected_candidate: &ReleaseCandidate<T>) -> usize {
         self.candidates
@@ -131,5 +125,14 @@ impl<T: ReleaseLike> ReleaseCandidateCollection<T> {
     /// Return the number of the candidates in this collection.
     pub fn len(&self) -> usize {
         self.candidates.len()
+    }
+}
+
+impl<T: ReleaseLike> From<Vec<ReleaseCandidate<T>>> for ReleaseCandidateCollection<T> {
+    /// Create a new release candidate collections.
+    ///
+    /// The supplied candidates needs to be in the correct order.
+    fn from(candidates: Vec<ReleaseCandidate<T>>) -> Self {
+        Self { candidates }
     }
 }
