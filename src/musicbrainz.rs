@@ -50,7 +50,7 @@ impl<'a> MusicBrainzClient<'a> {
             match self.find_release_by_id(release_id.into_owned()).await {
                 Ok(release) => {
                     let candidate =
-                        ReleaseCandidate::new_with_base_release(release, base_release, self.config);
+                        ReleaseCandidate::with_base_release(release, base_release, self.config);
                     return Ok(vec![candidate]);
                 }
                 Err(err) => {
@@ -81,7 +81,7 @@ impl<'a> MusicBrainzClient<'a> {
                 };
 
                 let candidate =
-                    ReleaseCandidate::new_with_base_release(release, base_release, self.config);
+                    ReleaseCandidate::with_base_release(release, base_release, self.config);
 
                 log::debug!(
                     "Release '{}' has distance to track collection: {}",

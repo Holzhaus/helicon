@@ -613,7 +613,7 @@ mod tests {
         let release: MusicBrainzRelease = serde_json::from_str(MUSICBRAINZ_RELEASE_JSON).unwrap();
         let release_track_count = release.release_track_count().unwrap();
         let release_candidate =
-            ReleaseCandidate::new(release, ReleaseSimilarity::new(release_track_count));
+            ReleaseCandidate::with_similarity(release, ReleaseSimilarity::new(release_track_count));
 
         let tracks = (0..release_track_count)
             .map(|_| TaggedFile::new(vec![func()]))

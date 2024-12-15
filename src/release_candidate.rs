@@ -24,7 +24,7 @@ pub struct ReleaseCandidate<T: ReleaseLike> {
 impl<T: ReleaseLike> ReleaseCandidate<T> {
     /// Create a new candidate from a musicbrainz release and a precalculated similarity to the
     /// base release.
-    pub fn new(release: T, similarity: ReleaseSimilarity) -> Self {
+    pub fn with_similarity(release: T, similarity: ReleaseSimilarity) -> Self {
         Self {
             release,
             similarity,
@@ -33,13 +33,13 @@ impl<T: ReleaseLike> ReleaseCandidate<T> {
 
     /// Create a new candidate from a musicbrainz release and compute it's similarity to the base
     /// release on the fly.
-    pub fn new_with_base_release<S: ReleaseLike>(
+    pub fn with_base_release<S: ReleaseLike>(
         release: T,
         base_release: &S,
         config: &Config,
     ) -> Self {
         let similarity = base_release.similarity_to(&release, config);
-        Self::new(release, similarity)
+        Self::with_similarity(release, similarity)
     }
 
     /// Get a reference to the inner release,
@@ -113,7 +113,7 @@ impl<T: ReleaseLike> ReleaseCandidateCollection<T> {
 
     /// Add a new release to this collection. Create a new candidate internally.
     pub fn add_release<R: ReleaseLike>(&mut self, release: T, base_release: &R, config: &Config) {
-        let candidate = ReleaseCandidate::new_with_base_release(release, base_release, config);
+        let candidate = ReleaseCandidate::with_base_release(release, base_release, config);
         self.add_candidate(candidate, config);
     }
 
