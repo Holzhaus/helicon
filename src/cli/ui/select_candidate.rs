@@ -14,7 +14,9 @@ use crate::musicbrainz::MusicBrainzId;
 use crate::release::ReleaseLike;
 use crate::release_candidate::{ReleaseCandidate, ReleaseCandidateCollection};
 use inquire::{validator::Validation, InquireError, Select, Text};
+use itertools::Itertools;
 use std::fmt;
+use std::iter;
 
 /// An option presented when selecting a release.
 #[derive(Clone)]
@@ -76,16 +78,32 @@ impl<T: ReleaseLike> fmt::Display for StyledReleaseCandidateSelectionOption<'_, 
         if let ReleaseCandidateSelectionOption::Candidate(candidate) = &self.1 {
             let release_artist_and_title =
                 util::format_release_artist_and_title(candidate.release());
-            let similarity = util::format_similarity(&candidate.distance(self.0));
+            let similarity_percentage = self
+                .0
+                .user_interface
+                .candidate_details
+                .candidate_similarity_style
+                .apply(util::format_similarity(&candidate.distance(self.0)))
+                .to_string();
+            let similarity = iter::once(similarity_percentage)
+                .chain(
+                    candidate
+                        .similarity()
+                        .problems()
+                        .map(|problem| problem.to_string()),
+                )
+                .join(
+                    &self
+                        .0
+                        .user_interface
+                        .candidate_details
+                        .candidate_similarity_prefix_style
+                        .apply(", ")
+                        .to_string(),
+                );
             write!(
                 f,
                 "{release_artist_and_title}{similarity_prefix}{similarity}{similarity_suffix}",
-                similarity = self
-                    .0
-                    .user_interface
-                    .candidate_details
-                    .candidate_similarity_style
-                    .apply(similarity),
                 similarity_prefix = self
                     .0
                     .user_interface

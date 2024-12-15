@@ -14,6 +14,7 @@ use crate::release::ReleaseLike;
 use crate::track::TrackLike;
 use crate::Config;
 use std::collections::HashMap;
+use std::fmt;
 use std::iter;
 
 /// Convert an `f64` into an `u64`.
@@ -392,6 +393,56 @@ impl ReleaseSimilarity {
     /// Get a reference to the [`TrackAssignment`] struct.
     pub fn track_assignment(&self) -> &TrackAssignment {
         &self.track_assignment
+    }
+
+    /// Returns an iterator over matching problems.
+    pub fn problems(&self) -> impl Iterator<Item = SimilarityProblem> + '_ {
+        iter::once_with(|| {
+            let unmatched_track_count = self.track_assignment().unmatched_tracks().len();
+            if unmatched_track_count > 0 {
+                return match self.track_assignment().unmatched_tracks_source() {
+                    UnmatchedTracksSource::Left => {
+                        SimilarityProblem::ResidualTracks(unmatched_track_count).into()
+                    }
+                    UnmatchedTracksSource::Right => {
+                        SimilarityProblem::MissingTracks(unmatched_track_count).into()
+                    }
+                };
+            }
+
+            None
+        })
+        .chain(iter::once_with(|| {
+            if let Difference::BothPresent(dist) = &self.musicbrainz_release_id {
+                if !dist.is_equality() {
+                    return SimilarityProblem::WrongReleaseId.into();
+                }
+            }
+
+            None
+        }))
+        .flatten()
+    }
+}
+
+/// A problem for the similarity.
+#[derive(Debug, Clone, Copy)]
+pub enum SimilarityProblem {
+    /// There are missing tracks.
+    MissingTracks(usize),
+    /// There are residual tracks.
+    ResidualTracks(usize),
+    /// The release ID is present on both releases, but it differs.
+    WrongReleaseId,
+}
+
+impl fmt::Display for SimilarityProblem {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MissingTracks(count) => write!(f, "{count} missing tracks"),
+            Self::ResidualTracks(count) => write!(f, "{count} residual tracks"),
+            Self::WrongReleaseId => write!(f, "wrong id"),
+        }
     }
 }
 
