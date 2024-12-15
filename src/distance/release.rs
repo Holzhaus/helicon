@@ -367,26 +367,30 @@ impl ReleaseSimilarity {
         [
             self.release_title
                 .to_distance()
-                .to_weighted(weights.release_title),
+                .to_weighted(weights.release_title)
+                .into(),
             self.release_artist
-                .to_distance()
-                .to_weighted(weights.release_artist),
+                .to_distance_if_both_present()
+                .map(|dist| dist.to_weighted(weights.release_artist)),
             self.musicbrainz_release_id
-                .to_distance()
-                .to_weighted(weights.musicbrainz_release_id),
+                .to_distance_if_both_present()
+                .map(|dist| dist.to_weighted(weights.musicbrainz_release_id)),
             self.media_format
-                .to_distance()
-                .to_weighted(weights.media_format),
+                .to_distance_if_both_present()
+                .map(|dist| dist.to_weighted(weights.media_format)),
             self.record_label
-                .to_distance()
-                .to_weighted(weights.record_label),
+                .to_distance_if_both_present()
+                .map(|dist| dist.to_weighted(weights.record_label)),
             self.catalog_number
-                .to_distance()
-                .to_weighted(weights.catalog_number),
-            self.barcode.to_distance().to_weighted(weights.barcode),
-            track_assignment_distance,
+                .to_distance_if_both_present()
+                .map(|dist| dist.to_weighted(weights.catalog_number)),
+            self.barcode
+                .to_distance_if_both_present()
+                .map(|dist| dist.to_weighted(weights.barcode)),
+            track_assignment_distance.into(),
         ]
         .into_iter()
+        .flatten()
         .sum()
     }
 
