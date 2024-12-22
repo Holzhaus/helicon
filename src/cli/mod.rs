@@ -30,9 +30,6 @@ struct Args {
     /// Command to run
     #[command(subcommand)]
     command: Commands,
-    /// Show debug information.
-    #[arg(short, long)]
-    verbose: bool,
     /// Path to configuration file.
     #[arg(short, long, required = false)]
     config_path: Option<PathBuf>,
@@ -49,17 +46,6 @@ enum Commands {
     Import(import::Args),
     /// Analyze a file.
     Analyze(analyze::Args),
-}
-
-impl Args {
-    /// Get the desired log level, depending on the verbose flag passed on the command line.
-    fn log_level_filter(&self) -> LevelFilter {
-        if self.verbose {
-            LevelFilter::Debug
-        } else {
-            LevelFilter::Info
-        }
-    }
 }
 
 /// Main entry point.
@@ -81,7 +67,7 @@ pub async fn main() -> crate::Result<()> {
     let logfile_path = base_dirs.place_state_file("helicon.log")?;
     let logfile = OpenOptions::new().append(true).open(logfile_path)?;
     WriteLogger::init(
-        args.log_level_filter(),
+        LevelFilter::Debug,
         LogConfigBuilder::new()
             .add_filter_ignore_str("symphonia_core::probe")
             .build(),
