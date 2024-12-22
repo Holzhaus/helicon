@@ -133,6 +133,22 @@ impl TrackAssignment {
         let lhs_tracks: Vec<_> = lhs.collect();
         let rhs_tracks: Vec<_> = rhs.collect();
 
+        if lhs_tracks.is_empty() {
+            return TrackAssignment {
+                matched_tracks: Vec::new(),
+                unmatched_tracks: rhs_tracks.iter().enumerate().map(|(i, _)| i).collect(),
+                unmatched_tracks_source: UnmatchedTracksSource::Right,
+                matched_tracks_distance: Distance::MAX,
+            };
+        } else if rhs_tracks.is_empty() {
+            return TrackAssignment {
+                matched_tracks: Vec::new(),
+                unmatched_tracks: lhs_tracks.iter().enumerate().map(|(i, _)| i).collect(),
+                unmatched_tracks_source: UnmatchedTracksSource::Left,
+                matched_tracks_distance: Distance::MAX,
+            };
+        }
+
         let track_similarity_matrix: Vec<TrackSimilarity> = lhs_tracks
             .iter()
             .flat_map(|lhs_track| iter::repeat(lhs_track).zip(rhs_tracks.iter()))
@@ -569,6 +585,27 @@ mod tests {
         assert_float_eq!(
             assignment.to_weighted_distance().as_f64(),
             3.0,
+            abs <= 0.000_1
+        );
+    }
+
+    #[test]
+    fn test_track_assignment_rhs_empty() {
+        let lhs = [FakeTrack::with_title("foo"), FakeTrack::with_title("bar")];
+        let rhs: [FakeTrack; 0] = [];
+
+        let config = Config::default();
+        let assignment = TrackAssignment::compute_from(&config, lhs.iter(), rhs.iter());
+        assert_eq!(assignment.matched_tracks.len(), 0);
+        assert_eq!(assignment.unmatched_tracks.len(), 2);
+        assert_eq!(
+            assignment.unmatched_tracks_source,
+            UnmatchedTracksSource::Left
+        );
+        assert_float_eq!(assignment.to_distance().as_f64(), 1.0, abs <= 0.000_1);
+        assert_float_eq!(
+            assignment.to_weighted_distance().as_f64(),
+            2.0,
             abs <= 0.000_1
         );
     }
