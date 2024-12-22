@@ -88,6 +88,7 @@ impl<T> MostCommonItem<T> {
     }
 
     /// Return `true` if there a multiple values which are all distinct, otherwise `false`
+    #[cfg(test)]
     fn is_all_distinct(&self) -> bool {
         self.count == 1 && self.total_items_count > 1
     }
@@ -106,20 +107,6 @@ impl<T> MostCommonItem<T> {
     fn into_concensus(self) -> Option<T> {
         self.is_concensual().then_some(self.into_inner())
     }
-}
-
-/// Returns `true` if the artist is likely "Various Artists".
-fn is_va_artist(value: &str) -> bool {
-    matches!(
-        value.to_lowercase().as_str(),
-        "" | "various artists"
-            | "various"
-            | "va"
-            | "v.a."
-            | "[various]"
-            | "[various artists]"
-            | "unknown"
-    )
 }
 
 /// Finds the most common value for a certain tag in an iterator of tagged files.
@@ -337,15 +324,9 @@ impl ReleaseLike for TaggedFileCollection {
     }
 
     fn release_artist(&self) -> Option<Cow<'_, str>> {
-        [&TagKey::AlbumArtist, &TagKey::Artist]
-            .into_iter()
-            .find_map(|key| {
-                find_most_common_tag_value(
-                    self.media.iter().flat_map(|media| media.tracks.iter()),
-                    key,
-                )
-            })
-            .map(MostCommonItem::into_inner)
+        self.find_consensual_tag_value(&TagKey::AlbumArtist)
+            .or_else(|| self.find_consensual_tag_value(&TagKey::Artist))
+            .map(Cow::from)
     }
 
     fn release_artist_sort_order(&self) -> Option<Cow<'_, str>> {
@@ -447,15 +428,6 @@ impl ReleaseLike for TaggedFileCollection {
         self.ebur128_album_result
             .as_ref()
             .map(|result| Cow::from(result.replaygain_album_peak_string()))
-    }
-
-    fn is_compilation(&self) -> bool {
-        self.release_artist().as_deref().is_some_and(is_va_artist)
-            || find_most_common_tag_value(
-                self.media.iter().flat_map(|media| media.tracks.iter()),
-                &TagKey::Artist,
-            )
-            .is_some_and(|most_common_artist| most_common_artist.is_all_distinct())
     }
 }
 

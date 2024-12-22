@@ -115,7 +115,9 @@ pub trait ReleaseLike {
     }
 
     /// Returns true if this release is likely a compilation.
-    fn is_compilation(&self) -> bool;
+    fn is_compilation(&self) -> bool {
+        self.release_artist().as_deref().is_some_and(is_va_artist)
+    }
 
     /// Yields the media contained in the release.
     fn media(&self) -> impl Iterator<Item = &(impl MediaLike + '_)>;
@@ -362,4 +364,18 @@ impl ReleaseLike for MusicBrainzRelease {
             })
         })
     }
+}
+
+/// Returns `true` if the artist is likely "Various Artists".
+fn is_va_artist(value: &str) -> bool {
+    matches!(
+        value.to_lowercase().as_str(),
+        "" | "various artists"
+            | "various"
+            | "va"
+            | "v.a."
+            | "[various]"
+            | "[various artists]"
+            | "unknown"
+    )
 }
