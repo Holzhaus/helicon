@@ -337,15 +337,9 @@ impl ReleaseLike for TaggedFileCollection {
     }
 
     fn release_artist(&self) -> Option<Cow<'_, str>> {
-        [&TagKey::AlbumArtist, &TagKey::Artist]
-            .into_iter()
-            .find_map(|key| {
-                find_most_common_tag_value(
-                    self.media.iter().flat_map(|media| media.tracks.iter()),
-                    key,
-                )
-            })
-            .map(MostCommonItem::into_inner)
+        self.find_consensual_tag_value(&TagKey::AlbumArtist)
+            .or_else(|| self.find_consensual_tag_value(&TagKey::Artist))
+            .map(Cow::from)
     }
 
     fn release_artist_sort_order(&self) -> Option<Cow<'_, str>> {
