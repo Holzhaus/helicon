@@ -36,6 +36,8 @@ pub enum HandleCandidateResult {
     ShowDetails,
     /// Hide details about the current candidate.
     HideDetails,
+    /// Print the tracklist (for copy & paste into MusicBrainz).
+    PrintTrackList,
     /// Skip the release.
     Skip,
     /// Back to candidate selection.
@@ -53,6 +55,7 @@ impl fmt::Display for StyledHandleCandidateResult<'_> {
             HandleCandidateResult::Apply => "Apply candidate",
             HandleCandidateResult::ShowDetails => "Show details",
             HandleCandidateResult::HideDetails => "Hide details",
+            HandleCandidateResult::PrintTrackList => "Print Tracklist",
             HandleCandidateResult::Skip => "Skip album",
             HandleCandidateResult::BackToSelection => "Back to candidate selection",
             HandleCandidateResult::Quit => "Quit",
@@ -595,6 +598,7 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
             } else {
                 HandleCandidateResult::ShowDetails.into_styled(config)
             },
+            HandleCandidateResult::PrintTrackList.into_styled(config),
             HandleCandidateResult::Skip.into_styled(config),
             HandleCandidateResult::BackToSelection.into_styled(config),
             HandleCandidateResult::Quit.into_styled(config),
