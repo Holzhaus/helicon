@@ -331,6 +331,7 @@ pub fn analyze(
     config: &Config,
     path: impl AsRef<Path>,
 ) -> Result<CompoundAnalyzerResult, AnalyzerError> {
+    log::debug!("Analyzing file: {}", path.as_ref().display());
     let mut reader = AudioReader::new(&path)?;
     let codec_params = reader
         .codec_params()
