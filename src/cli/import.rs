@@ -9,14 +9,18 @@
 //! Functions related to importing files.
 
 use super::ui;
+use crate::media::MediaLike;
 use crate::musicbrainz::{MusicBrainzClient, MusicBrainzRelease};
 use crate::release::ReleaseLike;
 use crate::release_candidate::{ReleaseCandidate, ReleaseCandidateCollection};
 use crate::scanner::Scanner;
+use crate::track::TrackLike;
+use crate::util::FormattedDuration;
 use crate::Cache;
 use crate::{Config, TaggedFileCollection};
 use clap::Parser;
 use futures::StreamExt;
+use std::borrow::Cow;
 use std::path::PathBuf;
 
 /// Command line arguments for the `import` CLI command.
@@ -84,6 +88,10 @@ async fn select_release<'a>(
                             acc
                         })
                         .await;
+                }
+                ui::ReleaseCandidateSelectionResult::PrintTrackList => {
+                    print_tracklist(&track_collection);
+                    continue 'select_candidate;
                 }
                 #[cfg(feature = "dev")]
                 ui::ReleaseCandidateSelectionResult::DumpReleaseInfo => {
@@ -159,9 +167,42 @@ async fn select_release<'a>(
             ui::HandleCandidateResult::Quit => {
                 return Ok(SelectionResult::Quit);
             }
-            ui::HandleCandidateResult::ShowDetails | ui::HandleCandidateResult::HideDetails => {
+            ui::HandleCandidateResult::ShowDetails
+            | ui::HandleCandidateResult::HideDetails
+            | ui::HandleCandidateResult::PrintTrackList => {
                 unreachable!()
             }
+        }
+    }
+}
+
+/// Print Tracklist (for copy & paste into MusicBrainz).
+fn print_tracklist(release: &impl ReleaseLike) {
+    for (media_index, media) in release.media().enumerate() {
+        let format = media.media_format().unwrap_or_else(|| "Medium".into());
+        if media_index > 0 {
+            println!();
+        }
+        if let Some(title) = media.media_title() {
+            println!("{format} {index}: {title}", index = media_index + 1);
+        } else {
+            println!("{format} {index}", index = media_index + 1);
+        }
+        for (track_index, track) in media.media_tracks().enumerate() {
+            let track_number = track
+                .track_number()
+                .unwrap_or_else(|| Cow::from(format!("{track_index}")));
+            let track_artist = track
+                .track_artist()
+                .unwrap_or_else(|| Cow::from("[unknown]"));
+            let track_title = track
+                .track_title()
+                .unwrap_or_else(|| Cow::from("[unnamed track]"));
+            let track_length = track.track_length().map_or_else(
+                || Cow::from("?:??"),
+                |length| Cow::from(length.formatted_duration()),
+            );
+            println!("{track_number}. {track_title} - {track_artist} ({track_length})");
         }
     }
 }

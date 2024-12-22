@@ -29,6 +29,8 @@ pub enum ReleaseCandidateSelectionResult<'a, T: ReleaseLike> {
     FetchCandidateReleaseGroup(String),
     /// The item was skipped.
     Skipped,
+    /// Print the track list.
+    PrintTrackList,
     /// Save release information to file (for debugging).
     #[cfg(feature = "dev")]
     DumpReleaseInfo,
@@ -40,6 +42,8 @@ enum ReleaseCandidateSelectionOption<'a, T: ReleaseLike> {
     Candidate(&'a ReleaseCandidate<T>),
     /// Enter a customer MusicBrainz release ID.
     EnterMusicBrainzId,
+    /// Print the track list.
+    PrintTrackList,
     /// DumpReleaseInfo release for debugging.
     #[cfg(feature = "dev")]
     DumpReleaseInfo,
@@ -53,6 +57,7 @@ impl<T: ReleaseLike> Clone for ReleaseCandidateSelectionOption<'_, T> {
         match &self {
             Self::Candidate(candidate) => Self::Candidate(candidate),
             Self::EnterMusicBrainzId => Self::EnterMusicBrainzId,
+            Self::PrintTrackList => Self::PrintTrackList,
             #[cfg(feature = "dev")]
             Self::DumpReleaseInfo => Self::DumpReleaseInfo,
             Self::SkipItem => Self::SkipItem,
@@ -133,6 +138,7 @@ impl<T: ReleaseLike> fmt::Display for StyledReleaseCandidateSelectionOption<'_, 
             let text = match &self.1 {
                 ReleaseCandidateSelectionOption::EnterMusicBrainzId => "Enter MusicBrainz ID",
                 ReleaseCandidateSelectionOption::SkipItem => "Skip Item",
+                ReleaseCandidateSelectionOption::PrintTrackList => "Print Tracklist",
                 #[cfg(feature = "dev")]
                 ReleaseCandidateSelectionOption::DumpReleaseInfo => "Dump Releases for Debugging",
                 ReleaseCandidateSelectionOption::Candidate(_) => unreachable!(),
@@ -182,6 +188,7 @@ pub fn select_candidate<'a, T: ReleaseLike>(
 
     let additional_options = [
         ReleaseCandidateSelectionOption::EnterMusicBrainzId,
+        ReleaseCandidateSelectionOption::PrintTrackList,
         #[cfg(feature = "dev")]
         ReleaseCandidateSelectionOption::DumpReleaseInfo,
         ReleaseCandidateSelectionOption::SkipItem,
@@ -203,6 +210,9 @@ pub fn select_candidate<'a, T: ReleaseLike>(
         {
             Ok(ReleaseCandidateSelectionOption::Candidate(candidate)) => {
                 break Ok(ReleaseCandidateSelectionResult::Candidate(candidate))
+            }
+            Ok(ReleaseCandidateSelectionOption::PrintTrackList) => {
+                break Ok(ReleaseCandidateSelectionResult::PrintTrackList);
             }
             Ok(ReleaseCandidateSelectionOption::EnterMusicBrainzId) => {
                 if let Some(option) = enter_musicbrainz_id() {
