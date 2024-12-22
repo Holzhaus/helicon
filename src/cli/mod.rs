@@ -17,7 +17,7 @@ mod ui;
 use crate::{Cache, Config, USER_AGENT};
 use clap::{Parser, Subcommand};
 use log::LevelFilter;
-use simplelog::{Config as LogConfig, WriteLogger};
+use simplelog::{ConfigBuilder as LogConfigBuilder, WriteLogger};
 use std::borrow::Cow;
 use std::fs::OpenOptions;
 use std::path::PathBuf;
@@ -80,8 +80,14 @@ pub async fn main() -> crate::Result<()> {
     // Initialize logging
     let logfile_path = base_dirs.place_state_file("helicon.log")?;
     let logfile = OpenOptions::new().append(true).open(logfile_path)?;
-    WriteLogger::init(args.log_level_filter(), LogConfig::default(), logfile)
-        .expect("Failed to initialize logging");
+    WriteLogger::init(
+        args.log_level_filter(),
+        LogConfigBuilder::new()
+            .add_filter_ignore_str("symphonia_core::probe")
+            .build(),
+        logfile,
+    )
+    .expect("Failed to initialize logging");
 
     // Load configuration
     let config = base_dirs
