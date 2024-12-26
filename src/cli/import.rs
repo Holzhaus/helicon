@@ -144,6 +144,7 @@ async fn select_release<'a>(
                 ui::ReleaseCandidateSelectionResult::Skipped => {
                     return Ok(SelectionResult::Skipped)
                 }
+                ui::ReleaseCandidateSelectionResult::Quit => return Ok(SelectionResult::Quit),
             };
         };
         allow_autoselection = false;
