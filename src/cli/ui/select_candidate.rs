@@ -34,6 +34,8 @@ pub enum ReleaseCandidateSelectionResult<'a, T: ReleaseLike> {
     /// Save release information to file (for debugging).
     #[cfg(feature = "dev")]
     DumpReleaseInfo,
+    /// Quit (i.e., skip this item and all following).
+    Quit,
 }
 
 /// An option presented when selecting a release.
@@ -49,6 +51,8 @@ enum ReleaseCandidateSelectionOption<'a, T: ReleaseLike> {
     DumpReleaseInfo,
     /// Skip this item.
     SkipItem,
+    /// Quit (i.e., skip this item and all following).
+    Quit,
 }
 
 // Manual implementation of `Clone` to work around unnecessary trait bound `T: Clone`.
@@ -61,6 +65,7 @@ impl<T: ReleaseLike> Clone for ReleaseCandidateSelectionOption<'_, T> {
             #[cfg(feature = "dev")]
             Self::DumpReleaseInfo => Self::DumpReleaseInfo,
             Self::SkipItem => Self::SkipItem,
+            Self::Quit => Self::Quit,
         }
     }
 }
@@ -141,6 +146,7 @@ impl<T: ReleaseLike> fmt::Display for StyledReleaseCandidateSelectionOption<'_, 
                 ReleaseCandidateSelectionOption::PrintTrackList => "Print Tracklist",
                 #[cfg(feature = "dev")]
                 ReleaseCandidateSelectionOption::DumpReleaseInfo => "Dump Releases for Debugging",
+                ReleaseCandidateSelectionOption::Quit => "Quit",
                 ReleaseCandidateSelectionOption::Candidate(_) => unreachable!(),
             };
             write!(
@@ -192,6 +198,7 @@ pub fn select_candidate<'a, T: ReleaseLike>(
         #[cfg(feature = "dev")]
         ReleaseCandidateSelectionOption::DumpReleaseInfo,
         ReleaseCandidateSelectionOption::SkipItem,
+        ReleaseCandidateSelectionOption::Quit,
     ];
     let options: Vec<StyledReleaseCandidateSelectionOption<'a, T>> = candidates
         .iter()
@@ -226,6 +233,9 @@ pub fn select_candidate<'a, T: ReleaseLike>(
             Ok(ReleaseCandidateSelectionOption::SkipItem)
             | Err(InquireError::OperationCanceled) => {
                 break Ok(ReleaseCandidateSelectionResult::Skipped)
+            }
+            Ok(ReleaseCandidateSelectionOption::Quit) => {
+                break Ok(ReleaseCandidateSelectionResult::Quit)
             }
             Err(err) => Err(err)?,
         }
