@@ -19,8 +19,10 @@ use clap::{Parser, Subcommand};
 use log::LevelFilter;
 use simplelog::{ConfigBuilder as LogConfigBuilder, WriteLogger};
 use std::borrow::Cow;
-use std::fs::OpenOptions;
-use std::path::PathBuf;
+use std::ffi::OsString;
+use std::fs::{self, File};
+use std::io;
+use std::path::{Path, PathBuf};
 use xdg::BaseDirectories;
 
 /// Command line Arguments.
@@ -48,6 +50,44 @@ enum Commands {
     Analyze(analyze::Args),
 }
 
+/// Append a numeric suffix (e.g., `.1`) to a path.
+fn append_numeric_suffix_to_path(base_path: impl AsRef<Path>, number: usize) -> PathBuf {
+    let suffix: OsString = format!(".{number}").into();
+    let new_extension = base_path.as_ref().extension().map_or_else(
+        || OsString::from(&suffix),
+        |ext| {
+            let mut extension = ext.to_os_string();
+            extension.push(&suffix);
+            extension
+        },
+    );
+    base_path.as_ref().with_extension(new_extension)
+}
+
+/// Rotate logfiles by renaming `<log>` to `<log>.0`, `<log>.1` to `<log>.2`, etc.
+fn rotate_logfiles(base_path: impl AsRef<Path>) -> io::Result<()> {
+    let paths_to_rename = (0..7)
+        .rev()
+        .map(|i| {
+            (
+                append_numeric_suffix_to_path(&base_path, i),
+                append_numeric_suffix_to_path(&base_path, i + 1),
+            )
+        })
+        .chain(std::iter::once((
+            base_path.as_ref().to_path_buf(),
+            append_numeric_suffix_to_path(&base_path, 0),
+        )));
+    for (old_path, new_path) in paths_to_rename {
+        fs::rename(old_path, new_path).or_else(|err| match err.kind() {
+            io::ErrorKind::NotFound => Ok(()),
+            _ => Err(err),
+        })?;
+    }
+
+    Ok(())
+}
+
 /// Main entry point.
 ///
 /// # Errors
@@ -65,7 +105,8 @@ pub async fn main() -> crate::Result<()> {
 
     // Initialize logging
     let logfile_path = base_dirs.place_state_file(format!("{PKG_NAME}.log"))?;
-    let logfile = OpenOptions::new().append(true).open(logfile_path)?;
+    rotate_logfiles(&logfile_path)?;
+    let logfile = File::create(logfile_path)?;
     WriteLogger::init(
         LevelFilter::Debug,
         LogConfigBuilder::new()
