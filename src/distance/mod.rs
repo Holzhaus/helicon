@@ -31,10 +31,10 @@ pub struct Distance(f64);
 
 impl Distance {
     /// Minimum distance (representing equality).
-    const MIN: Distance = Distance(0.0);
+    pub const MIN: Distance = Distance(0.0);
 
     /// Maximum distance.
-    const MAX: Distance = Distance(1.0);
+    pub const MAX: Distance = Distance(1.0);
 
     /// Return `true` if the distance is zero.
     pub const fn is_equality(&self) -> bool {

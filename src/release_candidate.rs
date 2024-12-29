@@ -136,3 +136,41 @@ impl<T: ReleaseLike> From<Vec<ReleaseCandidate<T>>> for ReleaseCandidateCollecti
         Self { candidates }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        distance::Distance,
+        release_candidate::{ReleaseCandidate, ReleaseCandidateCollection},
+        util::FakeRelease,
+        Config,
+    };
+
+    const RELEASE_DATA: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/data/debug/tuxedo/release.json"
+    ));
+    const RELEASE_CANDIDATE_0_DATA: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/data/debug/tuxedo/candidate_0.json"
+    ));
+
+    #[test]
+    fn test_track_assignment_exact() {
+        let release: FakeRelease = serde_json::from_slice(RELEASE_DATA).unwrap();
+        let candidate_0: FakeRelease = serde_json::from_slice(RELEASE_CANDIDATE_0_DATA).unwrap();
+
+        let config = Config::default();
+        let candidates = ReleaseCandidateCollection::from(
+            [candidate_0]
+                .into_iter()
+                .map(|candidate| ReleaseCandidate::with_base_release(candidate, &release, &config))
+                .collect::<Vec<_>>(),
+        );
+        let distances = candidates
+            .iter()
+            .map(|candidate| candidate.similarity().total_distance(&config))
+            .collect::<Vec<_>>();
+        assert_eq!(distances, [Distance::MIN]);
+    }
+}

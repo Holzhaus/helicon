@@ -16,7 +16,7 @@ mod time;
 
 pub use fs::{move_file, walk_dir};
 pub use keyed_binheap::KeyedBinaryHeap;
-#[cfg(feature = "dev")]
+#[cfg(any(test, feature = "dev"))]
 pub use testing::FakeRelease;
 #[cfg(test)]
 pub use testing::FakeTrack;
