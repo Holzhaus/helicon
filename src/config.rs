@@ -414,6 +414,7 @@ mod builder {
         /// Add a file to be loaded to the configuration builder. Files added later will override
         /// values from previous files.
         pub fn with_file<P: AsRef<Path>>(mut self, path: P) -> Self {
+            log::debug!("Reading config from file: {}", path.as_ref().display());
             self.0 = self
                 .0
                 .add_source(File::from(path.as_ref()).format(FileFormat::Toml));
@@ -423,6 +424,10 @@ mod builder {
         /// Add a file to be loaded to the configuration builder. Files added later will override
         /// values from previous files.
         pub fn with_str<S: AsRef<str>>(mut self, value: S) -> Self {
+            log::debug!(
+                "Reading config from string ({} bytes)",
+                value.as_ref().len()
+            );
             self.0 = self
                 .0
                 .add_source(File::from_str(value.as_ref(), FileFormat::Toml));
@@ -431,6 +436,7 @@ mod builder {
 
         /// Add the default configuration to the configuration builder.
         pub fn with_defaults(self) -> Self {
+            log::debug!("Reading default config as string");
             self.with_str(DEFAULT_CONFIG)
         }
 
