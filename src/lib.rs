@@ -71,5 +71,11 @@ pub use self::error::{ErrorType as Error, Result};
 pub use self::taggedfile::TaggedFile;
 pub use self::taggedfilecollection::TaggedFileCollection;
 
+/// Name of this package.
+const PKG_NAME: &str = env!("CARGO_PKG_NAME");
+
+/// Version of this package.
+const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 /// The User-Agent header that will be used for HTTP requests (i.e., for MusicBrainz).
 pub const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));

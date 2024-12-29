@@ -14,7 +14,7 @@ mod config;
 mod import;
 mod ui;
 
-use crate::{Cache, Config, USER_AGENT};
+use crate::{Cache, Config, PKG_NAME, PKG_VERSION, USER_AGENT};
 use clap::{Parser, Subcommand};
 use log::LevelFilter;
 use simplelog::{ConfigBuilder as LogConfigBuilder, WriteLogger};
@@ -61,10 +61,10 @@ enum Commands {
 pub async fn main() -> crate::Result<()> {
     let args = Args::parse();
 
-    let base_dirs = BaseDirectories::with_prefix(env!("CARGO_PKG_NAME"))?;
+    let base_dirs = BaseDirectories::with_prefix(PKG_NAME)?;
 
     // Initialize logging
-    let logfile_path = base_dirs.place_state_file("helicon.log")?;
+    let logfile_path = base_dirs.place_state_file(format!("{PKG_NAME}.log"))?;
     let logfile = OpenOptions::new().append(true).open(logfile_path)?;
     WriteLogger::init(
         LevelFilter::Debug,
@@ -74,6 +74,7 @@ pub async fn main() -> crate::Result<()> {
         logfile,
     )
     .expect("Failed to initialize logging");
+    log::info!("Started {PKG_NAME} {PKG_VERSION}");
 
     // Load configuration
     let config = base_dirs
