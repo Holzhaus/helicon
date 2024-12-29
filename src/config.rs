@@ -472,3 +472,22 @@ impl Config {
         Self::load_from_str(DEFAULT_CONFIG)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_load_default() {
+        let config = Config::load_default().unwrap();
+        let serialized = toml::to_string_pretty(&config).unwrap();
+        println!("{serialized}");
+    }
+
+    #[test]
+    fn test_build_with_defaults() {
+        let config = Config::builder().with_defaults().build().unwrap();
+        let serialized = toml::to_string_pretty(&config).unwrap();
+        println!("{serialized}");
+    }
+}
