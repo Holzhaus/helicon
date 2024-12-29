@@ -110,6 +110,7 @@ pub async fn main() -> crate::Result<()> {
     WriteLogger::init(
         LevelFilter::Debug,
         LogConfigBuilder::new()
+            .set_time_format_rfc3339()
             .add_filter_ignore_str("symphonia_core::probe")
             .build(),
         logfile,
