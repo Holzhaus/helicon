@@ -3,12 +3,71 @@
 Helicon is a command-line tool to tag and organize your music based on metadata
 from [MusicBrainz][musicbrainz], written in Rust.
 
-It's heavily influenced by [*beets*][beets], but does some things differently.
-One major difference is that unlike *beets* it does not maintain a database of
-imported releases in order to achieve better performance with large libraries.
+**Note:** This crate is still in early stages of development and probably not
+ready for production use. Don't forget to make backups!
 
-**Note:** This crate is still in early stages of development and not ready for
-production use.
+![Helicon in Action](assets/helicon.gif)
+
+## Installation
+
+Just clone the repository and install the crate as usual:
+
+```bash
+$ git clone https://github.com/Holzhaus/helicon.git
+$ cd helicon
+$ cargo install --path .
+```
+
+Don't forget to make sure that your `$PATH` includes `$HOME/cargo/bin`.
+
+## Usage
+
+By default, Helicon will import files into `~/Music`. If you want to use a
+different directory, create a config file:
+
+```bash
+$ mkdir -p ~/.config/helicon
+$ printf '[paths]\nlibrary_path = "/path/to/music/library/"\n' > ~/.config/helicon/config.toml
+```
+
+To check if your configuration was recognized correctly, use the `config` command:
+
+```bash
+$ helicon config
+```
+
+If all looks good, you can import your first album by running:
+
+```bash
+$ helicon import ./path/to/some/music/to/import
+```
+
+Check the output of the `--help` flag for details.
+
+## Q & A
+
+### How does Helicon compare to Beets?
+
+Helicon is heavily influenced by [*beets*][beets], but does some things
+differently. Apart from being written in Rust instead of Python, one major
+difference is Helicon does not maintain a database of imported releases in
+order to achieve better performance with large libraries on low-end hardware.
+
+### What are the Design Goals and Non-Goals?
+
+Helicon strives to be performant, efficient to use and should support storing
+as much information from MusicBrainz as possible.
+
+Helicon should be relatively self-contained (i.e., not rely on external
+command-line applications to be installed) and there are also no plans for a
+third-party plugin architecture.
+
+### Why the name "Helicon"?
+
+!["Apollo and the Muses on Mount Helicon" (Claude Lorrain, 1680)](assets/mount-helicon.jpg)
+
+*Helicon* is named after Mount Helicon (Ἑλικών in Ancient Greek), which is -- according to Greek mythology --  the home of the Muses, the nine goddesses of knowledge and the arts, including music.
+
 
 ## License
 
