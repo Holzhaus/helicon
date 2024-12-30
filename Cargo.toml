@@ -1,9 +1,15 @@
 [package]
 name = "helicon"
+description = "Command line music organizer based on metadata from MusicBrainz."
+authors = ["Jan Holthuis <jan.holthuis@ruhr-uni-bochum.de>"]
+readme = "README.md"
+repository = "https://github.com/rust-lang/cargo"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+license = "MPL-2.0"
+keywords = ["music", "tags", "organize", "musicbrainz", "metadata"]
+categories = ["command-line-utilities", "multimedia::audio", ]
+exclude = [".*", "assets"]
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
