@@ -21,14 +21,16 @@ jobs:
         strategy:
             matrix:
                 features: ${{ fromJson(needs.cargo-toml-features.outputs.feature-combinations) }}
+        env:
+            CRATE_FEATURES: ${{ join(matrix.features, ',') }}
         steps:
             - name: Check out repository
               uses: actions/checkout@v4
             - name: Print Rust version
               run: rustc -vV
             - name: Run tests
-              run: cargo test --no-default-features --features "${{ join(matrix.features, ',') }}" --verbose
+              run: cargo test --no-default-features --features "${CRATE_FEATURES}" --verbose
             - name: Run bench
-              run: cargo bench --no-default-features --features "${{ join(matrix.features, ',') }}" --verbose
+              run: cargo bench --no-default-features --features "${CRATE_FEATURES}" --verbose
             - name: Run doc
-              run: cargo doc --no-default-features --features "${{ join(matrix.features, ',') }}" --verbose
+              run: cargo doc --no-default-features --features "${CRATE_FEATURES}" --verbose
