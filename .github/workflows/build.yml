@@ -29,8 +29,8 @@ jobs:
             - name: Print Rust version
               run: rustc -vV
             - name: Run tests
-              run: cargo test --no-default-features --features "${CRATE_FEATURES}" --verbose
+              run: cargo test --locked --no-default-features --features "${CRATE_FEATURES}" --verbose
             - name: Run bench
-              run: cargo bench --no-default-features --features "${CRATE_FEATURES}" --verbose
+              run: cargo bench --locked --no-default-features --features "${CRATE_FEATURES}" --verbose
             - name: Run doc
-              run: cargo doc --no-default-features --features "${CRATE_FEATURES}" --verbose
+              run: cargo doc --locked --no-default-features --features "${CRATE_FEATURES}" --verbose
