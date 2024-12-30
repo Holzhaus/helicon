@@ -49,8 +49,15 @@ pub fn between(lhs: &str, rhs: &str) -> Distance {
     let lhs = normalize(lhs);
     let rhs = normalize(rhs);
 
-    let levenshtein_distance = levenshtein(&lhs, &rhs);
     let max_possible_distance = cmp::max(lhs.len(), rhs.len());
+
+    // Special case: If both strings are empty after normalization, then the strings should be
+    // considered equal and we can exit early. Otherwise we would divide by zero later on.
+    if max_possible_distance == 0 {
+        return Distance::MIN;
+    }
+
+    let levenshtein_distance = levenshtein(&lhs, &rhs);
 
     // FIXME: It's extremely unlikely, but this conversion to f64 is fallible. Hence, it should use
     // f64::try_from(usize) instead, but unfortunately that doesn't exist.
