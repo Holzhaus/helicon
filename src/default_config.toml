@@ -49,8 +49,12 @@ track_length_missing_style = { foreground_color = "grey" }
 changed_value_style = { foreground_color = "yellow", attributes = ["bold"] }
 action_style = { foreground_color = "blue" }
 candidate_similarity_style = { attributes = ["bold"] }
+candidate_disambiguation_style = { foreground_color = "grey" }
+candidate_problem_style = { foreground_color = "red" }
 candidate_similarity_prefix = " ("
 candidate_similarity_prefix_style = { foreground_color = "grey" }
+candidate_similarity_separator = ", "
+candidate_similarity_separator_style = { foreground_color = "grey" }
 candidate_similarity_suffix = ")"
 candidate_similarity_suffix_style = { foreground_color = "grey" }
 

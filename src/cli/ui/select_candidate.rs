@@ -15,8 +15,8 @@ use crate::release::ReleaseLike;
 use crate::release_candidate::{ReleaseCandidate, ReleaseCandidateCollection};
 use inquire::{validator::Validation, InquireError, Select, Text};
 use itertools::Itertools;
+use std::borrow::Cow;
 use std::fmt;
-use std::iter;
 
 /// An option presented when selecting a release.
 #[derive(Clone)]
@@ -93,21 +93,52 @@ impl<T: ReleaseLike> fmt::Display for StyledReleaseCandidateSelectionOption<'_, 
                 .user_interface
                 .candidate_details
                 .candidate_similarity_style
-                .apply(util::format_similarity(&candidate.distance(self.0)))
-                .to_string();
-            let similarity = iter::once(similarity_percentage)
-                .chain(
-                    candidate
-                        .similarity()
-                        .problems()
-                        .map(|problem| problem.to_string()),
-                )
+                .apply(Cow::from(util::format_similarity(
+                    &candidate.distance(self.0),
+                )));
+
+            let disambiguation = [
+                candidate
+                    .release()
+                    .release_media_format()
+                    .map(|media_format| {
+                        let media_count = candidate.release().media().count();
+                        if media_count > 1 {
+                            Cow::from(format!("{media_count}x{media_format}"))
+                        } else {
+                            media_format
+                        }
+                    }),
+                candidate.release().release_year(),
+                candidate.release().release_country(),
+            ]
+            .into_iter()
+            .flatten()
+            .map(|disambig| {
+                self.0
+                    .user_interface
+                    .candidate_details
+                    .candidate_disambiguation_style
+                    .apply(disambig)
+            });
+
+            let problems = candidate.similarity().problems().map(|problem| {
+                self.0
+                    .user_interface
+                    .candidate_details
+                    .candidate_problem_style
+                    .apply(Cow::Owned(problem.to_string()))
+            });
+
+            let similarity = std::iter::once(similarity_percentage)
+                .chain(disambiguation)
+                .chain(problems)
                 .join(
                     &self
                         .0
                         .user_interface
                         .candidate_details
-                        .candidate_similarity_prefix_style
+                        .candidate_similarity_separator_style
                         .apply(", ")
                         .to_string(),
                 );

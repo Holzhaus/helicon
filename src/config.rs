@@ -278,10 +278,18 @@ pub struct CandidateDetails {
     pub action_style: TextStyleConfig,
     /// Additional attributes for the candidate similarity in the selection list.
     pub candidate_similarity_style: TextStyleConfig,
+    /// Disambiguation displayed for the candidate in the selection list.
+    pub candidate_disambiguation_style: TextStyleConfig,
+    /// Problems displayed for the candidate in the selection list.
+    pub candidate_problem_style: TextStyleConfig,
     /// Prefix for the candidate similarity in the selection list.
     pub candidate_similarity_prefix: String,
     /// Style of the prefix for the candidate similarity in the selection list.
     pub candidate_similarity_prefix_style: TextStyleConfig,
+    /// Separator for the candidate similarity in the selection list.
+    pub candidate_similarity_separator: String,
+    /// Style of the separator for the candidate similarity in the selection list.
+    pub candidate_similarity_separator_style: TextStyleConfig,
     /// Suffix for the candidate similarity in the selection list.
     pub candidate_similarity_suffix: String,
     /// Style of the suffix for the candidate similarity in the selection list.
