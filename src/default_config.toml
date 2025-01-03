@@ -1,6 +1,6 @@
 [analyzers]
 num_parallel_jobs = 0
-enabled = ["track_length", "chromaprint_fingerprint", "ebu_r128"]
+enabled = ["track_length", "chromaprint_fingerprint", "ebu_r128", "sound_touch_bpm"]
 
 [paths]
 library_path = "~/Music"
