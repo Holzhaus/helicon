@@ -673,7 +673,6 @@ impl TrackLike for TaggedFile {
 struct TaggedFileAnalyzedMetadata<'a>(Option<&'a CompoundAnalyzerResult>);
 
 impl AnalyzedTrackMetadata for TaggedFileAnalyzedMetadata<'_> {
-    /// AcoustID Fingerprint for the track.
     fn acoustid_fingerprint(&self) -> Option<Cow<'_, str>> {
         self.0
             .and_then(|result| result.chromaprint_fingerprint.as_ref())
@@ -681,7 +680,6 @@ impl AnalyzedTrackMetadata for TaggedFileAnalyzedMetadata<'_> {
             .map(|fp| Cow::from(fp.fingerprint_string()))
     }
 
-    /// ReplayGain Track Gain.
     fn replay_gain_track_gain(&self) -> Option<Cow<'_, str>> {
         self.0
             .and_then(|result| result.ebur128.as_ref())
@@ -689,7 +687,6 @@ impl AnalyzedTrackMetadata for TaggedFileAnalyzedMetadata<'_> {
             .map(|ebur128| Cow::from(ebur128.replaygain_track_gain_string()))
     }
 
-    /// ReplayGain Track Peak.
     fn replay_gain_track_peak(&self) -> Option<Cow<'_, str>> {
         self.0
             .and_then(|result| result.ebur128.as_ref())
@@ -697,7 +694,6 @@ impl AnalyzedTrackMetadata for TaggedFileAnalyzedMetadata<'_> {
             .map(|ebur128| Cow::from(ebur128.replaygain_track_peak_string()))
     }
 
-    /// ReplayGain Track Range.
     fn replay_gain_track_range(&self) -> Option<Cow<'_, str>> {
         None
     }

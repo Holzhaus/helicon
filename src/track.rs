@@ -729,22 +729,18 @@ impl TrackLike for MusicBrainzReleaseTrack {
 struct NoAnalyzedTrackMetadata;
 
 impl AnalyzedTrackMetadata for NoAnalyzedTrackMetadata {
-    /// AcoustID Fingerprint for the track.
     fn acoustid_fingerprint(&self) -> Option<Cow<'_, str>> {
         None
     }
 
-    /// ReplayGain Track Gain.
     fn replay_gain_track_gain(&self) -> Option<Cow<'_, str>> {
         None
     }
 
-    /// ReplayGain Track Peak.
     fn replay_gain_track_peak(&self) -> Option<Cow<'_, str>> {
         None
     }
 
-    /// ReplayGain Track Range.
     fn replay_gain_track_range(&self) -> Option<Cow<'_, str>> {
         None
     }
