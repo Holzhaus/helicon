@@ -77,6 +77,10 @@ impl Analyzer for SoundTouchBpmAnalyzer {
 
     fn finalize(mut self) -> Result<Self::Result, AnalyzerError> {
         let bpm = self.bpm_detect.get_bpm();
-        Ok(Self::Result { bpm })
+        if bpm == 0.0 {
+            Err(AnalyzerError::Custom("No Beats detected"))
+        } else {
+            Ok(Self::Result { bpm })
+        }
     }
 }
