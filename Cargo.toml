@@ -49,6 +49,7 @@ num_cpus = "1.16.0"
 handlebars = "6.2.0"
 tempfile = "3.14.0"
 expanduser = "1.2.2"
+soundtouch = { version = "0.4.2", default-features = false }
 
 [dev-dependencies]
 paste = "1"
