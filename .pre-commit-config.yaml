@@ -21,13 +21,13 @@ repos:
           - id: trailing-whitespace
             exclude: .tsv$
     - repo: https://github.com/codespell-project/codespell
-      rev: v2.4.0
+      rev: v2.4.1
       hooks:
           - id: codespell
             args: [--ignore-words=.codespellignore]
             exclude_types: [tsv, json]
     - repo: https://github.com/psf/black
-      rev: 24.10.0
+      rev: 25.1.0
       hooks:
           - id: black
     - repo: https://github.com/jumanjihouse/pre-commit-hook-yamlfmt
