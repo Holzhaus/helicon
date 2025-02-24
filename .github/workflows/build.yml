@@ -1,11 +1,14 @@
 ---
 name: Build
 on: [push, pull_request]
+permissions: {}
 
 jobs:
     cargo-toml-features:
         name: Generate Feature Combinations
         runs-on: ubuntu-latest
+        permissions:
+            contents: read
         outputs:
             feature-combinations: ${{ steps.cargo-toml-features.outputs.feature-combinations }}
         steps:
@@ -18,6 +21,8 @@ jobs:
     build:
         needs: cargo-toml-features
         runs-on: ubuntu-latest
+        permissions:
+            contents: read
         strategy:
             matrix:
                 features: ${{ fromJson(needs.cargo-toml-features.outputs.feature-combinations) }}
