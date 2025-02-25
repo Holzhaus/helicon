@@ -1,16 +1,21 @@
 ---
 name: Build
 on: [push, pull_request]
+permissions: {}
 
 jobs:
     cargo-toml-features:
         name: Generate Feature Combinations
         runs-on: ubuntu-latest
+        permissions:
+            contents: read
         outputs:
             feature-combinations: ${{ steps.cargo-toml-features.outputs.feature-combinations }}
         steps:
             - name: Check out repository
               uses: actions/checkout@v4
+              with:
+                  persist-credentials: false
             - name: Determine Cargo Features
               id: cargo-toml-features
               uses: Holzhaus/cargo-toml-features-action@3afa751aae4071b2d1ca1c5fa42528a351c995f4
@@ -18,6 +23,8 @@ jobs:
     build:
         needs: cargo-toml-features
         runs-on: ubuntu-latest
+        permissions:
+            contents: read
         strategy:
             matrix:
                 features: ${{ fromJson(needs.cargo-toml-features.outputs.feature-combinations) }}
@@ -26,6 +33,8 @@ jobs:
         steps:
             - name: Check out repository
               uses: actions/checkout@v4
+              with:
+                  persist-credentials: false
             - name: Print Rust version
               run: rustc -vV
             - name: Build Package
@@ -44,6 +53,8 @@ jobs:
         steps:
             - name: Check out repository
               uses: actions/checkout@v4
+              with:
+                  persist-credentials: false
             - name: Publish Package
               run: cargo publish --locked
               env:
