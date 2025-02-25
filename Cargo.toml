@@ -47,7 +47,7 @@ ebur128 = "0.1"
 async-channel = "2.3.1"
 num_cpus = "1.16.0"
 handlebars = "6.3.0"
-tempfile = "3.17.0"
+tempfile = "3.17.1"
 expanduser = "1.2.2"
 
 [dev-dependencies]
