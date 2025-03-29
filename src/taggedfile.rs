@@ -361,6 +361,11 @@ impl TaggedFile {
             .replay_gain_track_range()
             .map(|value| Cow::from(value.to_string()));
         self.set_tag_value(&TagKey::ReplayGainTrackRange, replay_gain_track_range);
+        let bpm_analyzed = self
+            .analyzed_metadata()
+            .bpm()
+            .map(|value| Cow::from(value.to_string()));
+        self.set_tag_value(&TagKey::Bpm, bpm_analyzed);
         self.set_tag_value(&TagKey::TrackNumber, track.track_number());
         self.set_tag_value(&TagKey::TrackTitle, track.track_title());
         self.set_tag_value(&TagKey::TrackTitleSortOrder, track.track_title_sort_order());
@@ -696,6 +701,13 @@ impl AnalyzedTrackMetadata for TaggedFileAnalyzedMetadata<'_> {
 
     fn replay_gain_track_range(&self) -> Option<Cow<'_, str>> {
         None
+    }
+
+    fn bpm(&self) -> Option<Cow<'_, str>> {
+        self.0
+            .and_then(|result| result.soundtouch_bpm.as_ref())
+            .and_then(|res| res.as_ref().ok())
+            .map(|soundtouch_bpm| Cow::from(soundtouch_bpm.bpm_string()))
     }
 }
 
