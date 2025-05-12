@@ -35,11 +35,11 @@ repos:
       hooks:
           - id: yamlfmt
     - repo: https://github.com/gitleaks/gitleaks
-      rev: v8.24.0
+      rev: v8.25.1
       hooks:
           - id: gitleaks
     - repo: https://github.com/woodruffw/zizmor-pre-commit
-      rev: v1.3.1
+      rev: v1.7.0
       hooks:
           - id: zizmor
     - repo: https://github.com/doublify/pre-commit-rust
