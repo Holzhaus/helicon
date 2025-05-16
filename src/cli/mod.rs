@@ -101,7 +101,7 @@ fn rotate_logfiles(base_path: impl AsRef<Path>) -> io::Result<()> {
 pub async fn main() -> crate::Result<()> {
     let args = Args::parse();
 
-    let base_dirs = BaseDirectories::with_prefix(PKG_NAME)?;
+    let base_dirs = BaseDirectories::with_prefix(PKG_NAME);
 
     // Initialize logging
     let logfile_path = base_dirs.place_state_file(format!("{PKG_NAME}.log"))?;

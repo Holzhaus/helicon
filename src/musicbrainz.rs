@@ -138,7 +138,7 @@ impl<'a> MusicBrainzClient<'a> {
                     log::warn!("Failed to insert release search {search_query:?} (limit: {limit}, offset: {offset}) into cache: {err}");
                 }
             }
-            };
+            }
             response
         };
 
@@ -181,7 +181,7 @@ impl<'a> MusicBrainzClient<'a> {
                         Err(err) => {
                             log::warn!("Failed to insert release group {release_group_id} into cache: {err}");
                         }
-                    }};
+                    }}
             })
     }
 
@@ -258,7 +258,7 @@ impl<'a> MusicBrainzClient<'a> {
                             log::warn!("Failed to insert release {release_id} into cache: {err}");
                         }
                     }
-                };
+                }
             })
     }
 }
@@ -378,7 +378,7 @@ impl<'a> MusicBrainzId<'a> {
                     };
                 }
             }
-        };
+        }
         None
     }
 }
@@ -392,13 +392,13 @@ fn build_search_query(release: &impl ReleaseLike) -> String {
     if let Some(track_count) = release.release_track_count() {
         let _ = query.tracks(&track_count.to_string());
         is_empty = false;
-    };
+    }
 
     // Artist
     if release.is_compilation() {
         if !is_empty {
             let _ = query.and();
-        };
+        }
         if let Some(v) = release.release_artist() {
             let _ = query.expr(
                 MusicBrainzReleaseSearchQuery::query_builder()
@@ -413,7 +413,7 @@ fn build_search_query(release: &impl ReleaseLike) -> String {
     } else if let Some(v) = release.release_artist() {
         if !is_empty {
             let _ = query.and();
-        };
+        }
         let _ = query.artist(v.as_ref().trim());
         is_empty = false;
     }
@@ -422,9 +422,9 @@ fn build_search_query(release: &impl ReleaseLike) -> String {
     if let Some(v) = release.release_title() {
         if !is_empty {
             let _ = query.and();
-        };
+        }
         let _ = query.release(v.as_ref().trim());
-    };
+    }
 
     query.build()
 }

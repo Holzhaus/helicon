@@ -264,7 +264,7 @@ impl ID3v2Tag {
                         println!("{:02x?}", &unknown.data);
                     }
                     _ => (),
-                };
+                }
                 //let use_unknown = text_values.is_none();
                 //text_values.into_iter().map(|it| it.chain(frame.content().to_unknown().ok().filter(|_| use_unknown).into_iter().filter_map(|unk| String::from_utf8(unk.data).ok())))
                 text_values
@@ -544,7 +544,7 @@ impl Tag for ID3v2Tag {
                         None => {
                             let _frames = self.data.remove(id);
                         }
-                    };
+                    }
                 }
                 #[expect(unused_results)]
                 FrameId::ExtendedText(description) => {

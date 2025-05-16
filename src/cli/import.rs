@@ -134,7 +134,7 @@ async fn select_release<'a>(
                     }
 
                     if saved_anything {
-                        eprintln!("Saved debug info to {}", tmp_dir.into_path().display());
+                        eprintln!("Saved debug info to {}", tmp_dir.keep().display());
                     } else {
                         eprintln!("Nothing to do");
                     }
@@ -162,9 +162,7 @@ async fn select_release<'a>(
                 log::warn!("Skipping collection");
                 return Ok(SelectionResult::Skipped);
             }
-            ui::HandleCandidateResult::BackToSelection => {
-                continue 'select_candidate;
-            }
+            ui::HandleCandidateResult::BackToSelection => (),
             ui::HandleCandidateResult::Quit => {
                 return Ok(SelectionResult::Quit);
             }
@@ -228,11 +226,11 @@ pub async fn run(config: &Config, cache: Option<&Cache>, args: Args) -> crate::R
             if let Err(err) = track_collection.move_files(&cloned_config) {
                 log::error!("Failed to move files: {err}");
                 continue;
-            };
+            }
 
             if let Err(err) = track_collection.write_tags() {
                 log::error!("Failed to write tags: {err}");
-            };
+            }
         }
     });
 
@@ -254,9 +252,7 @@ pub async fn run(config: &Config, cache: Option<&Cache>, args: Args) -> crate::R
                     log::error!("Failed to send job to importer: {err}");
                 };
             }
-            SelectionResult::Skipped => {
-                continue;
-            }
+            SelectionResult::Skipped => (),
             SelectionResult::Quit => {
                 break;
             }
