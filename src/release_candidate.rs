@@ -108,7 +108,7 @@ impl<T: ReleaseLike> ReleaseCandidateCollection<T> {
                 );
                 self.candidates.insert(pos, candidate);
             }
-        };
+        }
     }
 
     /// Add a new release to this collection. Create a new candidate internally.
