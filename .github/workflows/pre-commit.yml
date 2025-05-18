@@ -18,16 +18,20 @@ jobs:
               with:
                   persist-credentials: false
 
-            - name: Generate Cargo.lock
-              uses: actions-rs/cargo@v1
+            - name: Install Rust toolchain
+              uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e8b695cdcc8de1b
               with:
-                  command: generate-lockfile
+                  toolchain: stable
+
+            - name: Generate Cargo.lock
+              run: |
+                  cargo generate-lockfile
 
             - name: Set up Python
               uses: actions/setup-python@v5
 
             - name: Detect code style issues
-              uses: pre-commit/action@v3.0.1
+              uses: pre-commit/action@576ff52938d158a24ac7e009dfa94b1455e7df99
               env:
                   SKIP: no-commit-to-branch
 

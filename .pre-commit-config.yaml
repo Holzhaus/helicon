@@ -3,7 +3,7 @@ default_language_version:
     python: python3
 repos:
     - repo: https://github.com/pre-commit/pre-commit-hooks
-      rev: v5.0.0
+      rev: cef0300fd0fc4d2a87a85fa2093c6b283ea36f4b  # frozen: v5.0.0
       hooks:
           - id: check-case-conflict
           - id: check-json
@@ -21,40 +21,40 @@ repos:
           - id: trailing-whitespace
             exclude: .tsv$
     - repo: https://github.com/codespell-project/codespell
-      rev: v2.4.1
+      rev: 63c8f8312b7559622c0d82815639671ae42132ac  # frozen: v2.4.1
       hooks:
           - id: codespell
             args: [--ignore-words=.codespellignore]
             exclude_types: [tsv, json]
     - repo: https://github.com/psf/black
-      rev: 25.1.0
+      rev: 8a737e727ac5ab2f1d4cf5876720ed276dc8dc4b  # frozen: 25.1.0
       hooks:
           - id: black
     - repo: https://github.com/jumanjihouse/pre-commit-hook-yamlfmt
-      rev: 0.2.3
+      rev: 8d1b9cadaf854cb25bb0b0f5870e1cc66a083d6b  # frozen: 0.2.3
       hooks:
           - id: yamlfmt
     - repo: https://github.com/gitleaks/gitleaks
-      rev: v8.24.0
+      rev: badcfda739ac5d5e538299664c7439849c785c6c  # frozen: v8.26.0
       hooks:
           - id: gitleaks
     - repo: https://github.com/woodruffw/zizmor-pre-commit
-      rev: v1.3.1
+      rev: bac1abfcff0b2bcc918d70df882471f5aefa6aa3  # frozen: v1.7.0
       hooks:
           - id: zizmor
     - repo: https://github.com/doublify/pre-commit-rust
-      rev: v1.0
+      rev: eeee35a89e69d5772bdee97db1a6a898467b686e  # frozen: v1.0
       hooks:
           - id: fmt
             args: [--all, --]
           - id: clippy
             args: [--locked, --workspace, --all-features, --all-targets, --, -D, warnings]
     - repo: https://github.com/Holzhaus/sourceheaders
-      rev: v0.0.4
+      rev: 37fab20a62cc63ebb9a8855a2ab90ec7dc56cadf  # frozen: v0.0.4
       hooks:
           - id: sourceheaders
     - repo: https://github.com/jorisroovers/gitlint
-      rev: v0.19.1
+      rev: acc9d9de6369b76d22cb4167029d2035e8730b98  # frozen: v0.19.1
       hooks:
           - id: gitlint
 
