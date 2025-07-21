@@ -35,7 +35,7 @@ repos:
       hooks:
           - id: yamlfmt
     - repo: https://github.com/gitleaks/gitleaks
-      rev: 47218a628da59ef6b24197d15f4b0248ca87f4f0  # frozen: v8.27.2
+      rev: 39fdb480a06768cc41a84ef86959c07ff33091c4  # frozen: v8.28.0
       hooks:
           - id: gitleaks
     - repo: https://github.com/woodruffw/zizmor-pre-commit
