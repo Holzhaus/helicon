@@ -73,7 +73,10 @@ impl TrackSimilarity {
         T1: TrackLike + ?Sized,
         T2: TrackLike + ?Sized,
     {
-        let track_title = Difference::between_options(lhs.track_title(), rhs.track_title());
+        let track_title = Difference::between_options(
+            lhs.track_title().or_else(|| lhs.track_file_stem()),
+            rhs.track_title().or_else(|| rhs.track_file_stem()),
+        );
         let track_artist = Difference::between_options(lhs.track_artist(), rhs.track_artist());
         let track_number = Difference::between_options(lhs.track_number(), rhs.track_number());
         let track_length = Difference::between_options(lhs.track_length(), rhs.track_length());

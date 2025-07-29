@@ -250,8 +250,12 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
 
             // Format track title difference.
             let (lhs_track_title, rhs_track_title) = util::string_diff_opt(
-                lhs_track.track_title(),
-                rhs_track.track_title(),
+                lhs_track
+                    .track_title()
+                    .or_else(|| lhs_track.track_file_stem()),
+                rhs_track
+                    .track_title()
+                    .or_else(|| rhs_track.track_file_stem()),
                 "<unknown title>",
                 &candidate_details_config.string_diff_style,
             );
