@@ -236,9 +236,25 @@ pub trait TrackLike {
         None
     }
 
+    /// File stem of track in the filesystem.
+    fn track_file_stem(&self) -> Option<Cow<'_, str>> {
+        self.track_path()
+            .and_then(|path| path.file_stem())
+            .map(|osstr| osstr.to_string_lossy())
+    }
+
+    /// File name of track in the filesystem.
+    fn track_file_name(&self) -> Option<Cow<'_, str>> {
+        self.track_path()
+            .and_then(|path| path.file_stem())
+            .map(|osstr| osstr.to_string_lossy())
+    }
+
     /// File extension for this track.
     fn track_file_extension(&self) -> Option<Cow<'_, str>> {
-        None
+        self.track_path()
+            .and_then(|path| path.extension())
+            .map(|osstr| osstr.to_string_lossy())
     }
 }
 
