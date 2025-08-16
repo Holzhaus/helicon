@@ -261,7 +261,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                 || {
                     candidate_details_config
                         .track_number_style_default
-                        .apply(Cow::from(format!("#{lhs_track_index}")))
+                        .apply(Cow::from(format!("#{index}", index = lhs_track_index + 1)))
                 },
                 |number| candidate_details_config.track_number_style.apply(number),
             );
@@ -269,7 +269,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                 || {
                     candidate_details_config
                         .track_number_style_default
-                        .apply(Cow::from(format!("#{rhs_track_index}")))
+                        .apply(Cow::from(format!("#{index}", index = rhs_track_index + 1)))
                 },
                 |number| candidate_details_config.track_number_style.apply(number),
             );
