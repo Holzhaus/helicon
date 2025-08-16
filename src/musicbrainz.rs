@@ -414,7 +414,22 @@ fn build_search_query(release: &impl ReleaseLike) -> String {
         if !is_empty {
             let _ = query.and();
         }
-        let _ = query.artist(v.as_ref().trim());
+
+        let mut subquery = MusicBrainzReleaseSearchQuery::query_builder();
+        let _ = query.expr(
+            v.as_ref()
+                .split(&[',', '&', '/'])
+                .map(str::trim)
+                .enumerate()
+                .fold(&mut subquery, |builder, (i, artist)| {
+                    if i == 0 {
+                        builder.artist(artist)
+                    } else {
+                        builder.or().artist(artist)
+                    }
+                }),
+        );
+
         is_empty = false;
     }
 
