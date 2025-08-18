@@ -39,7 +39,7 @@ repos:
       hooks:
           - id: gitleaks
     - repo: https://github.com/woodruffw/zizmor-pre-commit
-      rev: 69fa534d69454f44ddd4451b5e2da7a1c48e525b  # frozen: v1.11.0
+      rev: 5fee7cc03a2498e0ce36a18f36dfb558a30a426c  # frozen: v1.12.1
       hooks:
           - id: zizmor
     - repo: https://github.com/doublify/pre-commit-rust
