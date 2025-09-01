@@ -196,6 +196,7 @@ fn print_tracklist(release: &impl ReleaseLike) {
                 .unwrap_or_else(|| Cow::from("[unknown]"));
             let track_title = track
                 .track_title()
+                .or_else(|| track.track_file_stem())
                 .unwrap_or_else(|| Cow::from("[unnamed track]"));
             let track_length = track.track_length().map_or_else(
                 || Cow::from("?:??"),
