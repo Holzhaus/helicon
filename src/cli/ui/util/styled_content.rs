@@ -377,11 +377,7 @@ impl<'a> StyledContentList<'a> {
         let missing_chars = desired_width - self.char_width();
         self.0.push(StyledContent::new(
             ContentStyle::new(),
-            Cow::from(
-                std::iter::repeat(fill_char)
-                    .take(missing_chars)
-                    .collect::<String>(),
-            ),
+            Cow::from(std::iter::repeat_n(fill_char, missing_chars).collect::<String>()),
         ));
         debug_assert_eq!(self.char_width(), desired_width);
         self

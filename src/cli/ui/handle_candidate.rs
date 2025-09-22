@@ -250,8 +250,12 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
 
             // Format track title difference.
             let (lhs_track_title, rhs_track_title) = util::string_diff_opt(
-                lhs_track.track_title(),
-                rhs_track.track_title(),
+                lhs_track
+                    .track_title()
+                    .or_else(|| lhs_track.track_file_stem()),
+                rhs_track
+                    .track_title()
+                    .or_else(|| rhs_track.track_file_stem()),
                 "<unknown title>",
                 &candidate_details_config.string_diff_style,
             );
@@ -261,7 +265,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                 || {
                     candidate_details_config
                         .track_number_style_default
-                        .apply(Cow::from(format!("#{lhs_track_index}")))
+                        .apply(Cow::from(format!("#{index}", index = lhs_track_index + 1)))
                 },
                 |number| candidate_details_config.track_number_style.apply(number),
             );
@@ -269,7 +273,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                 || {
                     candidate_details_config
                         .track_number_style_default
-                        .apply(Cow::from(format!("#{rhs_track_index}")))
+                        .apply(Cow::from(format!("#{index}", index = rhs_track_index + 1)))
                 },
                 |number| candidate_details_config.track_number_style.apply(number),
             );

@@ -3,7 +3,7 @@ name = "helicon"
 description = "Command line music organizer based on metadata from MusicBrainz."
 authors = ["Jan Holthuis <jan.holthuis@ruhr-uni-bochum.de>"]
 readme = "README.md"
-repository = "https://github.com/rust-lang/cargo"
+repository = "https://github.com/Holzhaus/helicon"
 version = "0.2.0"
 edition = "2021"
 license = "MPL-2.0"
@@ -25,29 +25,29 @@ futures = { version = "0", features = ["executor", "thread-pool"] }
 hungarian = "1"
 chrono = { version = "0", features = [] }
 num = "0.4"
-toml = "0.8"
+toml = "0.9"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-xdg = "2.5.2"
-sha2 = "0.10.8"
+xdg = "3.0.0"
+sha2 = "0.10.9"
 inquire = "0.7.5"
-crossterm = "0.28.1"
-regex = "1.11.1"
-similar = { version = "2.6.0", features = ["unicode"] }
-config = { version = "0.14.1", default-features = false, features = ["toml"] }
+crossterm = "0.29.0"
+regex = "1.11.2"
+similar = { version = "2.7.0", features = ["unicode"] }
+config = { version = "0.15.11", default-features = false, features = ["toml"] }
 simplelog = "0.12.2"
 unicode-segmentation = "1.12.0"
-unicode-width = "0.2.0"
-itertools = "0.13.0"
+unicode-width = "0.2.1"
+itertools = "0.14.0"
 symphonia = { version = "0.5.4", features = ["all-formats", "all-codecs"] }
 rusty-chromaprint = "0.3.0"
 base64 = "0.22.1"
 float_eq = "1"
 ebur128 = "0.1"
-async-channel = "2.3.1"
-num_cpus = "1.16.0"
-handlebars = "6.2.0"
-tempfile = "3.14.0"
+async-channel = "2.5.0"
+num_cpus = "1.17.0"
+handlebars = "6.3.2"
+tempfile = "3.22.0"
 expanduser = "1.2.2"
 soundtouch = { version = "0.5.1", default-features = false }
 

@@ -320,7 +320,7 @@ pub fn read_tags_from_path(path: impl AsRef<Path>) -> crate::Result<Vec<Box<dyn 
                         .map(|tag| Box::<dyn Tag>::from(tag))
                         .map(|tag| vec![tag]),
                     ext => {
-                        log::debug!("Unknown file extension {:?}", ext);
+                        log::debug!("Unknown file extension {ext:?}");
                         Err(crate::Error::UnknownFileType)
                     }
                 })?
