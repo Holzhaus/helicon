@@ -32,7 +32,7 @@ xdg = "3.0.0"
 sha2 = "0.10.9"
 inquire = "0.7.5"
 crossterm = "0.29.0"
-regex = "1.11.1"
+regex = "1.11.2"
 similar = { version = "2.7.0", features = ["unicode"] }
 config = { version = "0.15.11", default-features = false, features = ["toml"] }
 simplelog = "0.12.2"
