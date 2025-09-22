@@ -28,7 +28,7 @@ jobs:
                   cargo generate-lockfile
 
             - name: Set up Python
-              uses: actions/setup-python@v5
+              uses: actions/setup-python@v6
 
             - name: Detect code style issues
               uses: pre-commit/action@576ff52938d158a24ac7e009dfa94b1455e7df99
