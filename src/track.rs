@@ -271,6 +271,9 @@ pub trait AnalyzedTrackMetadata {
 
     /// ReplayGain Track Range.
     fn replay_gain_track_range(&self) -> Option<Cow<'_, str>>;
+
+    /// Tempo in Beats per Minute (BPM).
+    fn bpm(&self) -> Option<Cow<'_, str>>;
 }
 
 /// Adds helper methods to the `MusicBrainzReleaseTrack` struct.
@@ -758,6 +761,10 @@ impl AnalyzedTrackMetadata for NoAnalyzedTrackMetadata {
     }
 
     fn replay_gain_track_range(&self) -> Option<Cow<'_, str>> {
+        None
+    }
+
+    fn bpm(&self) -> Option<Cow<'_, str>> {
         None
     }
 }
