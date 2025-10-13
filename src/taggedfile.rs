@@ -695,10 +695,15 @@ impl AnalyzedTrackMetadata for TaggedFileAnalyzedMetadata<'_> {
     }
 
     fn bpm(&self) -> Option<Cow<'_, str>> {
-        self.0
-            .and_then(|result| result.soundtouch_bpm.as_ref())
-            .and_then(|res| res.as_ref().ok())
-            .map(|soundtouch_bpm| Cow::from(soundtouch_bpm.bpm_string()))
+        #[cfg(feature = "soundtouch")]
+        {
+            self.0
+                .and_then(|result| result.soundtouch_bpm.as_ref())
+                .and_then(|res| res.as_ref().ok())
+                .map(|soundtouch_bpm| Cow::from(soundtouch_bpm.bpm_string()))
+        }
+        #[cfg(not(feature = "soundtouch"))]
+        None
     }
 }
 

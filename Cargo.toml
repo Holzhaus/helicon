@@ -49,13 +49,14 @@ num_cpus = "1.17.0"
 handlebars = "6.3.2"
 tempfile = "3.22.0"
 expanduser = "1.2.2"
-soundtouch = { version = "0.5.1", default-features = false }
+soundtouch = { version = "0.5.1", default-features = false, optional = true }
 
 [dev-dependencies]
 paste = "1"
 
 [features]
-default = ["flac", "id3"]
+default = ["flac", "id3", "soundtouch"]
 dev = []
 flac = ["dep:metaflac"]
 id3 = ["dep:id3"]
+soundtouch = ["dep:soundtouch"]

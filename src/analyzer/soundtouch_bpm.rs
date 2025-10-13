@@ -13,6 +13,8 @@
 //!
 //! [soundtouch]: http://www.surina.net/soundtouch/
 
+#![cfg(feature = "soundtouch")]
+
 use super::{Analyzer, AnalyzerError};
 use crate::config::Config;
 
