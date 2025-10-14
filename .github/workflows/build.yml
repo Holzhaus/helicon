@@ -38,7 +38,8 @@ jobs:
             - name: Print Rust version
               run: rustc -vV
             - name: Build Package
-              run: cargo publish --dry-run --locked --no-default-features --features "${CRATE_FEATURES}"
+              run: | # zizmor: ignore[use-trusted-publishing]
+                  cargo publish --dry-run --locked --no-default-features --features "${CRATE_FEATURES}"
             - name: Run Tests
               run: cargo test --locked --no-default-features --features "${CRATE_FEATURES}"
             - name: Run Benchmark
