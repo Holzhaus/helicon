@@ -27,7 +27,7 @@ repos:
             args: [--ignore-words=.codespellignore]
             exclude_types: [tsv, json]
     - repo: https://github.com/psf/black-pre-commit-mirror
-      rev: fe95161893684893d68b1225356702ca71f8d388  # frozen: 25.9.0
+      rev: 831207fd435b47aeffdf6af853097e64322b4d44  # frozen: 25.12.0
       hooks:
           - id: black
     - repo: https://github.com/jumanjihouse/pre-commit-hook-yamlfmt
@@ -35,11 +35,11 @@ repos:
       hooks:
           - id: yamlfmt
     - repo: https://github.com/gitleaks/gitleaks
-      rev: 39fdb480a06768cc41a84ef86959c07ff33091c4  # frozen: v8.28.0
+      rev: 2ca41cc1372d1e939a6a879f18cdc19fc1cac1ce  # frozen: v8.30.0
       hooks:
           - id: gitleaks
     - repo: https://github.com/woodruffw/zizmor-pre-commit
-      rev: bbd57e2e77d04e39722d2976d5d6bfa227f101e8  # frozen: v1.16.2
+      rev: 7fc963270df722f37707d47ff41265fe8f460822  # frozen: v1.20.0
       hooks:
           - id: zizmor
     - repo: https://github.com/doublify/pre-commit-rust
