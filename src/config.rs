@@ -223,6 +223,7 @@ pub struct StringDiffStyleConfig {
     pub replace_new: TextStyleConfig,
 }
 
+/// Configuration for unmatched tracks in the UI.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct UnmatchedTrackStyleConfig {
     /// Prefix that is displayed at the start of the line.

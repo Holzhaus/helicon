@@ -716,16 +716,10 @@ fn match_involved_persons<'a>(
             .push(person);
     }
 
-    let left_iter: Box<dyn Iterator<Item = InvolvedPerson<'a>> + 'a> = Box::new(
-        left_map
-            .into_iter()
-            .flat_map(|(_left_key, heap)| heap.into_iter()),
-    );
-    let right_iter: Box<dyn Iterator<Item = InvolvedPerson<'a>> + 'a> = Box::new(
-        right_map
-            .into_iter()
-            .flat_map(|(_right_key, heap)| heap.into_iter()),
-    );
+    let left_iter: Box<dyn Iterator<Item = InvolvedPerson<'a>> + 'a> =
+        Box::new(left_map.into_values().flat_map(|heap| heap.into_iter()));
+    let right_iter: Box<dyn Iterator<Item = InvolvedPerson<'a>> + 'a> =
+        Box::new(right_map.into_values().flat_map(|heap| heap.into_iter()));
     InvolvedPersonMatches {
         left_iter: left_iter.peekable(),
         right_iter: right_iter.peekable(),

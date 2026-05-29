@@ -64,7 +64,7 @@ impl<T> CacheEnvelope<T> {
 }
 
 /// Maximum age of a a cache entry after which it expires.
-const MAX_AGE: Duration = Duration::from_secs(60 * 60 * 24 * 7);
+const MAX_AGE: Duration = Duration::from_hours(24 * 7);
 
 /// Cache for MusicBrainz queries (to not use their API too much unnecessarily).
 #[derive(Debug, Clone)]
