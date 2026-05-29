@@ -53,6 +53,7 @@ enum FrameId<'a> {
     DerivedValue(TagKey, fn(&str) -> Option<String>),
 }
 
+/// Frames of type "performer involvement".
 const IPLS_NON_PERFORMER_INVOLVEMENTS: [&str; 5] =
     ["arranger", "engineer", "DJ-mix", "mix", "producer"];
 
