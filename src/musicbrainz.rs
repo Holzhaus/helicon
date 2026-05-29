@@ -397,7 +397,7 @@ fn build_search_query(release: &impl ReleaseLike) -> String {
     // Artist
     if release.is_compilation() {
         if !is_empty {
-            let _ = query.and();
+            let _ = query.or();
         }
         if let Some(v) = release.release_artist() {
             let _ = query.expr(
@@ -412,7 +412,7 @@ fn build_search_query(release: &impl ReleaseLike) -> String {
         is_empty = false;
     } else if let Some(v) = release.release_artist() {
         if !is_empty {
-            let _ = query.and();
+            let _ = query.or();
         }
 
         let mut subquery = MusicBrainzReleaseSearchQuery::query_builder();
@@ -436,7 +436,7 @@ fn build_search_query(release: &impl ReleaseLike) -> String {
     // Title
     if let Some(v) = release.release_title() {
         if !is_empty {
-            let _ = query.and();
+            let _ = query.or();
         }
         let _ = query.release(v.as_ref().trim());
     }
