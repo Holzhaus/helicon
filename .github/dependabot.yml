@@ -7,18 +7,18 @@ updates:
       schedule:
           interval: weekly
       cooldown:
-        default-days: 3
+          default-days: 7
     # Check for updated Rust toolchain
     - package-ecosystem: rust-toolchain
       directory: /
       schedule:
           interval: weekly
       cooldown:
-        default-days: 3
+          default-days: 7
     # Check for updated GitHub Actions
     - package-ecosystem: github-actions
       directory: /
       schedule:
           interval: weekly
       cooldown:
-        default-days: 3
+          default-days: 7
