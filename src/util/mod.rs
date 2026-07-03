@@ -14,6 +14,8 @@ mod keyed_binheap;
 mod testing;
 mod time;
 
+#[cfg(unix)]
+pub use fs::set_file_permissions;
 pub use fs::{move_file, walk_dir};
 pub use keyed_binheap::KeyedBinaryHeap;
 #[cfg(any(test, feature = "dev"))]
