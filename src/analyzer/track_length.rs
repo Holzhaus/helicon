@@ -11,9 +11,8 @@
 use super::{Analyzer, AnalyzerError};
 use crate::config::Config;
 use chrono::TimeDelta;
-use float_eq::float_eq;
-
-use symphonia::core::codecs::CodecParameters;
+use symphonia::core::formats::Track;
+use symphonia::core::units::Time;
 
 /// Track Length Analyzer.
 #[derive(Debug)]
@@ -23,28 +22,26 @@ pub struct TrackLengthAnalyzer {
     track_length: TimeDelta,
 }
 
-/// Number of nanoseconds per second.
-const NANOSECONDS_PER_SECOND: f64 = 1_000_000_000.0;
-
 impl Analyzer for TrackLengthAnalyzer {
     type Result = TimeDelta;
 
-    fn initialize(_config: &Config, codec_params: &CodecParameters) -> Result<Self, AnalyzerError> {
-        let track_length = codec_params
+    fn initialize(_config: &Config, track: &Track) -> Result<Self, AnalyzerError> {
+        let track_length = track
             .time_base
-            .zip(codec_params.n_frames)
-            .map(|(time_base, n_frames)| time_base.calc_time(n_frames))
-            .and_then(|time| {
-                i64::try_from(time.seconds)
-                    .ok()
-                    .zip(f64_to_u32((time.frac * NANOSECONDS_PER_SECOND).trunc()))
-            })
+            .zip(
+                track
+                    .duration
+                    .and_then(|duration| track.start_ts.checked_add(duration)),
+            )
+            .and_then(|(time_base, end_ts)| time_base.calc_time(end_ts))
+            .as_ref()
+            .map(Time::parts)
             .and_then(|(secs, nanos)| TimeDelta::new(secs, nanos))
             .ok_or(AnalyzerError::Custom("Failed to calculate track length"))?;
         Ok(Self { track_length })
     }
 
-    fn feed(&mut self, _samples: &[i16]) -> Result<(), AnalyzerError> {
+    fn feed(&mut self, _samples: &[f32]) -> Result<(), AnalyzerError> {
         Ok(())
     }
 
@@ -54,17 +51,5 @@ impl Analyzer for TrackLengthAnalyzer {
 
     fn finalize(self) -> Result<TimeDelta, AnalyzerError> {
         Ok(self.track_length)
-    }
-}
-
-/// Convert an `f64` to `u32` (if possible).
-#[expect(clippy::cast_sign_loss)]
-#[expect(clippy::cast_possible_truncation)]
-fn f64_to_u32(value: f64) -> Option<u32> {
-    let intvalue = value as u32;
-    if float_eq!(f64::from(intvalue), value, abs <= 0.000_1) {
-        Some(intvalue)
-    } else {
-        None
     }
 }

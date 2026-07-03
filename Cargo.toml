@@ -39,7 +39,7 @@ simplelog = "0.12.2"
 unicode-segmentation = "1.13.3"
 unicode-width = "0.2.2"
 itertools = "0.15.0"
-symphonia = { version = "0.5.5", features = ["all-formats", "all-codecs"] }
+symphonia = { version = "0.6.0", features = ["all-formats", "all-codecs"] }
 rusty-chromaprint = "0.3.0"
 base64 = "0.22.1"
 float_eq = "1"
