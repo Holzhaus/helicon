@@ -15,6 +15,7 @@ use musicbrainz_rs_nova::entity::{
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::fmt::Write;
 use std::fs::File;
 use std::io::{self, BufReader, BufWriter};
 use std::path::{Path, PathBuf};
@@ -205,6 +206,11 @@ impl<'a> Cacheable<'a> for MusicBrainzReleaseSearchResult {
         hasher.update([b'|', limit, b'|']);
         hasher.update(offset.to_be_bytes());
         let hash = hasher.finalize();
-        Path::new(Self::CACHE_DIRECTORY).join(format!("{hash:064x}.json"))
+
+        let mut s = String::with_capacity(64);
+        for &byte in hash.as_slice() {
+            write!(&mut s, "{byte:02x}").expect("unable to write to in-memory string");
+        }
+        Path::new(Self::CACHE_DIRECTORY).join(format!("{s}.json"))
     }
 }
