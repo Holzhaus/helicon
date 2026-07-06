@@ -18,7 +18,8 @@ use crate::util::walk_dir;
 use crate::Cache;
 use crate::{Config, TaggedFile, TaggedFileCollection};
 use futures::FutureExt;
-use std::collections::HashSet;
+use regex::Regex;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use tokio::runtime::{Builder, Runtime};
 use tokio::sync::mpsc::Receiver;
@@ -137,9 +138,13 @@ impl Drop for Scanner {
 /// Find track collections in the given path.
 fn find_track_paths(input_path: PathBuf) -> impl Iterator<Item = (PathBuf, Vec<TaggedFile>)> {
     let supported_extensions = HashSet::from(["mp3", "flac"]);
+    let disc_pattern = Regex::new(r"^(?:CD|Disc)\s*\d+$").unwrap();
+
+    let mut grouped_tracks: HashMap<PathBuf, Vec<TaggedFile>> = HashMap::new();
+
     walk_dir(input_path)
         .filter_map(Result::ok)
-        .filter_map(move |(path, _dirs, files)| {
+        .for_each(|(path, _dirs, files)| {
             let tagged_files: Vec<TaggedFile> = files
                 .iter()
                 .filter(|path| {
@@ -162,13 +167,33 @@ fn find_track_paths(input_path: PathBuf) -> impl Iterator<Item = (PathBuf, Vec<T
                 .collect();
 
             if tagged_files.is_empty() {
-                return None;
+                return;
             }
+
+            // Check if the leaf directory matches CD/Disc pattern
+            let group_path = if let Some(file_name) = path.file_name() {
+                if let Some(name_str) = file_name.to_str() {
+                    if disc_pattern.is_match(name_str) {
+                        path.parent().unwrap_or(&path).to_path_buf()
+                    } else {
+                        path.clone()
+                    }
+                } else {
+                    path.clone()
+                }
+            } else {
+                path.clone()
+            };
 
             log::info!("Found {} tracks in {}", tagged_files.len(), path.display());
 
-            Some((path, tagged_files))
-        })
+            grouped_tracks
+                .entry(group_path)
+                .or_default()
+                .extend(tagged_files);
+        });
+
+    grouped_tracks.into_iter()
 }
 
 /// Analyze a file and assign the analysis results to it.
