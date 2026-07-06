@@ -13,13 +13,14 @@ use crate::config::{AnalyzerType, Config};
 use std::path::Path;
 use thiserror::Error;
 
-use symphonia::core::audio::{AudioBufferRef, SampleBuffer};
-use symphonia::core::codecs::{CodecParameters, Decoder, DecoderOptions, CODEC_TYPE_NULL};
+use symphonia::core::audio::sample::Sample;
+use symphonia::core::audio::GenericAudioBufferRef;
+use symphonia::core::codecs::audio::{AudioDecoder, AudioDecoderOptions};
 use symphonia::core::errors::Error as SymphoniaError;
-use symphonia::core::formats::{FormatOptions, FormatReader};
+use symphonia::core::formats::Track;
+use symphonia::core::formats::{probe::Hint, FormatOptions, FormatReader, TrackType};
 use symphonia::core::io::{MediaSourceStream, MediaSourceStreamOptions};
 use symphonia::core::meta::MetadataOptions;
-use symphonia::core::probe::Hint;
 
 mod chromaprint;
 mod ebur128;
@@ -69,9 +70,9 @@ where
     type Result;
 
     /// Initialize the analyzer.
-    fn initialize(config: &Config, codec_params: &CodecParameters) -> Result<Self, AnalyzerError>;
+    fn initialize(config: &Config, track: &Track) -> Result<Self, AnalyzerError>;
     /// Feed samples into the analysis.
-    fn feed(&mut self, samples: &[i16]) -> Result<(), AnalyzerError>;
+    fn feed(&mut self, samples: &[f32]) -> Result<(), AnalyzerError>;
     /// Returns `true` if the Analyzer is complete and does not need additional input.
     fn is_complete(&self) -> bool;
     /// Finalize the analysis and return the result.
@@ -101,21 +102,19 @@ impl CompoundAnalyzerItem {
     fn initialize_or_assign_result(
         analyzer_type: AnalyzerType,
         config: &Config,
-        codec_params: &CodecParameters,
+        track: &Track,
         result: &mut CompoundAnalyzerResult,
     ) -> Option<Self> {
         match analyzer_type {
-            AnalyzerType::TrackLength => {
-                match TrackLengthAnalyzer::initialize(config, codec_params) {
-                    Ok(analyzer) => Some(Self::TrackLength(Box::from(analyzer))),
-                    Err(err) => {
-                        result.track_length = Some(Err(err));
-                        None
-                    }
+            AnalyzerType::TrackLength => match TrackLengthAnalyzer::initialize(config, track) {
+                Ok(analyzer) => Some(Self::TrackLength(Box::from(analyzer))),
+                Err(err) => {
+                    result.track_length = Some(Err(err));
+                    None
                 }
-            }
+            },
             AnalyzerType::ChromaprintFingerprint => {
-                match ChromaprintFingerprintAnalyzer::initialize(config, codec_params) {
+                match ChromaprintFingerprintAnalyzer::initialize(config, track) {
                     Ok(analyzer) => Some(Self::ChromaprintFingerprint(Box::from(analyzer))),
                     Err(err) => {
                         result.chromaprint_fingerprint = Some(Err(err));
@@ -123,7 +122,7 @@ impl CompoundAnalyzerItem {
                     }
                 }
             }
-            AnalyzerType::EbuR128 => match EbuR128Analyzer::initialize(config, codec_params) {
+            AnalyzerType::EbuR128 => match EbuR128Analyzer::initialize(config, track) {
                 Ok(analyzer) => Some(Self::EbuR128(Box::from(analyzer))),
                 Err(err) => {
                     result.ebur128 = Some(Err(err));
@@ -146,7 +145,7 @@ impl CompoundAnalyzerItem {
     /// occurs.
     fn feed_or_assign_result(
         &mut self,
-        samples: &[i16],
+        samples: &[f32],
         result: &mut CompoundAnalyzerResult,
     ) -> bool {
         match self {
@@ -209,7 +208,7 @@ pub struct CompoundAnalyzerResult {
 impl Analyzer for CompoundAnalyzer {
     type Result = CompoundAnalyzerResult;
 
-    fn initialize(config: &Config, codec_params: &CodecParameters) -> Result<Self, AnalyzerError> {
+    fn initialize(config: &Config, track: &Track) -> Result<Self, AnalyzerError> {
         let mut results = CompoundAnalyzerResult::default();
         let analyzers = config
             .analyzers
@@ -220,7 +219,7 @@ impl Analyzer for CompoundAnalyzer {
                 CompoundAnalyzerItem::initialize_or_assign_result(
                     analyzer_type,
                     config,
-                    codec_params,
+                    track,
                     &mut results,
                 )
             })
@@ -229,7 +228,7 @@ impl Analyzer for CompoundAnalyzer {
         Ok(Self { analyzers, results })
     }
 
-    fn feed(&mut self, samples: &[i16]) -> Result<(), AnalyzerError> {
+    fn feed(&mut self, samples: &[f32]) -> Result<(), AnalyzerError> {
         self.analyzers
             .retain_mut(|analyzer| analyzer.feed_or_assign_result(samples, &mut self.results));
         Ok(())
@@ -254,7 +253,7 @@ struct AudioReader {
     /// Audio format reader.
     format: Box<dyn FormatReader>,
     /// Audio decoder.
-    decoder: Box<dyn Decoder>,
+    decoder: Box<dyn AudioDecoder>,
     /// Track ID.
     track_id: u32,
 }
@@ -276,21 +275,24 @@ impl AudioReader {
         let meta_opts: MetadataOptions = MetadataOptions::default();
         let fmt_opts: FormatOptions = FormatOptions::default();
 
-        let probed = symphonia::default::get_probe().format(&hint, mss, &fmt_opts, &meta_opts)?;
-
-        let format = probed.format;
+        let format = symphonia::default::get_probe().probe(&hint, mss, fmt_opts, meta_opts)?;
 
         let track = format
-            .tracks()
-            .iter()
-            .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
+            .default_track(TrackType::Audio)
             .ok_or(AnalyzerError::NoSupportedAudioTracks)?;
 
+        let dec_opts: AudioDecoderOptions = AudioDecoderOptions::default();
+
+        let decoder = symphonia::default::get_codecs().make_audio_decoder(
+            track
+                .codec_params
+                .as_ref()
+                .and_then(|params| params.audio())
+                .ok_or(AnalyzerError::NoSupportedAudioTracks)?,
+            &dec_opts,
+        )?;
+
         let track_id = track.id;
-
-        let dec_opts: DecoderOptions = DecoderOptions::default();
-
-        let decoder = symphonia::default::get_codecs().make(&track.codec_params, &dec_opts)?;
 
         Ok(Self {
             format,
@@ -300,29 +302,28 @@ impl AudioReader {
     }
 
     /// Get the codec parameters.
-    fn codec_params(&self) -> Option<&CodecParameters> {
-        self.format
-            .tracks()
-            .iter()
-            .find_map(|track| (track.id == self.track_id).then_some(&track.codec_params))
+    fn track(&self) -> Option<&Track> {
+        self.format.default_track(TrackType::Audio)
     }
 
     /// Read the next packet(s) that belongs to the current track, decode it and return a reference
     /// to the decoded audio buffer.
-    fn next_buffer(&mut self) -> Result<AudioBufferRef<'_>, SymphoniaError> {
-        let packet = loop {
+    fn next_buffer(&mut self) -> Result<Option<GenericAudioBufferRef<'_>>, SymphoniaError> {
+        loop {
             let packet = match self.format.next_packet() {
-                Ok(packet) => packet,
-                err => break err,
+                Ok(Some(packet)) => packet,
+                Ok(None) => {
+                    break Ok(None);
+                }
+                Err(err) => break Err(err),
             };
 
-            if packet.track_id() != self.track_id {
+            if packet.track_id != self.track_id {
                 continue;
             }
 
-            break Ok(packet);
-        };
-        packet.and_then(|pkt| self.decoder.decode(&pkt))
+            break self.decoder.decode(&packet).map(Some);
+        }
     }
 }
 
@@ -333,29 +334,31 @@ pub fn analyze(
 ) -> Result<CompoundAnalyzerResult, AnalyzerError> {
     log::debug!("Analyzing file: {}", path.as_ref().display());
     let mut reader = AudioReader::new(&path)?;
-    let codec_params = reader
-        .codec_params()
+
+    let track = reader
+        .track()
         .ok_or(AnalyzerError::NoSupportedAudioTracks)?;
 
-    let mut analyzer = CompoundAnalyzer::initialize(config, codec_params)?;
+    let mut analyzer = CompoundAnalyzer::initialize(config, track)?;
 
     let mut sample_buf = None;
     while !analyzer.is_complete() {
         let audio_buf = match reader.next_buffer() {
-            Ok(buffer) => buffer,
+            Ok(Some(buffer)) => buffer,
+            Ok(None) => break,
             Err(SymphoniaError::DecodeError(err)) => Err(SymphoniaError::DecodeError(err))?,
-            Err(_) => break,
+            Err(_) => unimplemented!(),
         };
 
         if sample_buf.is_none() {
-            let spec = *audio_buf.spec();
-            let duration = audio_buf.capacity() as u64;
-            sample_buf = Some(SampleBuffer::<i16>::new(duration, spec));
+            let vec = Vec::<f32>::new();
+            sample_buf = Some(vec);
         }
 
-        if let Some(buf) = &mut sample_buf {
-            buf.copy_interleaved_ref(audio_buf);
-            analyzer.feed(buf.samples())?;
+        if let Some(ref mut samples) = &mut sample_buf {
+            samples.resize(audio_buf.samples_interleaved(), f32::MID);
+            audio_buf.copy_to_slice_interleaved(&mut *samples);
+            analyzer.feed(samples)?;
         }
     }
 

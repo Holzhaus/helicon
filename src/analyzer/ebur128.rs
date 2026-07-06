@@ -14,7 +14,7 @@ use super::{Analyzer, AnalyzerError};
 use crate::config::Config;
 
 use symphonia::core::audio::Channels;
-use symphonia::core::codecs::CodecParameters;
+use symphonia::core::formats::Track;
 
 use ebur128::{energy_to_loudness, EbuR128, Mode};
 
@@ -178,12 +178,16 @@ fn ratio_to_dbfs(value: f64) -> f64 {
 impl Analyzer for EbuR128Analyzer {
     type Result = EbuR128Result;
 
-    fn initialize(_config: &Config, codec_params: &CodecParameters) -> Result<Self, AnalyzerError> {
-        let sample_rate = codec_params
-            .sample_rate
-            .ok_or(AnalyzerError::MissingSampleRate)?;
-        let channel_count = codec_params
+    fn initialize(_config: &Config, track: &Track) -> Result<Self, AnalyzerError> {
+        let params = track
+            .codec_params
+            .as_ref()
+            .and_then(|params| params.audio())
+            .ok_or(AnalyzerError::NoSupportedAudioTracks)?;
+        let sample_rate = params.sample_rate.ok_or(AnalyzerError::MissingSampleRate)?;
+        let channel_count = params
             .channels
+            .as_ref()
             .map(Channels::count)
             .ok_or(AnalyzerError::MissingAudioChannels)?;
 
@@ -202,11 +206,7 @@ impl Analyzer for EbuR128Analyzer {
         Ok(analyzer)
     }
 
-    fn feed(&mut self, samples: &[i16]) -> Result<(), AnalyzerError> {
-        let samples: Vec<f32> = samples
-            .iter()
-            .map(|&sample| f32::from(sample) / f32::from(i16::MAX))
-            .collect();
+    fn feed(&mut self, samples: &[f32]) -> Result<(), AnalyzerError> {
         for chunk in samples.chunks(self.chunk_size) {
             self.ebur128.add_frames_f32(chunk)?;
         }

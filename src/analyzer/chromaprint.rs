@@ -17,7 +17,7 @@ use crate::config::Config;
 use base64::prelude::{Engine, BASE64_URL_SAFE_NO_PAD};
 
 use symphonia::core::audio::Channels;
-use symphonia::core::codecs::CodecParameters;
+use symphonia::core::formats::Track;
 
 use rusty_chromaprint::{Configuration, FingerprintCompressor, Fingerprinter};
 
@@ -56,12 +56,16 @@ const MAX_DURATION: usize = 120;
 impl Analyzer for ChromaprintFingerprintAnalyzer {
     type Result = ChromaprintFingerprintResult;
 
-    fn initialize(_config: &Config, codec_params: &CodecParameters) -> Result<Self, AnalyzerError> {
-        let sample_rate = codec_params
-            .sample_rate
-            .ok_or(AnalyzerError::MissingSampleRate)?;
-        let channels = codec_params
+    fn initialize(_config: &Config, track: &Track) -> Result<Self, AnalyzerError> {
+        let spec = track
+            .codec_params
+            .as_ref()
+            .and_then(|params| params.audio())
+            .ok_or(AnalyzerError::NoSupportedAudioTracks)?;
+        let sample_rate = spec.sample_rate.ok_or(AnalyzerError::MissingSampleRate)?;
+        let channels = spec
             .channels
+            .as_ref()
             .map(Channels::count)
             .and_then(|channel_count| u32::try_from(channel_count).ok())
             .ok_or(AnalyzerError::MissingAudioChannels)?;
@@ -80,8 +84,15 @@ impl Analyzer for ChromaprintFingerprintAnalyzer {
         Ok(analyzer)
     }
 
-    fn feed(&mut self, samples: &[i16]) -> Result<(), AnalyzerError> {
+    fn feed(&mut self, samples: &[f32]) -> Result<(), AnalyzerError> {
         let remaining = self.stream_size_max - self.stream_size;
+
+        #[allow(clippy::cast_possible_truncation)]
+        let samples: Vec<i16> = samples
+            .iter()
+            .map(|&sample| (sample * 32_768.0).trunc() as i16)
+            .collect();
+
         let chunk_size = samples.len().min(remaining);
         self.stream_size += chunk_size;
         self.fingerprinter.consume(&samples[..chunk_size]);
