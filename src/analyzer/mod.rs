@@ -347,7 +347,8 @@ pub fn analyze(
             Ok(Some(buffer)) => buffer,
             Ok(None) => break,
             Err(SymphoniaError::DecodeError(err)) => Err(SymphoniaError::DecodeError(err))?,
-            Err(_) => unimplemented!(),
+            Err(SymphoniaError::IoError(err)) => Err(err)?,
+            Err(err) => Err(err)?,
         };
 
         if sample_buf.is_none() {
