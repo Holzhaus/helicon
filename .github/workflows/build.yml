@@ -47,6 +47,17 @@ jobs:
             - name: Generate Documentation
               run: cargo doc --no-deps --locked --no-default-features --features "${CRATE_FEATURES}"
 
+    build-failure-alert:
+        needs: build
+        runs-on: ubuntu-latest
+        if: ${{ cancelled() || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'failure') }}
+        steps:
+            - name: Conditionally Fail Required Check
+              shell: bash
+              run: |
+                  echo "::error Some build job has failed!"
+                  exit 1
+
     publish:
         needs: build
         runs-on: ubuntu-latest
