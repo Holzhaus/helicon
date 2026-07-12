@@ -70,60 +70,282 @@ impl<T: ReleaseLike> Clone for ReleaseCandidateSelectionOption<'_, T> {
     }
 }
 
+use bitflags::bitflags;
+
+bitflags! {
+    #[derive(Clone, Copy, Debug)]
+    struct DisambiguationNeeds: u8 {
+        const RELEASE_YEAR = 1;
+        const MEDIA_TYPE = 1 << 1;
+        const COUNTRY = 1 << 2;
+        const RECORD_LABEL = 1 << 3;
+        const CATALOG_NUMBER = 1 << 4;
+        const BARCODE = 1 << 5;
+    }
+}
+
+/// Get a tuple of distinguishing information for a candidate, based on what needs to be shown.
+#[expect(clippy::type_complexity)]
+fn get_distinguishing_tuple<T: ReleaseLike>(
+    candidate: &ReleaseCandidate<T>,
+    needs: DisambiguationNeeds,
+) -> (
+    Option<Cow<'_, str>>,
+    Option<Cow<'_, str>>,
+    Option<Cow<'_, str>>,
+    Option<Cow<'_, str>>,
+    Option<Cow<'_, str>>,
+    Option<Cow<'_, str>>,
+) {
+    (
+        candidate
+            .release()
+            .release_year()
+            .filter(|_| needs.contains(DisambiguationNeeds::RELEASE_YEAR)),
+        candidate
+            .release()
+            .release_media_format()
+            .filter(|_| needs.contains(DisambiguationNeeds::MEDIA_TYPE)),
+        candidate
+            .release()
+            .release_country()
+            .filter(|_| needs.contains(DisambiguationNeeds::COUNTRY)),
+        candidate
+            .release()
+            .record_label()
+            .filter(|_| needs.contains(DisambiguationNeeds::RECORD_LABEL)),
+        candidate
+            .release()
+            .catalog_number()
+            .filter(|_| needs.contains(DisambiguationNeeds::CATALOG_NUMBER)),
+        candidate
+            .release()
+            .barcode()
+            .filter(|_| needs.contains(DisambiguationNeeds::BARCODE)),
+    )
+}
+
+/// Compute which fields need disambiguation for candidates with duplicate artist/title combinations.
+fn compute_disambiguation_needs<T: ReleaseLike>(
+    candidates: &ReleaseCandidateCollection<T>,
+) -> Vec<DisambiguationNeeds> {
+    use std::collections::HashMap;
+
+    let candidate_list: Vec<_> = candidates.iter().collect();
+    let mut result = vec![DisambiguationNeeds::empty(); candidate_list.len()];
+
+    // Group candidates by (artist, title)
+    #[expect(clippy::type_complexity)]
+    let mut grouped: HashMap<(Option<Cow<'_, str>>, Option<Cow<'_, str>>), Vec<usize>> =
+        HashMap::new();
+    for (idx, candidate) in candidate_list.iter().enumerate() {
+        let artist_title = (
+            candidate.release().release_artist(),
+            candidate.release().release_title(),
+        );
+        grouped.entry(artist_title).or_default().push(idx);
+    }
+
+    // For groups with duplicates, determine which fields need disambiguation
+    for indices in grouped.values() {
+        if indices.len() > 1 {
+            let mut needs = DisambiguationNeeds::empty();
+
+            // Try progressively more fields until all candidates are distinguishable
+            let fields_to_try = [
+                DisambiguationNeeds::MEDIA_TYPE,
+                DisambiguationNeeds::COUNTRY,
+                DisambiguationNeeds::RELEASE_YEAR,
+                DisambiguationNeeds::MEDIA_TYPE | DisambiguationNeeds::COUNTRY,
+                DisambiguationNeeds::MEDIA_TYPE | DisambiguationNeeds::RELEASE_YEAR,
+                DisambiguationNeeds::COUNTRY | DisambiguationNeeds::RELEASE_YEAR,
+                DisambiguationNeeds::MEDIA_TYPE
+                    | DisambiguationNeeds::COUNTRY
+                    | DisambiguationNeeds::RELEASE_YEAR,
+                DisambiguationNeeds::RECORD_LABEL,
+                DisambiguationNeeds::RECORD_LABEL | DisambiguationNeeds::MEDIA_TYPE,
+                DisambiguationNeeds::RECORD_LABEL | DisambiguationNeeds::CATALOG_NUMBER,
+                DisambiguationNeeds::RECORD_LABEL | DisambiguationNeeds::MEDIA_TYPE,
+                DisambiguationNeeds::RECORD_LABEL | DisambiguationNeeds::RELEASE_YEAR,
+                DisambiguationNeeds::BARCODE,
+                DisambiguationNeeds::all(),
+            ];
+
+            for test_needs in fields_to_try {
+                // Check if all candidates are distinguishable with these fields
+                let mut seen = std::collections::HashSet::new();
+                let mut all_unique = true;
+
+                for &idx in indices {
+                    let tuple = get_distinguishing_tuple(candidate_list[idx], test_needs);
+                    if !seen.insert(tuple) {
+                        all_unique = false;
+                        break;
+                    }
+                }
+
+                if all_unique {
+                    needs = test_needs;
+                    break;
+                }
+            }
+
+            if needs.is_empty() {
+                needs = DisambiguationNeeds::all();
+            }
+
+            for &idx in indices {
+                result[idx] = needs;
+            }
+        }
+    }
+
+    result
+}
+
 /// A styled version of `ReleaseCandidateSelectionOption` that is displayed to the user.
-struct StyledReleaseCandidateSelectionOption<'a, T: ReleaseLike>(
-    &'a Config,
-    ReleaseCandidateSelectionOption<'a, T>,
-);
+struct StyledReleaseCandidateSelectionOption<'a, T: ReleaseLike> {
+    /// Configuration settings (needed for custom styling)
+    config: &'a Config,
+    /// The actual selection option
+    option: ReleaseCandidateSelectionOption<'a, T>,
+    /// Which fields need to be shown to distinguish it from other candidates
+    disambiguation_needs: DisambiguationNeeds,
+}
 
 // Manual implementation of `Clone` to work around unnecessary trait bound `T: Clone`.
 impl<T: ReleaseLike> Clone for StyledReleaseCandidateSelectionOption<'_, T> {
     fn clone(&self) -> Self {
-        StyledReleaseCandidateSelectionOption(self.0, self.1.clone())
+        StyledReleaseCandidateSelectionOption {
+            config: self.config,
+            option: self.option.clone(),
+            disambiguation_needs: self.disambiguation_needs,
+        }
     }
 }
 
 impl<T: ReleaseLike> fmt::Display for StyledReleaseCandidateSelectionOption<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let ReleaseCandidateSelectionOption::Candidate(candidate) = &self.1 {
+        if let ReleaseCandidateSelectionOption::Candidate(candidate) = &self.option {
             let release_artist_and_title =
                 util::format_release_artist_and_title(candidate.release());
             let similarity_percentage = self
-                .0
+                .config
                 .user_interface
                 .candidate_details
                 .candidate_similarity_style
                 .apply(Cow::from(util::format_similarity(
-                    &candidate.distance(self.0),
+                    &candidate.distance(self.config),
                 )));
 
-            let disambiguation = [
-                candidate
-                    .release()
-                    .release_media_format()
-                    .map(|media_format| {
-                        let media_count = candidate.release().media().count();
-                        if media_count > 1 {
-                            Cow::from(format!("{media_count}x{media_format}"))
-                        } else {
-                            media_format
-                        }
-                    }),
-                candidate.release().release_year(),
-                candidate.release().release_country(),
-            ]
-            .into_iter()
-            .flatten()
-            .map(|disambig| {
-                self.0
-                    .user_interface
-                    .candidate_details
-                    .candidate_disambiguation_style
-                    .apply(disambig)
-            });
+            // Build disambiguation info, filtering based on what needs to be shown
+            let mut disambiguation_parts = Vec::new();
 
+            // Media format and count
+            if self
+                .disambiguation_needs
+                .contains(DisambiguationNeeds::MEDIA_TYPE)
+            {
+                if let Some(media_format) = candidate.release().release_media_format() {
+                    let media_count = candidate.release().media().count();
+                    let disambig = if media_count > 1 {
+                        Cow::from(format!("{media_count}x{media_format}"))
+                    } else {
+                        media_format
+                    };
+                    disambiguation_parts.push(
+                        self.config
+                            .user_interface
+                            .candidate_details
+                            .candidate_disambiguation_style
+                            .apply(disambig),
+                    );
+                }
+            }
+
+            // Release year
+            if self
+                .disambiguation_needs
+                .contains(DisambiguationNeeds::RELEASE_YEAR)
+            {
+                if let Some(year) = candidate.release().release_year() {
+                    disambiguation_parts.push(
+                        self.config
+                            .user_interface
+                            .candidate_details
+                            .candidate_disambiguation_style
+                            .apply(year),
+                    );
+                }
+            }
+
+            // Country
+            if self
+                .disambiguation_needs
+                .contains(DisambiguationNeeds::COUNTRY)
+            {
+                if let Some(country) = candidate.release().release_country() {
+                    disambiguation_parts.push(
+                        self.config
+                            .user_interface
+                            .candidate_details
+                            .candidate_disambiguation_style
+                            .apply(country),
+                    );
+                }
+            }
+
+            // Record RECORD_LABEL
+            if self
+                .disambiguation_needs
+                .contains(DisambiguationNeeds::RECORD_LABEL)
+            {
+                if let Some(record_label) = candidate.release().record_label() {
+                    disambiguation_parts.push(
+                        self.config
+                            .user_interface
+                            .candidate_details
+                            .candidate_disambiguation_style
+                            .apply(record_label),
+                    );
+                }
+            }
+
+            // Catalog Number
+            if self
+                .disambiguation_needs
+                .contains(DisambiguationNeeds::CATALOG_NUMBER)
+            {
+                if let Some(catalog_number) = candidate.release().catalog_number() {
+                    disambiguation_parts.push(
+                        self.config
+                            .user_interface
+                            .candidate_details
+                            .candidate_disambiguation_style
+                            .apply(catalog_number),
+                    );
+                }
+            }
+
+            // Barcode
+            if self
+                .disambiguation_needs
+                .contains(DisambiguationNeeds::BARCODE)
+            {
+                if let Some(barcode) = candidate.release().barcode() {
+                    disambiguation_parts.push(
+                        self.config
+                            .user_interface
+                            .candidate_details
+                            .candidate_disambiguation_style
+                            .apply(barcode),
+                    );
+                }
+            }
+
+            // Problems (always show)
             let problems = candidate.similarity().problems().map(|problem| {
-                self.0
+                self.config
                     .user_interface
                     .candidate_details
                     .candidate_problem_style
@@ -131,47 +353,48 @@ impl<T: ReleaseLike> fmt::Display for StyledReleaseCandidateSelectionOption<'_, 
             });
 
             let similarity = std::iter::once(similarity_percentage)
-                .chain(disambiguation)
+                .chain(disambiguation_parts)
                 .chain(problems)
                 .join(
                     &self
-                        .0
+                        .config
                         .user_interface
                         .candidate_details
                         .candidate_similarity_separator_style
                         .apply(", ")
                         .to_string(),
                 );
+
             write!(
                 f,
                 "{release_artist_and_title}{similarity_prefix}{similarity}{similarity_suffix}",
                 similarity_prefix = self
-                    .0
+                    .config
                     .user_interface
                     .candidate_details
                     .candidate_similarity_prefix_style
                     .apply(
                         &self
-                            .0
+                            .config
                             .user_interface
                             .candidate_details
                             .candidate_similarity_prefix
                     ),
                 similarity_suffix = self
-                    .0
+                    .config
                     .user_interface
                     .candidate_details
                     .candidate_similarity_suffix_style
                     .apply(
                         &self
-                            .0
+                            .config
                             .user_interface
                             .candidate_details
                             .candidate_similarity_suffix
                     ),
             )
         } else {
-            let text = match &self.1 {
+            let text = match &self.option {
                 ReleaseCandidateSelectionOption::EnterMusicBrainzId => "Enter MusicBrainz ID",
                 ReleaseCandidateSelectionOption::SkipItem => "Skip Item",
                 ReleaseCandidateSelectionOption::PrintTrackList => "Print Tracklist",
@@ -183,7 +406,7 @@ impl<T: ReleaseLike> fmt::Display for StyledReleaseCandidateSelectionOption<'_, 
             write!(
                 f,
                 "{}",
-                self.0
+                self.config
                     .user_interface
                     .candidate_details
                     .action_style
@@ -195,8 +418,16 @@ impl<T: ReleaseLike> fmt::Display for StyledReleaseCandidateSelectionOption<'_, 
 
 impl<'a, T: ReleaseLike> ReleaseCandidateSelectionOption<'a, T> {
     /// Style this `ReleaseCandidateSelectionOption` using the styles defined in the `Config`.
-    fn into_styled(self, config: &'a Config) -> StyledReleaseCandidateSelectionOption<'a, T> {
-        StyledReleaseCandidateSelectionOption(config, self)
+    fn into_styled(
+        self,
+        config: &'a Config,
+        disambiguation_needs: DisambiguationNeeds,
+    ) -> StyledReleaseCandidateSelectionOption<'a, T> {
+        StyledReleaseCandidateSelectionOption {
+            config,
+            option: self,
+            disambiguation_needs,
+        }
     }
 }
 
@@ -204,7 +435,7 @@ impl<'a, T: ReleaseLike> From<StyledReleaseCandidateSelectionOption<'a, T>>
     for ReleaseCandidateSelectionOption<'a, T>
 {
     fn from(value: StyledReleaseCandidateSelectionOption<'a, T>) -> Self {
-        value.1
+        value.option
     }
 }
 
@@ -231,12 +462,23 @@ pub fn select_candidate<'a, T: ReleaseLike>(
         ReleaseCandidateSelectionOption::SkipItem,
         ReleaseCandidateSelectionOption::Quit,
     ];
+
+    // Compute which fields need disambiguation
+    let disambiguation_needs = compute_disambiguation_needs(candidates);
+
     let options: Vec<StyledReleaseCandidateSelectionOption<'a, T>> = candidates
         .iter()
-        .map(ReleaseCandidateSelectionOption::Candidate)
-        .chain(additional_options)
-        .map(|option| option.into_styled(config))
+        .zip(disambiguation_needs.iter())
+        .map(|(candidate, &needs)| {
+            ReleaseCandidateSelectionOption::Candidate(candidate).into_styled(config, needs)
+        })
+        .chain(
+            additional_options
+                .into_iter()
+                .map(|option| option.into_styled(config, DisambiguationNeeds::empty())),
+        )
         .collect();
+
     loop {
         let prompt = match candidates.len() {
             0 | 1 => "Select release candidate:".to_string(),
