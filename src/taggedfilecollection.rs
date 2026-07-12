@@ -312,6 +312,29 @@ impl TaggedFileCollection {
 
         Ok(())
     }
+
+    /// Set permission for all tracks in this collection.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any of the underlying file system operations fail.
+    #[cfg(unix)]
+    pub fn set_permissions(&mut self, config: &Config) -> crate::Result<()> {
+        for track in &mut self
+            .media
+            .iter_mut()
+            .flat_map(|media| media.tracks.iter_mut())
+        {
+            util::set_file_permissions(
+                &track.path,
+                config.import.set_uid,
+                config.import.set_gid,
+                config.import.set_mode,
+            )?;
+        }
+
+        Ok(())
+    }
 }
 
 impl IntoIterator for TaggedFileCollection {

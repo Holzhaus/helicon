@@ -232,6 +232,11 @@ pub async fn run(config: &Config, cache: Option<&Cache>, args: Args) -> crate::R
             if let Err(err) = track_collection.write_tags() {
                 log::error!("Failed to write tags: {err}");
             }
+
+            #[cfg(unix)]
+            if let Err(err) = track_collection.set_permissions(&cloned_config) {
+                log::error!("Failed to set permissions: {err}");
+            }
         }
     });
 

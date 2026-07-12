@@ -49,6 +49,7 @@ num_cpus = "1.17.0"
 handlebars = "6.4.2"
 tempfile = "3.27.0"
 expanduser = "1.2.2"
+bitflags = "2.13.0"
 
 [dev-dependencies]
 paste = "1"
