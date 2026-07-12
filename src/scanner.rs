@@ -18,7 +18,7 @@ use crate::util::walk_dir;
 use crate::Cache;
 use crate::{Config, TaggedFile, TaggedFileCollection};
 use futures::FutureExt;
-use regex::Regex;
+use regex::RegexBuilder;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use tokio::runtime::{Builder, Runtime};
@@ -138,7 +138,10 @@ impl Drop for Scanner {
 /// Find track collections in the given path.
 fn find_track_paths(input_path: PathBuf) -> impl Iterator<Item = (PathBuf, Vec<TaggedFile>)> {
     let supported_extensions = HashSet::from(["mp3", "flac"]);
-    let disc_pattern = Regex::new(r"^(?:CD|Disc)\s*\d+$").unwrap();
+    let disc_pattern = RegexBuilder::new(r"^(?:CD|Disc)\s*\d+$")
+        .case_insensitive(true)
+        .build()
+        .unwrap();
 
     let mut grouped_tracks: HashMap<PathBuf, Vec<TaggedFile>> = HashMap::new();
 
