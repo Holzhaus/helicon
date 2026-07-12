@@ -12,11 +12,11 @@ use std::collections::BinaryHeap;
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
+use std::os::unix::{self, fs::PermissionsExt};
 use std::path::{Path, PathBuf};
 
 /// An iterator that recursively walks through a directory structure and yields a tuple `(path,
 /// dirs, files)` for each directory it visits.
-///
 /// This struct is created by [`walk_dir`]. See its documentation for more.
 pub struct DirWalk {
     /// Queued paths that will be visited next.
@@ -114,6 +114,51 @@ pub fn move_file<S: AsRef<Path>, D: AsRef<Path>>(source: S, destination: D) -> c
     // Then remove the source file.
     fs::remove_file(&source)?;
     log::info!("Removed file {}", source.as_ref().display());
+
+    Ok(())
+}
+
+///  Set file/directory owner and permissions.
+#[cfg(unix)]
+pub fn set_file_permissions<S: AsRef<Path>>(
+    source: S,
+    uid: Option<u32>,
+    gid: Option<u32>,
+    mode: Option<u32>,
+) -> crate::Result<()> {
+    let path = source.as_ref();
+
+    unix::fs::chown(path, uid, gid)?;
+    match (uid, gid) {
+        (Some(owner), Some(group)) => {
+            log::info!(
+                "Changed owner/group for {} to {owner}:{group}.",
+                path.display()
+            );
+        }
+        (Some(owner), None) => {
+            log::info!("Changed owner for {} to {owner}.", path.display());
+        }
+        (None, Some(group)) => {
+            log::info!("Changed group for {} to {group}.", path.display());
+        }
+        _ => (),
+    }
+
+    if let Some(new_mode) = mode {
+        let metadata = fs::metadata(path)?;
+        let permissions = metadata.permissions();
+        let old_mode = permissions.mode();
+
+        if permissions.mode() != new_mode {
+            let permissions = fs::Permissions::from_mode(new_mode);
+            fs::set_permissions(path, permissions)?; // ← Works on paths (files & directories)
+            log::info!(
+                "Permission for {} changed from {old_mode:o} to {new_mode:o}.",
+                path.display()
+            );
+        }
+    }
 
     Ok(())
 }

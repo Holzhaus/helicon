@@ -379,6 +379,20 @@ pub struct PathTemplateConfig {
     pub compilation_format: String,
 }
 
+/// The import configuration struct.
+#[cfg(unix)]
+#[expect(missing_copy_implementations)]
+#[expect(clippy::struct_field_names)]
+#[derive(Debug, Default, Clone, Deserialize, Serialize)]
+pub struct ImportConfig {
+    /// User ID to set.
+    pub set_uid: Option<u32>,
+    /// Group ID to set.
+    pub set_gid: Option<u32>,
+    /// File mode to set.
+    pub set_mode: Option<u32>,
+}
+
 /// The main configuration struct.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
@@ -392,6 +406,10 @@ pub struct Config {
     pub weights: DistanceWeights,
     /// UI configuration.
     pub user_interface: UiConfig,
+    /// Import configuration.
+    #[cfg(unix)]
+    #[serde(default)]
+    pub import: ImportConfig,
 }
 
 impl Default for Config {
