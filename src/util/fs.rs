@@ -118,7 +118,7 @@ pub fn move_file<S: AsRef<Path>, D: AsRef<Path>>(source: S, destination: D) -> c
     Ok(())
 }
 
-///  Set file owner.
+///  Set file/directory owner and permissions.
 #[cfg(unix)]
 pub fn set_file_permissions<S: AsRef<Path>>(
     source: S,
@@ -126,40 +126,36 @@ pub fn set_file_permissions<S: AsRef<Path>>(
     gid: Option<u32>,
     mode: Option<u32>,
 ) -> crate::Result<()> {
-    unix::fs::chown(&source, uid, gid)?;
+    let path = source.as_ref();
+
+    unix::fs::chown(path, uid, gid)?;
     match (uid, gid) {
         (Some(owner), Some(group)) => {
             log::info!(
                 "Changed owner/group for {} to {owner}:{group}.",
-                source.as_ref().display()
+                path.display()
             );
         }
         (Some(owner), None) => {
-            log::info!(
-                "Changed owner for {} to {owner}.",
-                source.as_ref().display()
-            );
+            log::info!("Changed owner for {} to {owner}.", path.display());
         }
         (None, Some(group)) => {
-            log::info!(
-                "Changed group for {} to {group}.",
-                source.as_ref().display()
-            );
+            log::info!("Changed group for {} to {group}.", path.display());
         }
         _ => (),
     }
 
     if let Some(new_mode) = mode {
-        let file = fs::File::open(&source)?;
-        let permissions = file.metadata()?.permissions();
+        let metadata = fs::metadata(path)?;
+        let permissions = metadata.permissions();
         let old_mode = permissions.mode();
 
         if permissions.mode() != new_mode {
             let permissions = fs::Permissions::from_mode(new_mode);
-            file.set_permissions(permissions)?;
+            fs::set_permissions(path, permissions)?; // ← Works on paths (files & directories)
             log::info!(
                 "Permission for {} changed from {old_mode:o} to {new_mode:o}.",
-                source.as_ref().display()
+                path.display()
             );
         }
     }
