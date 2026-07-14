@@ -19,6 +19,7 @@ use crate::util;
 use crate::Config;
 use crate::TaggedFile;
 use itertools::Itertools;
+use regex::{Regex, RegexBuilder};
 use std::borrow::Cow;
 use std::collections::HashMap;
 
@@ -115,6 +116,23 @@ fn find_most_common_tag_value<'a>(
     key: &'a TagKey,
 ) -> Option<MostCommonItem<Cow<'a, str>>> {
     MostCommonItem::find(tracks.filter_map(|tagged_file| tagged_file.first_tag_value(key)))
+}
+
+/// Strip disc suffix from the end of the `Cow` string.
+fn strip_disc_suffix<'a>(title: Cow<'a, str>, pattern: &Regex) -> Cow<'a, str> {
+    match pattern.find(&title) {
+        Some(m) => {
+            let start = m.start();
+            match title {
+                Cow::Borrowed(s) => Cow::Borrowed(&s[..start]),
+                Cow::Owned(mut s) => {
+                    s.truncate(start);
+                    Cow::Owned(s)
+                }
+            }
+        }
+        None => title,
+    }
 }
 
 /// A collection of tracks on the local disk.
@@ -342,7 +360,19 @@ impl FromIterator<TaggedFile> for TaggedFileCollection {
 
 impl ReleaseLike for TaggedFileCollection {
     fn release_title(&self) -> Option<Cow<'_, str>> {
-        self.find_consensual_tag_value(&TagKey::Album)
+        let disc_pattern = RegexBuilder::new(r"\s*[(\[-]\s*(?:CD|Disc)\s*\d+\s*[)\]]?\s*$")
+            .case_insensitive(true)
+            .build()
+            .unwrap();
+
+        MostCommonItem::find(
+            self.media
+                .iter()
+                .flat_map(|media| media.tracks.iter())
+                .filter_map(|tagged_file| tagged_file.first_tag_value(&TagKey::Album))
+                .map(|title| strip_disc_suffix(title, &disc_pattern)),
+        )
+        .and_then(MostCommonItem::into_concensus)
     }
 
     fn release_artist(&self) -> Option<Cow<'_, str>> {
