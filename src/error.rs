@@ -33,7 +33,7 @@ pub enum ErrorType {
     #[error("File has unknown file type")]
     UnknownFileType,
     /// A MusicBrainz API request failed.
-    #[error("API request failed")]
+    #[error("API request failed: {0}")]
     Request(#[from] musicbrainz_rs_nova::Error),
     /// A MusicBrainz API request failed.
     #[error("MusicBrainz lookup failed")]
