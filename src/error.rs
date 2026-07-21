@@ -46,6 +46,10 @@ pub enum ErrorType {
     #[cfg(feature = "flac")]
     #[error("Failed to read FLAC tag")]
     Flac(#[from] metaflac::Error),
+    /// Errors raised by the [`mp4ameta`] crate.
+    #[cfg(feature = "mp4")]
+    #[error("Failed to read MP4 tag")]
+    Mp4(#[from] mp4ameta::Error),
     /// An error from the user interface.
     #[error("Error encountered while showing UI: {0}")]
     InquireError(#[from] inquire::InquireError),

@@ -137,7 +137,8 @@ impl Drop for Scanner {
 
 /// Find track collections in the given path.
 fn find_track_paths(input_path: PathBuf) -> impl Iterator<Item = (PathBuf, Vec<TaggedFile>)> {
-    let supported_extensions = HashSet::from(["mp3", "flac"]);
+    let supported_extensions =
+        HashSet::from(["mp3", "flac", "m4a", "m4b", "m4p", "m4v", "m4r", "mp4"]);
     let disc_pattern = RegexBuilder::new(r"^(?:CD|Disc)\s*\d+$")
         .case_insensitive(true)
         .build()
