@@ -15,7 +15,6 @@ use crate::analyzer;
 use crate::musicbrainz::{MusicBrainzClient, MusicBrainzRelease};
 use crate::release_candidate::ReleaseCandidateCollection;
 use crate::util::walk_dir;
-use crate::Cache;
 use crate::{Config, TaggedFile, TaggedFileCollection};
 use futures::FutureExt;
 use regex::RegexBuilder;
@@ -55,7 +54,11 @@ pub struct Scanner {
 
 impl Scanner {
     /// Create a scanner for the given path.
-    pub fn scan(config: Config, cache: Option<Cache>, path: PathBuf) -> Scanner {
+    pub fn scan(
+        config: Config,
+        musicbrainz: MusicBrainzClient,
+        path: PathBuf,
+    ) -> Scanner {
         log::info!("Starting scan of {}", path.display());
 
         let (results_tx, results_rx) = tokio::sync::mpsc::channel(20);
@@ -77,7 +80,6 @@ impl Scanner {
             // First, search the file system to find track paths.
             for (path, tracks) in find_track_paths(path) {
                 let cloned_config = config.clone();
-                let cloned_config2 = config.clone();
 
                 // Some tracks were found, spawn individual tasks for analyzing the tracks in the
                 // threadpool. We keep track of the spawned task handles in a Vec, so that we
@@ -93,15 +95,13 @@ impl Scanner {
 
                 // When all handles are joined, make a collection out of it and search similar
                 // releases on MusicBrainz. The result is sent to the `results_tx` queue.
-                let cloned_cache = cache.clone();
+                let cloned_musicbrainz = musicbrainz.clone();
                 let results_tx = cloned_results_tx.clone();
                 let _matching_logic = pool_handle.spawn(async move {
-                    let musicbrainz =
-                        MusicBrainzClient::new(&cloned_config2, cloned_cache.as_ref());
                     if let Err(err) = results_tx
                         .send(
                             join_analysis_tasks_to_collection_and_find_release_candidates(
-                                &musicbrainz,
+                                &cloned_musicbrainz,
                                 path,
                                 handles,
                             )
@@ -213,7 +213,7 @@ fn analyze_tagged_file(config: &Config, tagged_file: TaggedFile) -> TaggedFile {
 /// Join all analysis tasks, then create a TaggedFieCollection from it. Then find similar
 /// candidates on MusicBrainz.
 async fn join_analysis_tasks_to_collection_and_find_release_candidates(
-    musicbrainz: &MusicBrainzClient<'_>,
+    musicbrainz: &MusicBrainzClient,
     path: PathBuf,
     handles: JoinSet<TaggedFile>,
 ) -> ScanResult {

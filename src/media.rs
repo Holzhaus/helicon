@@ -9,7 +9,7 @@
 //! Release media.
 
 use crate::track::TrackLike;
-use musicbrainz_rs_nova::entity::release::Media as MusicBrainzReleaseMedia;
+use musicbrainz_rs::entity::release::Media as MusicBrainzReleaseMedia;
 use std::borrow::Cow;
 
 /// Represent a generic release, independent of the underlying source.
