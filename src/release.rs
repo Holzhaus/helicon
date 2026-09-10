@@ -13,8 +13,8 @@ use crate::musicbrainz;
 use crate::track::TrackLike;
 use crate::Config;
 use itertools::Itertools;
-use musicbrainz_rs_nova::entity::release::{Release as MusicBrainzRelease, ReleaseStatus};
-use musicbrainz_rs_nova::entity::release_group::{
+use musicbrainz_rs::entity::release::{Release as MusicBrainzRelease, ReleaseStatus};
+use musicbrainz_rs::entity::release_group::{
     ReleaseGroupPrimaryType, ReleaseGroupSecondaryType,
 };
 use std::borrow::Cow;
@@ -272,13 +272,16 @@ impl ReleaseLike for MusicBrainzRelease {
 
     fn release_date(&self) -> Option<Cow<'_, str>> {
         self.date
-            .map(|date| date.format("%Y-%m-%d").to_string())
+            .as_ref()
+            .map(ToString::to_string)
             .map(Cow::from)
     }
 
     fn release_year(&self) -> Option<Cow<'_, str>> {
         self.date
-            .map(|date| date.format("%Y").to_string())
+            .as_ref()
+            .and_then(musicbrainz_rs::entity::date_string::DateString::year)
+            .map(|year| year.to_string())
             .map(Cow::from)
     }
 

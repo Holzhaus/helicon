@@ -15,6 +15,7 @@ mod import;
 mod ui;
 
 use crate::{Cache, Config, PKG_NAME, PKG_VERSION, USER_AGENT};
+use crate::musicbrainz::MusicBrainzClient;
 use clap::{Parser, Subcommand};
 use log::LevelFilter;
 use simplelog::{ConfigBuilder as LogConfigBuilder, WriteLogger};
@@ -136,10 +137,10 @@ pub async fn main() -> crate::Result<()> {
     //
     // See this for details:
     // - <https://musicbrainz.org/doc/MusicBrainz_API#Application_rate_limiting_and_identification>
-    musicbrainz_rs_nova::config::set_user_agent(USER_AGENT);
+    let musicbrainz = MusicBrainzClient::new(&config, Some(&cache), USER_AGENT);
 
     match args.command {
-        Commands::Import(cmd_args) => import::run(&config, Some(&cache), cmd_args).await,
+        Commands::Import(cmd_args) => import::run(&config, &musicbrainz, cmd_args).await,
         Commands::Config(cmd_args) => config::run(&config, Some(&cache), cmd_args),
         Commands::Cache(cmd_args) => cache::run(&config, Some(&cache), cmd_args),
         Commands::Analyze(cmd_args) => analyze::run(&config, Some(&cache), cmd_args),

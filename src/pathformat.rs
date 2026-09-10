@@ -192,7 +192,7 @@ mod tests {
     use crate::Config;
     use serde_json::json;
 
-    use musicbrainz_rs_nova::entity::release::Release as MusicBrainzRelease;
+    use musicbrainz_rs::entity::release::Release as MusicBrainzRelease;
 
     const MUSICBRAINZ_RELEASE_JSON: &str = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

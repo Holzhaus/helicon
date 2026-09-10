@@ -34,7 +34,7 @@ pub enum ErrorType {
     UnknownFileType,
     /// A MusicBrainz API request failed.
     #[error("API request failed: {0}")]
-    Request(#[from] musicbrainz_rs_nova::Error),
+    Request(#[from] Box<musicbrainz_rs::ApiEndpointError>),
     /// A MusicBrainz API request failed.
     #[error("MusicBrainz lookup failed")]
     MusicBrainzLookupFailed(&'static str),
@@ -55,6 +55,12 @@ pub enum ErrorType {
     /// An error occurred while formatting a template string.
     #[error("Template formatting failed: {0}")]
     TemplateFormattingFailed(#[from] handlebars::RenderError),
+}
+
+impl From<musicbrainz_rs::ApiEndpointError> for ErrorType {
+    fn from(err: musicbrainz_rs::ApiEndpointError) -> Self {
+        Self::Request(Box::new(err))
+    }
 }
 
 /// Convenience type.
