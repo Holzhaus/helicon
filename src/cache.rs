@@ -9,7 +9,7 @@
 //! Caching for MusicBrainz API queries.
 
 use chrono::{DateTime, Utc};
-use musicbrainz_rs_nova::entity::{
+use musicbrainz_rs::entity::{
     release::Release as MusicBrainzRelease, release_group::ReleaseGroup as MusicBrainzReleaseGroup,
     search::SearchResult as MusicBrainzSearchResult,
 };

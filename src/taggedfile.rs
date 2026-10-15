@@ -694,7 +694,7 @@ impl AnalyzedTrackMetadata for TaggedFileAnalyzedMetadata<'_> {
 mod tests {
     use super::*;
     use crate::TaggedFileCollection;
-    use musicbrainz_rs_nova::entity::release::{
+    use musicbrainz_rs::entity::release::{
         Release as MusicBrainzRelease, Track as MusicBrainzTrack,
     };
 
