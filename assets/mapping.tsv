@@ -66,8 +66,8 @@ Producer	Producer	producer	TIPL:producer (ID3v2.4) IPLS:producer (ID3v2.3)	PRODU
 Rating	Rating	_rating	POPM	RATING:user@email	n/a	n/a	WM/SharedUserRating	n/a
 Record Label	RecordLabel	label	TPUB	LABEL	Label	----:com.apple.iTunes:LABEL	WM/Publisher	n/a
 Release Country	ReleaseCountry	releasecountry	TXXX:MusicBrainz Album Release Country	RELEASECOUNTRY	RELEASECOUNTRY	----:com.apple.iTunes:MusicBrainz Album Release Country	MusicBrainz/Album Release Country	ICNT
-Release Date	ReleaseDate	date	TDRC (ID3v2.4) TDAT (ID3v2.3)	DATE	n/a	n/a	n/a	ICRD
-Release Year	ReleaseYear	n/a	TYER (ID3v2.3)	n/a	Year	n/a	WM/Year	n/a
+Release Date	ReleaseDate	date	TDRC (ID3v2.4) TYER + TDAT (ID3v2.3)	DATE	Year	©day	WM/Year	ICRD
+Release Year	ReleaseYear	n/a	TYER (ID3v2.3)	n/a	n/a	n/a	n/a	n/a
 Release Status	ReleaseStatus	releasestatus	TXXX:MusicBrainz Album Status	RELEASESTATUS	MUSICBRAINZ_ALBUMSTATUS	----:com.apple.iTunes:MusicBrainz Album Status	MusicBrainz/Album Status	n/a
 Release Type	ReleaseType	releasetype	TXXX:MusicBrainz Album Type	RELEASETYPE	MUSICBRAINZ_ALBUMTYPE	----:com.apple.iTunes:MusicBrainz Album Type	MusicBrainz/Album Type	n/a
 Remixer	Remixer	remixer	TPE4	REMIXER	MixArtist	----:com.apple.iTunes:REMIXER	WM/ModifiedBy	n/a
@@ -91,3 +91,7 @@ Track Title Sort Order	TrackTitleSortOrder	titlesort	TSOT	TITLESORT	TITLESORT	so
 Website (official artist website)	ArtistWebsite	website	WOAR	WEBSITE	Weblink	n/a	WM/AuthorURL (Picard>=1.3.1)	n/a
 Work Title	WorkTitle	work (Picard>=1.3)	TXXX:WORK TIT1	WORK	WORK	©wrk (Picard>=2.1)	WM/Work	n/a
 Writer	Writer	writer	TXXX:Writer (Picard>=1.3)	WRITER	Writer	n/a	n/a	IWRI
+Album Artists	AlbumArtists	albumartists	TXXX:ALBUMARTISTS	ALBUMARTISTS	ALBUMARTISTS	----:com.apple.iTunes:ALBUMARTISTS	WM/ALBUMARTISTS	n/a
+iTunes CDDB 1	ItunesCddb1	itunes_cddb_1	iTunes_CDDB_1	n/a	n/a	----:com.apple.iTunes:iTunes_CDDB_1	n/a	n/a
+MusicBrainz Composer ID	MusicBrainzComposerId	musicbrainz_composerid	TXXX:MusicBrainz Composer Id	MUSICBRAINZ_COMPOSERID	MUSICBRAINZ_COMPOSERID	----:com.apple.iTunes:MusicBrainz Composer Id	MusicBrainz/Composer Id	n/a
+Synced Lyrics	SyncedLyrics	syncedlyrics:language:description	SYLT:description	n/a	n/a	n/a	WM/Lyrics_Synchronised	n/a
