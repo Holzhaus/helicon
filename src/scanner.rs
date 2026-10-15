@@ -14,12 +14,13 @@
 use crate::analyzer;
 use crate::musicbrainz::{MusicBrainzClient, MusicBrainzRelease};
 use crate::release_candidate::ReleaseCandidateCollection;
+use crate::tag::is_supported_extension;
 use crate::util::walk_dir;
 use crate::Cache;
 use crate::{Config, TaggedFile, TaggedFileCollection};
 use futures::FutureExt;
 use regex::RegexBuilder;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use tokio::runtime::{Builder, Runtime};
 use tokio::sync::mpsc::Receiver;
@@ -137,8 +138,6 @@ impl Drop for Scanner {
 
 /// Find track collections in the given path.
 fn find_track_paths(input_path: PathBuf) -> impl Iterator<Item = (PathBuf, Vec<TaggedFile>)> {
-    let supported_extensions =
-        HashSet::from(["mp3", "flac", "m4a", "m4b", "m4p", "m4v", "m4r", "mp4"]);
     let disc_pattern = RegexBuilder::new(r"^(?:CD|Disc)\s*\d+$")
         .case_insensitive(true)
         .build()
@@ -153,13 +152,8 @@ fn find_track_paths(input_path: PathBuf) -> impl Iterator<Item = (PathBuf, Vec<T
                 .iter()
                 .filter(|path| {
                     path.extension()
-                        .map(std::ffi::OsStr::to_ascii_lowercase)
-                        .and_then(|extension| {
-                            extension
-                                .to_str()
-                                .map(|extension| supported_extensions.contains(extension))
-                        })
-                        .unwrap_or(false)
+                        .and_then(std::ffi::OsStr::to_str)
+                        .is_some_and(is_supported_extension)
                 })
                 .filter_map(|path| match TaggedFile::read_from_path(path) {
                     Ok(file) => Some(file),
