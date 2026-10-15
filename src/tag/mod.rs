@@ -15,6 +15,8 @@ use std::path::Path;
 pub mod flac;
 #[cfg(feature = "id3")]
 pub mod id3;
+#[cfg(feature = "mp4")]
+pub mod mp4;
 
 /// A tag key describes the kind of information in a generic, format-independent way.
 #[derive(Debug, Clone, PartialEq)]
@@ -253,6 +255,9 @@ pub enum TagType {
     /// Vorbis tag from a FLAC file
     #[cfg(feature = "flac")]
     Flac,
+    /// MP4/M4A tag
+    #[cfg(feature = "mp4")]
+    MP4,
 }
 
 /// A tag tag can be used for reading.
@@ -314,6 +319,13 @@ pub fn read_tags_from_path(path: impl AsRef<Path>) -> crate::Result<Vec<Box<dyn 
                         .map(Box::new)
                         .map(|tag| Box::<dyn Tag>::from(tag))
                         .map(|tag| vec![tag]),
+                    #[cfg(feature = "mp4")]
+                    "m4a" | "m4b" | "m4p" | "m4v" | "m4r" | "mp4" => {
+                        mp4::Mp4Tag::read_from_path(&path)
+                            .map(Box::new)
+                            .map(|tag| Box::<dyn Tag>::from(tag))
+                            .map(|tag| vec![tag])
+                    }
                     #[cfg(feature = "flac")]
                     "flac" => flac::FlacTag::read_from_path(&path)
                         .map(Box::new)

@@ -21,6 +21,7 @@ musicbrainz_rs_nova = { version = "0", features = ["async"] }
 tokio = { version = "1", features = ["full"] }
 id3 = { version = "1", optional = true }
 metaflac = { version = "0", optional = true }
+mp4ameta = { version = "0.13.0", optional = true }
 futures = { version = "0", features = ["executor", "thread-pool"] }
 hungarian = "1"
 chrono = { version = "0", features = [] }
@@ -55,7 +56,8 @@ bitflags = "2.13.2"
 paste = "1"
 
 [features]
-default = ["flac", "id3"]
+default = ["flac", "id3", "mp4"]
 dev = []
 flac = ["dep:metaflac"]
 id3 = ["dep:id3"]
+mp4 = ["dep:mp4ameta"]
