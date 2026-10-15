@@ -23,6 +23,7 @@
 
 use crate::tag::{Tag, TagKey, TagType};
 use crate::track::InvolvedPerson;
+use crate::util::parse_year_from_str;
 use mp4ameta::{
     ident::{self, DataIdent},
     Data, Fourcc, Tag as Mp4TagData,
@@ -174,7 +175,8 @@ impl Mp4Tag {
             TagKey::Rating => None,
             TagKey::RecordLabel => freeform("LABEL"),
             TagKey::ReleaseCountry => freeform("MusicBrainz Album Release Country"),
-            TagKey::ReleaseDate => None,
+            TagKey::ReleaseDate => text(ident::YEAR),
+            // Derived from `ReleaseDate` in `get()`.
             TagKey::ReleaseYear => None,
             TagKey::ReleaseStatus => freeform("MusicBrainz Album Status"),
             TagKey::ReleaseType => freeform("MusicBrainz Album Type"),
@@ -208,6 +210,12 @@ impl Tag for Mp4Tag {
     }
 
     fn get<'a>(&'a self, key: &'a TagKey) -> Option<Cow<'a, str>> {
+        if matches!(key, TagKey::ReleaseYear) {
+            return self
+                .get(&TagKey::ReleaseDate)
+                .and_then(|value| parse_year_from_str(&value).map(Cow::from));
+        }
+
         match Self::tag_key_to_item(key)? {
             TagItem::Text(ident) => self.data.strings_of(&ident).next().map(Cow::from),
             TagItem::Bool(fourcc) => {
@@ -444,6 +452,7 @@ mod tests {
     add_tests!(&TagKey::ReleaseStatus, releasestatus);
     add_tests!(&TagKey::ReleaseType, releasetype);
     add_tests!(&TagKey::Remixer, remixer);
+    add_tests!(&TagKey::ReleaseDate, releasedate);
     add_tests!(&TagKey::ReplayGainAlbumGain, replaygainalbumgain);
     add_tests!(&TagKey::ReplayGainAlbumPeak, replaygainalbumpeak);
     add_tests!(&TagKey::ReplayGainAlbumRange, replaygainalbumrange);
@@ -520,8 +529,18 @@ mod tests {
     );
 
     #[test]
+    fn test_releaseyear_derived_from_releasedate() {
+        let mut tag = Mp4Tag::new();
+        assert!(tag.get(&TagKey::ReleaseYear).is_none());
+        tag.set(&TagKey::ReleaseDate, Cow::from("1958-01-02"));
+        assert_eq!(tag.get(&TagKey::ReleaseYear).as_deref(), Some("1958"));
+    }
+
+    #[test]
     fn test_read_picard_file() {
         let tag = Mp4Tag::read_from_path(PICARD_M4A).unwrap();
+        assert_eq!(tag.get(&TagKey::ReleaseDate).as_deref(), Some("1958"));
+        assert_eq!(tag.get(&TagKey::ReleaseYear).as_deref(), Some("1958"));
         assert_eq!(tag.tag_type(), TagType::MP4);
         assert_eq!(
             tag.get(&TagKey::TrackTitle).as_deref(),
@@ -565,6 +584,7 @@ mod tests {
         tag.set(&TagKey::TotalDiscs, Cow::from("4"));
         tag.set(&TagKey::Bpm, Cow::from("128"));
         tag.set(&TagKey::Compilation, Cow::from("1"));
+        tag.set(&TagKey::ReleaseDate, Cow::from("2001-02-03"));
         tag.write(file.path()).unwrap();
 
         let mut tag = Mp4Tag::read_from_path(file.path()).unwrap();
@@ -583,6 +603,8 @@ mod tests {
         assert_eq!(tag.get(&TagKey::TotalDiscs).as_deref(), Some("4"));
         assert_eq!(tag.get(&TagKey::Bpm).as_deref(), Some("128"));
         assert_eq!(tag.get(&TagKey::Compilation).as_deref(), Some("1"));
+        assert_eq!(tag.get(&TagKey::ReleaseDate).as_deref(), Some("2001-02-03"));
+        assert_eq!(tag.get(&TagKey::ReleaseYear).as_deref(), Some("2001"));
 
         tag.clear(&TagKey::TrackTitle);
         tag.clear(&TagKey::MusicBrainzReleaseId);
