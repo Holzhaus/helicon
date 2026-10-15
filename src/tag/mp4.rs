@@ -509,4 +509,92 @@ mod tests {
         tag.set(&TagKey::Compilation, Cow::from("1"));
         assert_eq!(tag.get(&TagKey::Compilation).as_deref(), Some("1"));
     }
+
+    const PICARD_M4A: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/data/media/picard-2.12.3/track.m4a"
+    );
+    const UNTAGGED_M4A: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/data/media/untagged/track.m4a"
+    );
+
+    #[test]
+    fn test_read_picard_file() {
+        let tag = Mp4Tag::read_from_path(PICARD_M4A).unwrap();
+        assert_eq!(tag.tag_type(), TagType::MP4);
+        assert_eq!(
+            tag.get(&TagKey::TrackTitle).as_deref(),
+            Some("But Not for Me")
+        );
+        assert_eq!(
+            tag.get(&TagKey::Artist).as_deref(),
+            Some("The Ahmad Jamal Trio")
+        );
+        assert_eq!(tag.get(&TagKey::Genre).as_deref(), Some("Jazz"));
+        assert_eq!(tag.get(&TagKey::TrackNumber).as_deref(), Some("1"));
+        assert_eq!(tag.get(&TagKey::TotalTracks).as_deref(), Some("8"));
+        assert_eq!(tag.get(&TagKey::DiscNumber).as_deref(), Some("1"));
+        assert_eq!(tag.get(&TagKey::TotalDiscs).as_deref(), Some("1"));
+        assert_eq!(tag.get(&TagKey::RecordLabel).as_deref(), Some("Argo"));
+        assert_eq!(
+            tag.get(&TagKey::MusicBrainzReleaseId).as_deref(),
+            Some("0008f765-032b-46cd-ab69-2220edab1837")
+        );
+        assert_eq!(
+            tag.get(&TagKey::ComposerSortOrder).as_deref(),
+            Some("Gershwin, George")
+        );
+    }
+
+    #[test]
+    fn test_write_read_roundtrip() {
+        let file = tempfile::Builder::new().suffix(".m4a").tempfile().unwrap();
+        let _ = std::fs::copy(UNTAGGED_M4A, file.path()).unwrap();
+
+        let mut tag = Mp4Tag::read_from_path(file.path()).unwrap();
+        tag.set(&TagKey::TrackTitle, Cow::from("Roundtrip Title"));
+        tag.set(&TagKey::MusicBrainzReleaseId, Cow::from("some-release-id"));
+        tag.set_multiple(
+            &TagKey::Artist,
+            &[Cow::from("Artist A"), Cow::from("Artist B")],
+        );
+        tag.set(&TagKey::TrackNumber, Cow::from("3"));
+        tag.set(&TagKey::TotalTracks, Cow::from("12"));
+        tag.set(&TagKey::DiscNumber, Cow::from("2"));
+        tag.set(&TagKey::TotalDiscs, Cow::from("4"));
+        tag.set(&TagKey::Bpm, Cow::from("128"));
+        tag.set(&TagKey::Compilation, Cow::from("1"));
+        tag.write(file.path()).unwrap();
+
+        let mut tag = Mp4Tag::read_from_path(file.path()).unwrap();
+        assert_eq!(
+            tag.get(&TagKey::TrackTitle).as_deref(),
+            Some("Roundtrip Title")
+        );
+        assert_eq!(
+            tag.get(&TagKey::MusicBrainzReleaseId).as_deref(),
+            Some("some-release-id")
+        );
+        assert_eq!(tag.get(&TagKey::Artist).as_deref(), Some("Artist A"));
+        assert_eq!(tag.get(&TagKey::TrackNumber).as_deref(), Some("3"));
+        assert_eq!(tag.get(&TagKey::TotalTracks).as_deref(), Some("12"));
+        assert_eq!(tag.get(&TagKey::DiscNumber).as_deref(), Some("2"));
+        assert_eq!(tag.get(&TagKey::TotalDiscs).as_deref(), Some("4"));
+        assert_eq!(tag.get(&TagKey::Bpm).as_deref(), Some("128"));
+        assert_eq!(tag.get(&TagKey::Compilation).as_deref(), Some("1"));
+
+        tag.clear(&TagKey::TrackTitle);
+        tag.clear(&TagKey::MusicBrainzReleaseId);
+        tag.clear(&TagKey::TotalTracks);
+        tag.clear(&TagKey::Compilation);
+        tag.write(file.path()).unwrap();
+
+        let tag = Mp4Tag::read_from_path(file.path()).unwrap();
+        assert!(tag.get(&TagKey::TrackTitle).is_none());
+        assert!(tag.get(&TagKey::MusicBrainzReleaseId).is_none());
+        assert!(tag.get(&TagKey::TotalTracks).is_none());
+        assert_eq!(tag.get(&TagKey::TrackNumber).as_deref(), Some("3"));
+        assert_eq!(tag.get(&TagKey::Compilation).as_deref(), Some("0"));
+    }
 }
