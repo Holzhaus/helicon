@@ -14,6 +14,9 @@ use crate::util::parse_year_from_str;
 use std::borrow::Cow;
 use std::path::Path;
 
+/// Lowercase file extensions of the files that contain FLAC tags.
+pub const EXTENSIONS: &[&str] = &["flac"];
+
 /// FLAC tag.
 pub struct FlacTag {
     /// The underlying tag data.
