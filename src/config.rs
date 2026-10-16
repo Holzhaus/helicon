@@ -330,6 +330,8 @@ pub enum AnalyzerType {
     ChromaprintFingerprint,
     /// EBU R 128 Loudness Analyzer
     EbuR128,
+    /// SoundTouch BPM Analyzer (ignored if the `soundtouch` feature is disabled).
+    SoundTouchBpm,
 }
 
 /// The path configuration struct.

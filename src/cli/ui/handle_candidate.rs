@@ -505,6 +505,22 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                         );
                     }
                 }
+
+                // Print the BPM (if available/different)
+                if let Some(bpm) = lhs_track.analyzed_metadata().bpm() {
+                    if lhs_track.bpm().is_none_or(|l| l != bpm) {
+                        print_extra_metadata(
+                            lhs_track.bpm(),
+                            Some(bpm),
+                            "<unknown bpm>",
+                            " (bpm)",
+                            candidate_details_config,
+                            max_width,
+                            candidate_details_config.tracklist_extra_line_limit,
+                        );
+                    }
+                }
+
                 if let Some(path) = lhs_track.track_path() {
                     let old_path = path;
 
