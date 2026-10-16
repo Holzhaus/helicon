@@ -50,17 +50,16 @@ num_cpus = "1.17.0"
 handlebars = "6.4.4"
 tempfile = "3.27.0"
 expanduser = "1.2.2"
-soundtouch = { version = "0.5.1", default-features = false, optional = true }
+soundtouch = { version = "0.5.1", default-features = false, features = ["bundled"], optional = true }
 bitflags = "2.13.2"
 
 [dev-dependencies]
 paste = "1"
 
 [features]
-default = ["flac", "id3", "mp4", "soundtouch", "soundtouch-bundled"]
+default = ["flac", "id3", "mp4", "soundtouch"]
 dev = []
 flac = ["dep:metaflac"]
 id3 = ["dep:id3"]
 mp4 = ["dep:mp4ameta"]
 soundtouch = ["dep:soundtouch"]
-soundtouch-bundled = ["soundtouch/bundled"]
