@@ -8,6 +8,7 @@
 
 //! Cover art support.
 
+use crate::config::CoverArtResolution;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -33,6 +34,15 @@ impl ImageFormat {
             Some(Self::Png)
         } else {
             None
+        }
+    }
+
+    /// Short human-readable name of the image format.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Jpeg => "JPG",
+            Self::Png => "PNG",
         }
     }
 
@@ -88,10 +98,123 @@ impl CoverArt {
         self.format.mime_type()
     }
 
+    /// A short description, e.g. `Front Cover (JPG, 500px, 32KiB)`.
+    #[must_use]
+    pub fn description(&self, resolution: CoverArtResolution) -> String {
+        format!(
+            "Front Cover ({}, {}, {})",
+            self.format.name(),
+            resolution.label(),
+            format_size(self.data.len())
+        )
+    }
+
     /// The raw image data.
     #[must_use]
     pub fn data(&self) -> &[u8] {
         &self.data
+    }
+}
+
+/// Read the pixel dimensions `(width, height)` from the header of a PNG or JPEG image.
+#[must_use]
+pub fn image_dimensions(data: &[u8]) -> Option<(u32, u32)> {
+    match ImageFormat::sniff(data)? {
+        ImageFormat::Png => {
+            // 8 byte signature, 4 byte chunk length, "IHDR", then width and height.
+            let ihdr = data.get(12..24)?;
+            if &ihdr[..4] != b"IHDR" {
+                return None;
+            }
+            let width = u32::from_be_bytes(ihdr[4..8].try_into().ok()?);
+            let height = u32::from_be_bytes(ihdr[8..12].try_into().ok()?);
+            Some((width, height))
+        }
+        ImageFormat::Jpeg => {
+            let mut pos = 2;
+            loop {
+                if *data.get(pos)? != 0xFF {
+                    return None;
+                }
+                let marker = *data.get(pos + 1)?;
+                match marker {
+                    0xFF => pos += 1,
+                    // Markers without a length field.
+                    0x01 | 0xD0..=0xD7 => pos += 2,
+                    // Start of scan or end of image before any frame header.
+                    0xD8..=0xDA => return None,
+                    // Start of frame (excluding DHT, JPG and DAC markers).
+                    0xC0..=0xCF if !matches!(marker, 0xC4 | 0xC8 | 0xCC) => {
+                        let segment = data.get(pos + 4..pos + 9)?;
+                        let height = u32::from(u16::from_be_bytes([segment[1], segment[2]]));
+                        let width = u32::from(u16::from_be_bytes([segment[3], segment[4]]));
+                        return Some((width, height));
+                    }
+                    _ => {
+                        let length = data.get(pos + 2..pos + 4)?;
+                        pos += 2 + usize::from(u16::from_be_bytes([length[0], length[1]]));
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Information about a cover image that is already embedded in a file.
+///
+/// The image might be in a format that cannot be embedded by us, so the details are optional.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CoverInfo {
+    /// Detected image format.
+    pub format: Option<ImageFormat>,
+    /// Pixel dimensions `(width, height)`.
+    pub dimensions: Option<(u32, u32)>,
+    /// Size of the image data in bytes.
+    pub size: usize,
+}
+
+impl CoverInfo {
+    /// Gather information about the given image data.
+    #[must_use]
+    pub fn from_data(data: &[u8]) -> Self {
+        Self {
+            format: ImageFormat::sniff(data),
+            dimensions: image_dimensions(data),
+            size: data.len(),
+        }
+    }
+
+    /// A short description, e.g. `Front Cover (JPG, 500x500px, 32KiB)`.
+    #[must_use]
+    pub fn description(&self) -> String {
+        let details = [
+            self.format.map(|format| format.name().to_owned()),
+            self.dimensions
+                .map(|(width, height)| format!("{width}x{height}px")),
+            Some(format_size(self.size)),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>()
+        .join(", ");
+        format!("Front Cover ({details})")
+    }
+}
+
+/// Format a byte count in a short human-readable form (e.g. `32KiB`).
+#[must_use]
+pub fn format_size(bytes: usize) -> String {
+    const KIB: usize = 1024;
+    const MIB: usize = 1024 * KIB;
+    if bytes < KIB {
+        format!("{bytes}B")
+    } else if bytes < MIB {
+        format!("{}KiB", bytes.div_ceil(KIB))
+    } else {
+        // Precision loss is irrelevant for a display value.
+        #[allow(clippy::cast_precision_loss)]
+        let mebibytes = bytes as f64 / MIB as f64;
+        format!("{mebibytes:.1}MiB")
     }
 }
 
@@ -223,9 +346,91 @@ mod tests {
     }
 
     #[test]
+    fn test_format_size() {
+        assert_eq!(format_size(0), "0B");
+        assert_eq!(format_size(1023), "1023B");
+        assert_eq!(format_size(1024), "1KiB");
+        assert_eq!(format_size(1025), "2KiB");
+        assert_eq!(format_size(32 * 1024), "32KiB");
+        assert_eq!(format_size(1024 * 1024 - 1), "1024KiB");
+        assert_eq!(format_size(1024 * 1024), "1.0MiB");
+        assert_eq!(format_size(5 * 1024 * 1024 / 2), "2.5MiB");
+    }
+
+    #[test]
+    fn test_description() {
+        assert_eq!(
+            jpeg_cover().description(CoverArtResolution::Res500),
+            "Front Cover (JPG, 500px, 8B)"
+        );
+        assert_eq!(
+            png_cover().description(CoverArtResolution::Original),
+            "Front Cover (PNG, original, 11B)"
+        );
+    }
+
+    /// Build a PNG header with the given dimensions.
+    fn png_header(width: u32, height: u32) -> Vec<u8> {
+        let mut data = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13];
+        data.extend_from_slice(b"IHDR");
+        data.extend_from_slice(&width.to_be_bytes());
+        data.extend_from_slice(&height.to_be_bytes());
+        data
+    }
+
+    /// Build a JPEG with an APP0 segment followed by a SOF0 segment.
+    fn jpeg_header(width: u16, height: u16) -> Vec<u8> {
+        let mut data = vec![0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x04, 0x00, 0x00];
+        data.extend_from_slice(&[0xFF, 0xC0, 0x00, 0x0B, 8]);
+        data.extend_from_slice(&height.to_be_bytes());
+        data.extend_from_slice(&width.to_be_bytes());
+        data.extend_from_slice(&[1, 1, 0x11, 0]);
+        data
+    }
+
+    #[test]
+    fn test_png_dimensions() {
+        assert_eq!(image_dimensions(&png_header(500, 400)), Some((500, 400)));
+    }
+
+    #[test]
+    fn test_jpeg_dimensions() {
+        assert_eq!(image_dimensions(&jpeg_header(1200, 900)), Some((1200, 900)));
+    }
+
+    #[test]
+    fn test_dimensions_of_truncated_or_unknown_data() {
+        assert_eq!(image_dimensions(&[]), None);
+        assert_eq!(image_dimensions(b"GIF89a"), None);
+        assert_eq!(image_dimensions(&png_header(1, 1)[..16]), None);
+        assert_eq!(image_dimensions(&jpeg_header(1, 1)[..12]), None);
+        assert_eq!(image_dimensions(&jpeg_cover().data()[..4]), None);
+    }
+
+    #[test]
+    fn test_cover_info_description() {
+        let mut data = jpeg_header(500, 500);
+        data.resize(32 * 1024, 0);
+        assert_eq!(
+            CoverInfo::from_data(&data).description(),
+            "Front Cover (JPG, 500x500px, 32KiB)"
+        );
+        assert_eq!(
+            CoverInfo::from_data(&png_header(250, 250)).description(),
+            "Front Cover (PNG, 250x250px, 24B)"
+        );
+        assert_eq!(
+            CoverInfo::from_data(b"GIF89a").description(),
+            "Front Cover (6B)"
+        );
+    }
+
+    #[test]
     fn test_mime_types() {
         assert_eq!(ImageFormat::Jpeg.mime_type(), "image/jpeg");
         assert_eq!(ImageFormat::Png.mime_type(), "image/png");
+        assert_eq!(ImageFormat::Jpeg.name(), "JPG");
+        assert_eq!(ImageFormat::Png.name(), "PNG");
     }
 
     #[test]

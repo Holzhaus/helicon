@@ -108,6 +108,17 @@ pub enum CoverArtResolution {
 }
 
 impl CoverArtResolution {
+    /// Human-readable label of the resolution (e.g. `500px`).
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Res250 => "250px",
+            Self::Res500 => "500px",
+            Self::Res1200 => "1200px",
+            Self::Original => "original",
+        }
+    }
+
     /// A string that identifies the resolution (e.g. for use in cache file names).
     #[must_use]
     pub fn as_str(self) -> &'static str {
@@ -583,6 +594,7 @@ mod tests {
             ("original", CoverArtResolution::Original),
         ] {
             assert_eq!(res.as_str(), name);
+            assert!(res.label().starts_with(name));
         }
     }
 

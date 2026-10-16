@@ -50,8 +50,6 @@ mod analyzer;
 mod cache;
 mod cli;
 mod config;
-// TODO: Remove once the cover art is used when importing.
-#[allow(dead_code)]
 mod coverart;
 mod distance;
 mod error;

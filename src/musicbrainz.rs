@@ -41,7 +41,6 @@ pub struct MusicBrainzClient {
     /// Configuration
     config: Config,
     /// User agent for requests that are not made via the upstream client.
-    #[allow(dead_code)]
     user_agent: String,
     /// Cache
     cache: Option<Cache>,
@@ -238,7 +237,6 @@ impl MusicBrainzClient {
     ///
     /// Returns an error if the query or the image download fails or the image has an
     /// unsupported format.
-    #[allow(dead_code)]
     pub async fn find_front_cover_by_release_id(
         &self,
         release_id: &str,
@@ -275,9 +273,17 @@ impl MusicBrainzClient {
 
         log::debug!("Downloading front cover for {release_id} from {url}");
         let user_agent = self.user_agent.clone();
-        let cover = tokio::task::spawn_blocking(move || coverart::download(&url, &user_agent))
+        let cover = match tokio::task::spawn_blocking(move || coverart::download(&url, &user_agent))
             .await
-            .map_err(std::io::Error::other)??;
+            .map_err(std::io::Error::other)?
+        {
+            Ok(cover) => cover,
+            Err(crate::Error::CoverArtDownload(err)) if coverart::is_not_found(&*err) => {
+                log::debug!("Release {release_id} has no front cover art");
+                return Ok(None);
+            }
+            Err(err) => return Err(err),
+        };
 
         if let Some(cache) = self.cache.as_ref() {
             if let Err(err) = cache.insert_item((release_id, resolution), &cover) {

@@ -28,6 +28,44 @@ use std::collections::{BTreeMap, HashSet};
 use std::fmt;
 use std::iter::Peekable;
 
+/// Information about the cover art that is shown in the candidate details.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CoverArtPreview {
+    /// For each track of the base release, the description of its existing front cover (if any).
+    pub existing_covers: Vec<Option<String>>,
+    /// Description of the front cover that is available for the candidate (if any).
+    pub new_cover: Option<String>,
+    /// Whether existing front covers will be replaced.
+    pub overwrite_existing: bool,
+}
+
+/// Outcome of applying the candidate's front cover to a single track.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum CoverArtChange {
+    /// The cover is added or replaced. Contains the old value (if any) and the new one.
+    Changed(Option<String>, String),
+    /// The track keeps its existing front cover (with the given description).
+    Kept(String),
+}
+
+impl CoverArtPreview {
+    /// Determine how applying the candidate affects the front cover of the given track.
+    fn change_for_track(&self, track_index: usize) -> Option<CoverArtChange> {
+        let new_cover = self.new_cover.as_ref()?;
+        let existing = self
+            .existing_covers
+            .get(track_index)
+            .and_then(Option::as_ref);
+        Some(match existing {
+            None => CoverArtChange::Changed(None, format!("[{new_cover}]")),
+            Some(existing) if self.overwrite_existing => {
+                CoverArtChange::Changed(Some(format!("[{existing}]")), format!("[{new_cover}]"))
+            }
+            Some(existing) => CoverArtChange::Kept(existing.clone()),
+        })
+    }
+}
+
 /// The result of a `handle_candidate` all.
 pub enum HandleCandidateResult {
     /// Apply the current candidate.
@@ -118,11 +156,114 @@ fn print_extra_metadata(
     );
 }
 
+/// Split a cover description into words and separators.
+fn cover_tokens(description: &str) -> Vec<&str> {
+    let mut tokens = Vec::new();
+    let mut start = 0;
+    for (idx, ch) in description.char_indices() {
+        if matches!(ch, '[' | ']' | '(' | ')' | ',' | ' ') {
+            if start < idx {
+                tokens.push(&description[start..idx]);
+            }
+            tokens.push(&description[idx..idx + ch.len_utf8()]);
+            start = idx + ch.len_utf8();
+        }
+    }
+    if start < description.len() {
+        tokens.push(&description[start..]);
+    }
+    tokens
+}
+
+/// Split a trailing unit (e.g. `px` or `KiB`) from a value like `500x500px`.
+fn split_unit(token: &str) -> (&str, &str) {
+    token
+        .rfind(|ch: char| ch.is_ascii_digit())
+        .map_or((token, ""), |idx| token.split_at(idx + 1))
+}
+
+/// Diff two cover descriptions word by word, so that changed values (e.g. resolution or size)
+/// are highlighted entirely instead of just the differing characters.
+fn cover_diff(
+    old: &str,
+    new: &str,
+    config: &crate::config::StringDiffStyleConfig,
+) -> (StyledContentList<'static>, StyledContentList<'static>) {
+    let old_tokens = cover_tokens(old);
+    let new_tokens = cover_tokens(new);
+    if old_tokens.len() != new_tokens.len() {
+        return (
+            vec![config.replace_old.apply(old.to_owned())].into(),
+            vec![config.replace_new.apply(new.to_owned())].into(),
+        );
+    }
+    let mut lhs = Vec::new();
+    let mut rhs = Vec::new();
+    for (old_token, new_token) in old_tokens.into_iter().zip(new_tokens) {
+        if old_token == new_token {
+            lhs.push(config.equal.apply(old_token.to_owned()));
+            rhs.push(config.equal.apply(new_token.to_owned()));
+        } else {
+            let (old_value, old_unit) = split_unit(old_token);
+            let (new_value, new_unit) = split_unit(new_token);
+            lhs.push(config.replace_old.apply(old_value.to_owned()));
+            rhs.push(config.replace_new.apply(new_value.to_owned()));
+            if !old_unit.is_empty() {
+                lhs.push(config.equal.apply(old_unit.to_owned()));
+            }
+            if !new_unit.is_empty() {
+                rhs.push(config.equal.apply(new_unit.to_owned()));
+            }
+        }
+    }
+    (lhs.into(), rhs.into())
+}
+
+/// Print the change of a cover on a single line.
+fn print_cover_change(
+    old: Option<String>,
+    new: String,
+    candidate_details_config: &CandidateDetails,
+    max_width: usize,
+    max_height: usize,
+) {
+    let Some(old) = old else {
+        print_extra_metadata(
+            None,
+            Some(Cow::from(new)),
+            "<no cover>",
+            " (cover)",
+            candidate_details_config,
+            max_width,
+            max_height,
+        );
+        return;
+    };
+    let (lhs_value, rhs_value) =
+        cover_diff(&old, &new, &candidate_details_config.string_diff_style);
+    let lhs = LayoutItem::new(lhs_value);
+    let rhs = LayoutItem::new(rhs_value).with_suffix(
+        candidate_details_config
+            .changed_value_style
+            .apply(" (cover)")
+            .into(),
+    );
+    util::print_column_layout(
+        lhs,
+        rhs,
+        &candidate_details_config.tracklist_extra_indent,
+        &candidate_details_config.tracklist_extra_separator,
+        max_width,
+        max_height,
+    );
+}
+
 /// Display details about the candidate.
 pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
     config: &Config,
     base_release: &B,
     candidate: &ReleaseCandidate<C>,
+    cover_art: Option<&CoverArtPreview>,
     show_details: bool,
 ) {
     let candidate_details_config = &config.user_interface.candidate_details;
@@ -505,6 +646,27 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                         );
                     }
                 }
+                match cover_art.and_then(|cover_art| cover_art.change_for_track(*lhs_track_index)) {
+                    Some(CoverArtChange::Changed(old, new)) => {
+                        print_cover_change(
+                            old,
+                            new,
+                            candidate_details_config,
+                            max_width,
+                            candidate_details_config.tracklist_extra_line_limit,
+                        );
+                    }
+                    Some(CoverArtChange::Kept(existing)) => {
+                        println!(
+                            "{}{}",
+                            candidate_details_config.tracklist_extra_indent,
+                            candidate_details_config
+                                .release_meta_style
+                                .apply(format!("[{existing}] (kept)"))
+                        );
+                    }
+                    None => (),
+                }
                 if let Some(path) = lhs_track.track_path() {
                     let old_path = path;
 
@@ -591,10 +753,11 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
     config: &Config,
     base_release: &B,
     candidate: &ReleaseCandidate<C>,
+    cover_art: Option<&CoverArtPreview>,
 ) -> Result<HandleCandidateResult, InquireError> {
     let mut show_details = false;
     loop {
-        show_candidate(config, base_release, candidate, show_details);
+        show_candidate(config, base_release, candidate, cover_art, show_details);
         let options = vec![
             HandleCandidateResult::Apply.into_styled(config),
             if show_details {
@@ -723,5 +886,103 @@ fn match_involved_persons<'a>(
     InvolvedPersonMatches {
         left_iter: left_iter.peekable(),
         right_iter: right_iter.peekable(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const COVER: &str = "Front Cover (JPG, 500px, 32KiB)";
+    const NEW: &str = "[Front Cover (JPG, 500px, 32KiB)]";
+    const OLD: &str = "Front Cover (PNG, 250x250px, 12KiB)";
+
+    fn preview(
+        existing_covers: &[Option<&str>],
+        new_cover: Option<&str>,
+        overwrite: bool,
+    ) -> CoverArtPreview {
+        CoverArtPreview {
+            existing_covers: existing_covers
+                .iter()
+                .map(|cover| cover.map(ToOwned::to_owned))
+                .collect(),
+            new_cover: new_cover.map(ToOwned::to_owned),
+            overwrite_existing: overwrite,
+        }
+    }
+
+    #[test]
+    fn test_cover_is_added_to_track_without_cover() {
+        assert_eq!(
+            preview(&[None], Some(COVER), false).change_for_track(0),
+            Some(CoverArtChange::Changed(None, NEW.to_owned()))
+        );
+    }
+
+    #[test]
+    fn test_existing_cover_is_kept_by_default() {
+        assert_eq!(
+            preview(&[Some(OLD)], Some(COVER), false).change_for_track(0),
+            Some(CoverArtChange::Kept(OLD.to_owned()))
+        );
+    }
+
+    #[test]
+    fn test_existing_cover_is_replaced_with_overwrite() {
+        assert_eq!(
+            preview(&[Some(OLD)], Some(COVER), true).change_for_track(0),
+            Some(CoverArtChange::Changed(
+                Some(format!("[{OLD}]")),
+                NEW.to_owned()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_changes_are_decided_per_track() {
+        let preview = preview(&[Some(OLD), None, Some(OLD)], Some(COVER), false);
+        assert_eq!(
+            preview.change_for_track(0),
+            Some(CoverArtChange::Kept(OLD.to_owned()))
+        );
+        assert_eq!(
+            preview.change_for_track(1),
+            Some(CoverArtChange::Changed(None, NEW.to_owned()))
+        );
+        assert_eq!(
+            preview.change_for_track(2),
+            Some(CoverArtChange::Kept(OLD.to_owned()))
+        );
+    }
+
+    #[test]
+    fn test_unknown_track_is_treated_as_without_cover() {
+        assert_eq!(
+            preview(&[], Some(COVER), false).change_for_track(5),
+            Some(CoverArtChange::Changed(None, NEW.to_owned()))
+        );
+    }
+
+    #[test]
+    fn test_no_change_without_available_cover() {
+        assert_eq!(preview(&[None], None, false).change_for_track(0), None);
+        assert_eq!(preview(&[Some(OLD)], None, true).change_for_track(0), None);
+    }
+
+    #[test]
+    fn test_cover_tokens_split_words_and_separators() {
+        assert_eq!(
+            cover_tokens("[Front Cover (JPG, 500px)]"),
+            ["[", "Front", " ", "Cover", " ", "(", "JPG", ",", " ", "500px", ")", "]"]
+        );
+    }
+
+    #[test]
+    fn test_split_unit() {
+        assert_eq!(split_unit("500x500px"), ("500x500", "px"));
+        assert_eq!(split_unit("32KiB"), ("32", "KiB"));
+        assert_eq!(split_unit("6B"), ("6", "B"));
+        assert_eq!(split_unit("JPG"), ("JPG", ""));
     }
 }

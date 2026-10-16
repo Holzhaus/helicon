@@ -8,7 +8,7 @@
 
 //! Support for ID3 tags.
 
-use crate::coverart::CoverArt;
+use crate::coverart::{CoverArt, CoverInfo};
 use crate::tag::{Tag, TagKey, TagType};
 use crate::track::InvolvedPerson;
 use crate::util::parse_year_from_str;
@@ -607,10 +607,11 @@ impl Tag for ID3v2Tag {
         }
     }
 
-    fn has_front_cover(&self) -> bool {
+    fn front_cover_info(&self) -> Option<CoverInfo> {
         self.data
             .pictures()
-            .any(|picture| picture.picture_type == id3::frame::PictureType::CoverFront)
+            .find(|picture| picture.picture_type == id3::frame::PictureType::CoverFront)
+            .map(|picture| CoverInfo::from_data(&picture.data))
     }
 
     fn set_front_cover(&mut self, cover: &CoverArt) {

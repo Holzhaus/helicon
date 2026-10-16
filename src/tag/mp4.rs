@@ -21,7 +21,7 @@
 //!   `----:com.apple.iTunes:MusicBrainz Artist Id`. Helicon only ever uses freeform atoms with
 //!   the `mean` set to `com.apple.iTunes`, matching what Picard/iTunes do.
 
-use crate::coverart::{CoverArt, ImageFormat};
+use crate::coverart::{CoverArt, CoverInfo, ImageFormat};
 use crate::tag::{Tag, TagKey, TagType};
 use crate::track::InvolvedPerson;
 use crate::util::parse_year_from_str;
@@ -325,9 +325,11 @@ impl Tag for Mp4Tag {
         }
     }
 
-    fn has_front_cover(&self) -> bool {
-        // MP4 artwork has no picture type, so any artwork is treated as the front cover.
-        self.data.artworks().next().is_some()
+    fn front_cover_info(&self) -> Option<CoverInfo> {
+        // MP4 artwork has no picture type, so the first artwork is treated as the front cover.
+        self.data
+            .artwork()
+            .map(|artwork| CoverInfo::from_data(artwork.data))
     }
 
     fn set_front_cover(&mut self, cover: &CoverArt) {

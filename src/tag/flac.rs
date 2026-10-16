@@ -8,7 +8,7 @@
 
 //! Support for FLAC tags.
 
-use crate::coverart::CoverArt;
+use crate::coverart::{CoverArt, CoverInfo};
 use crate::tag::{Tag, TagKey, TagType};
 use crate::track::InvolvedPerson;
 use crate::util::parse_year_from_str;
@@ -192,10 +192,11 @@ impl Tag for FlacTag {
         }
     }
 
-    fn has_front_cover(&self) -> bool {
+    fn front_cover_info(&self) -> Option<CoverInfo> {
         self.data
             .pictures()
-            .any(|picture| picture.picture_type == metaflac::block::PictureType::CoverFront)
+            .find(|picture| picture.picture_type == metaflac::block::PictureType::CoverFront)
+            .map(|picture| CoverInfo::from_data(&picture.data))
     }
 
     fn set_front_cover(&mut self, cover: &CoverArt) {
