@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Jan Holthuis <jan.holthuis@rub.de>
+// Copyright (c) 2026 Jan Holthuis <jan.holthuis@rub.de>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy
 // of the MPL was not distributed with this file, You can obtain one at
@@ -192,7 +192,7 @@ mod tests {
     use crate::Config;
     use serde_json::json;
 
-    use musicbrainz_rs_nova::entity::release::Release as MusicBrainzRelease;
+    use musicbrainz_rs::entity::release::Release as MusicBrainzRelease;
 
     const MUSICBRAINZ_RELEASE_JSON: &str = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

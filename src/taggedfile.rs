@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Jan Holthuis <jan.holthuis@rub.de>
+// Copyright (c) 2026 Jan Holthuis <jan.holthuis@rub.de>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy
 // of the MPL was not distributed with this file, You can obtain one at
@@ -711,7 +711,7 @@ impl AnalyzedTrackMetadata for TaggedFileAnalyzedMetadata<'_> {
 mod tests {
     use super::*;
     use crate::TaggedFileCollection;
-    use musicbrainz_rs_nova::entity::release::{
+    use musicbrainz_rs::entity::release::{
         Release as MusicBrainzRelease, Track as MusicBrainzTrack,
     };
 

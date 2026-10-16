@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Jan Holthuis <jan.holthuis@rub.de>
+// Copyright (c) 2026 Jan Holthuis <jan.holthuis@rub.de>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy
 // of the MPL was not distributed with this file, You can obtain one at
@@ -14,6 +14,7 @@ mod config;
 mod import;
 mod ui;
 
+use crate::musicbrainz::MusicBrainzClient;
 use crate::{Cache, Config, PKG_NAME, PKG_VERSION, USER_AGENT};
 use clap::{Parser, Subcommand};
 use log::LevelFilter;
@@ -136,10 +137,10 @@ pub async fn main() -> crate::Result<()> {
     //
     // See this for details:
     // - <https://musicbrainz.org/doc/MusicBrainz_API#Application_rate_limiting_and_identification>
-    musicbrainz_rs_nova::config::set_user_agent(USER_AGENT);
+    let musicbrainz = MusicBrainzClient::new(&config, Some(&cache), USER_AGENT);
 
     match args.command {
-        Commands::Import(cmd_args) => import::run(&config, Some(&cache), cmd_args).await,
+        Commands::Import(cmd_args) => import::run(&config, &musicbrainz, cmd_args).await,
         Commands::Config(cmd_args) => config::run(&config, Some(&cache), cmd_args),
         Commands::Cache(cmd_args) => cache::run(&config, Some(&cache), cmd_args),
         Commands::Analyze(cmd_args) => analyze::run(&config, Some(&cache), cmd_args),

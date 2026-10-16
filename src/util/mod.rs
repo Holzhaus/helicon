@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Jan Holthuis <jan.holthuis@rub.de>
+// Copyright (c) 2026 Jan Holthuis <jan.holthuis@rub.de>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy
 // of the MPL was not distributed with this file, You can obtain one at
@@ -14,6 +14,8 @@ mod keyed_binheap;
 mod testing;
 mod time;
 
+#[cfg(unix)]
+pub use fs::set_file_permissions;
 pub use fs::{move_file, walk_dir};
 pub use keyed_binheap::KeyedBinaryHeap;
 #[cfg(any(test, feature = "dev"))]

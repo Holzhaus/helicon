@@ -21,13 +21,13 @@ repos:
           - id: trailing-whitespace
             exclude: .tsv$
     - repo: https://github.com/codespell-project/codespell
-      rev: 63c8f8312b7559622c0d82815639671ae42132ac  # frozen: v2.4.1
+      rev: 57b21406f092110c18776e39b0bda50d37c945c8  # frozen: v2.4.3
       hooks:
           - id: codespell
             args: [--ignore-words=.codespellignore]
             exclude_types: [tsv, json]
-    - repo: https://github.com/psf/black
-      rev: 8a737e727ac5ab2f1d4cf5876720ed276dc8dc4b  # frozen: 25.1.0
+    - repo: https://github.com/psf/black-pre-commit-mirror
+      rev: a5439e9af2ff9371297bb1a76a01b8ad17989b88  # frozen: 26.10.1
       hooks:
           - id: black
     - repo: https://github.com/jumanjihouse/pre-commit-hook-yamlfmt
@@ -35,13 +35,14 @@ repos:
       hooks:
           - id: yamlfmt
     - repo: https://github.com/gitleaks/gitleaks
-      rev: 39fdb480a06768cc41a84ef86959c07ff33091c4  # frozen: v8.28.0
+      rev: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e  # frozen: v8.30.1
       hooks:
           - id: gitleaks
     - repo: https://github.com/woodruffw/zizmor-pre-commit
-      rev: 69fa534d69454f44ddd4451b5e2da7a1c48e525b  # frozen: v1.11.0
+      rev: d25b2b1dc80689fb633f21f6978bba69871181d3  # frozen: v1.31.0
       hooks:
           - id: zizmor
+            args: [--fix=safe]
     - repo: https://github.com/doublify/pre-commit-rust
       rev: eeee35a89e69d5772bdee97db1a6a898467b686e  # frozen: v1.0
       hooks:
@@ -50,7 +51,7 @@ repos:
           - id: clippy
             args: [--locked, --workspace, --all-features, --all-targets, --, -D, warnings]
     - repo: https://github.com/Holzhaus/sourceheaders
-      rev: 37fab20a62cc63ebb9a8855a2ab90ec7dc56cadf  # frozen: v0.0.4
+      rev: 6356581a6cabada7f1dd6a5da699f8ab2d56998d  # frozen: v0.0.4
       hooks:
           - id: sourceheaders
     - repo: https://github.com/jorisroovers/gitlint

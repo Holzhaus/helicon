@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Jan Holthuis <jan.holthuis@rub.de>
+// Copyright (c) 2026 Jan Holthuis <jan.holthuis@rub.de>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy
 // of the MPL was not distributed with this file, You can obtain one at
@@ -59,7 +59,7 @@ pub fn run(config: &Config, _cache: Option<&Cache>, args: Args) -> crate::Result
         match result {
             Ok(result) => {
                 println!("Duration: {}", result.duration);
-                println!("Fingerprint: {}", result.fingerprint_string(),);
+                println!("Fingerprint: {}", result.fingerprint_string());
             }
             Err(err) => eprintln!("Chromaprint fingerprint analysis failed: {err}"),
         }

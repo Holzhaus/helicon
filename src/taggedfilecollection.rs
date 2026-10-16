@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Jan Holthuis <jan.holthuis@rub.de>
+// Copyright (c) 2026 Jan Holthuis <jan.holthuis@rub.de>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy
 // of the MPL was not distributed with this file, You can obtain one at
@@ -19,6 +19,7 @@ use crate::util;
 use crate::Config;
 use crate::TaggedFile;
 use itertools::Itertools;
+use regex::{Regex, RegexBuilder};
 use std::borrow::Cow;
 use std::collections::HashMap;
 
@@ -115,6 +116,23 @@ fn find_most_common_tag_value<'a>(
     key: &'a TagKey,
 ) -> Option<MostCommonItem<Cow<'a, str>>> {
     MostCommonItem::find(tracks.filter_map(|tagged_file| tagged_file.first_tag_value(key)))
+}
+
+/// Strip disc suffix from the end of the `Cow` string.
+fn strip_disc_suffix<'a>(title: Cow<'a, str>, pattern: &Regex) -> Cow<'a, str> {
+    match pattern.find(&title) {
+        Some(m) => {
+            let start = m.start();
+            match title {
+                Cow::Borrowed(s) => Cow::Borrowed(&s[..start]),
+                Cow::Owned(mut s) => {
+                    s.truncate(start);
+                    Cow::Owned(s)
+                }
+            }
+        }
+        None => title,
+    }
 }
 
 /// A collection of tracks on the local disk.
@@ -294,6 +312,29 @@ impl TaggedFileCollection {
 
         Ok(())
     }
+
+    /// Set permission for all tracks in this collection.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any of the underlying file system operations fail.
+    #[cfg(unix)]
+    pub fn set_permissions(&mut self, config: &Config) -> crate::Result<()> {
+        for track in &mut self
+            .media
+            .iter_mut()
+            .flat_map(|media| media.tracks.iter_mut())
+        {
+            util::set_file_permissions(
+                &track.path,
+                config.import.set_uid,
+                config.import.set_gid,
+                config.import.set_mode,
+            )?;
+        }
+
+        Ok(())
+    }
 }
 
 impl IntoIterator for TaggedFileCollection {
@@ -319,7 +360,19 @@ impl FromIterator<TaggedFile> for TaggedFileCollection {
 
 impl ReleaseLike for TaggedFileCollection {
     fn release_title(&self) -> Option<Cow<'_, str>> {
-        self.find_consensual_tag_value(&TagKey::Album)
+        let disc_pattern = RegexBuilder::new(r"\s*[(\[-]\s*(?:CD|Disc)\s*\d+\s*[)\]]?\s*$")
+            .case_insensitive(true)
+            .build()
+            .unwrap();
+
+        MostCommonItem::find(
+            self.media
+                .iter()
+                .flat_map(|media| media.tracks.iter())
+                .filter_map(|tagged_file| tagged_file.first_tag_value(&TagKey::Album))
+                .map(|title| strip_disc_suffix(title, &disc_pattern)),
+        )
+        .and_then(MostCommonItem::into_concensus)
     }
 
     fn release_artist(&self) -> Option<Cow<'_, str>> {
@@ -619,7 +672,7 @@ mod tests {
         );
         assert_eq!(collection.record_label().as_deref(), Some("Argo"));
         assert_eq!(collection.release_country().as_deref(), Some("US"));
-        assert_eq!(collection.release_date().as_deref(), Some("1958-01-01"));
+        assert_eq!(collection.release_date().as_deref(), Some("1958"));
         assert_eq!(collection.release_year().as_deref(), Some("1958"));
         assert_eq!(collection.release_status().as_deref(), Some("official"));
         assert_eq!(collection.release_type().as_deref(), Some("album"));
@@ -669,7 +722,7 @@ mod tests {
         );
         assert_eq!(collection.record_label().as_deref(), Some("Argo"));
         assert_eq!(collection.release_country().as_deref(), Some("US"));
-        assert_eq!(collection.release_date().as_deref(), Some("1958-01-01"));
+        assert_eq!(collection.release_date().as_deref(), Some("1958"));
         assert_eq!(collection.release_year().as_deref(), Some("1958"));
         assert_eq!(collection.release_status().as_deref(), Some("official"));
         assert_eq!(collection.release_type().as_deref(), Some("album"));
@@ -717,7 +770,7 @@ mod tests {
         );
         assert_eq!(collection.record_label().as_deref(), Some("Argo"));
         assert_eq!(collection.release_country().as_deref(), Some("US"));
-        assert_eq!(collection.release_date().as_deref(), Some("1958-01-01"));
+        assert_eq!(collection.release_date().as_deref(), Some("1958"));
         assert_eq!(collection.release_year().as_deref(), Some("1958"));
         assert_eq!(collection.release_status().as_deref(), Some("official"));
         assert_eq!(collection.release_type().as_deref(), Some("album"));

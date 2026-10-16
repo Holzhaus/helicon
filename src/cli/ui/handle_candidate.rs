@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Jan Holthuis <jan.holthuis@rub.de>
+// Copyright (c) 2026 Jan Holthuis <jan.holthuis@rub.de>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy
 // of the MPL was not distributed with this file, You can obtain one at
@@ -732,16 +732,10 @@ fn match_involved_persons<'a>(
             .push(person);
     }
 
-    let left_iter: Box<dyn Iterator<Item = InvolvedPerson<'a>> + 'a> = Box::new(
-        left_map
-            .into_iter()
-            .flat_map(|(_left_key, heap)| heap.into_iter()),
-    );
-    let right_iter: Box<dyn Iterator<Item = InvolvedPerson<'a>> + 'a> = Box::new(
-        right_map
-            .into_iter()
-            .flat_map(|(_right_key, heap)| heap.into_iter()),
-    );
+    let left_iter: Box<dyn Iterator<Item = InvolvedPerson<'a>> + 'a> =
+        Box::new(left_map.into_values().flat_map(|heap| heap.into_iter()));
+    let right_iter: Box<dyn Iterator<Item = InvolvedPerson<'a>> + 'a> =
+        Box::new(right_map.into_values().flat_map(|heap| heap.into_iter()));
     InvolvedPersonMatches {
         left_iter: left_iter.peekable(),
         right_iter: right_iter.peekable(),

@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Jan Holthuis <jan.holthuis@rub.de>
+// Copyright (c) 2026 Jan Holthuis <jan.holthuis@rub.de>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy
 // of the MPL was not distributed with this file, You can obtain one at
@@ -19,7 +19,7 @@ use super::{Analyzer, AnalyzerError};
 use crate::config::Config;
 
 use symphonia::core::audio::Channels;
-use symphonia::core::codecs::CodecParameters;
+use symphonia::core::formats::Track;
 
 use soundtouch::BPMDetect;
 
@@ -48,12 +48,16 @@ impl SoundTouchBpmResult {
 impl Analyzer for SoundTouchBpmAnalyzer {
     type Result = SoundTouchBpmResult;
 
-    fn initialize(_config: &Config, codec_params: &CodecParameters) -> Result<Self, AnalyzerError> {
-        let sample_rate = codec_params
-            .sample_rate
-            .ok_or(AnalyzerError::MissingSampleRate)?;
-        let num_channels = codec_params
+    fn initialize(_config: &Config, track: &Track) -> Result<Self, AnalyzerError> {
+        let params = track
+            .codec_params
+            .as_ref()
+            .and_then(|params| params.audio())
+            .ok_or(AnalyzerError::NoSupportedAudioTracks)?;
+        let sample_rate = params.sample_rate.ok_or(AnalyzerError::MissingSampleRate)?;
+        let num_channels = params
             .channels
+            .as_ref()
             .map(Channels::count)
             .and_then(|channel_count| u32::try_from(channel_count).ok())
             .ok_or(AnalyzerError::MissingAudioChannels)?;
@@ -63,12 +67,8 @@ impl Analyzer for SoundTouchBpmAnalyzer {
         Ok(analyzer)
     }
 
-    fn feed(&mut self, samples: &[i16]) -> Result<(), AnalyzerError> {
-        let samples_float = samples
-            .iter()
-            .map(|&sample| sample.into())
-            .collect::<Vec<f32>>();
-        self.bpm_detect.input_samples(&samples_float);
+    fn feed(&mut self, samples: &[f32]) -> Result<(), AnalyzerError> {
+        self.bpm_detect.input_samples(samples);
         Ok(())
     }
 

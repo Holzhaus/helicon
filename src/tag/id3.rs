@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Jan Holthuis <jan.holthuis@rub.de>
+// Copyright (c) 2026 Jan Holthuis <jan.holthuis@rub.de>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy
 // of the MPL was not distributed with this file, You can obtain one at
@@ -22,6 +22,9 @@ use std::borrow::Cow;
 use std::iter;
 use std::mem;
 use std::path::Path;
+
+/// Lowercase file extensions of the files that contain ID3 tags.
+pub const EXTENSIONS: &[&str] = &["mp3"];
 
 /// Determines which part of an combined text part.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -53,6 +56,7 @@ enum FrameId<'a> {
     DerivedValue(TagKey, fn(&str) -> Option<String>),
 }
 
+/// Frames of type "performer involvement".
 const IPLS_NON_PERFORMER_INVOLVEMENTS: [&str; 5] =
     ["arranger", "engineer", "DJ-mix", "mix", "producer"];
 
@@ -261,7 +265,7 @@ impl ID3v2Tag {
                         text_values = frame.content().text_values();
                     }
                     Content::Unknown(unknown) => {
-                        println!("{:02x?}", &unknown.data);
+                        println!("{:02x?}", unknown.data);
                     }
                     _ => (),
                 }

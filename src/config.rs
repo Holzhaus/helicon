@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Jan Holthuis <jan.holthuis@rub.de>
+// Copyright (c) 2026 Jan Holthuis <jan.holthuis@rub.de>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy
 // of the MPL was not distributed with this file, You can obtain one at
@@ -223,6 +223,7 @@ pub struct StringDiffStyleConfig {
     pub replace_new: TextStyleConfig,
 }
 
+/// Configuration for unmatched tracks in the UI.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct UnmatchedTrackStyleConfig {
     /// Prefix that is displayed at the start of the line.
@@ -380,6 +381,20 @@ pub struct PathTemplateConfig {
     pub compilation_format: String,
 }
 
+/// The import configuration struct.
+#[cfg(unix)]
+#[expect(missing_copy_implementations)]
+#[expect(clippy::struct_field_names)]
+#[derive(Debug, Default, Clone, Deserialize, Serialize)]
+pub struct ImportConfig {
+    /// User ID to set.
+    pub set_uid: Option<u32>,
+    /// Group ID to set.
+    pub set_gid: Option<u32>,
+    /// File mode to set.
+    pub set_mode: Option<u32>,
+}
+
 /// The main configuration struct.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
@@ -393,6 +408,10 @@ pub struct Config {
     pub weights: DistanceWeights,
     /// UI configuration.
     pub user_interface: UiConfig,
+    /// Import configuration.
+    #[cfg(unix)]
+    #[serde(default)]
+    pub import: ImportConfig,
 }
 
 impl Default for Config {

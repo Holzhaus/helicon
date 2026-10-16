@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Jan Holthuis <jan.holthuis@rub.de>
+// Copyright (c) 2026 Jan Holthuis <jan.holthuis@rub.de>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy
 // of the MPL was not distributed with this file, You can obtain one at
@@ -11,6 +11,22 @@
 use super::{string, Difference, Distance};
 use crate::track::TrackLike;
 use crate::Config;
+use std::borrow::Cow;
+
+/// Trim leading zeros from the given Copy-on-Write string.
+fn trim_leading_zeros(s: Cow<'_, str>) -> Cow<'_, str> {
+    match s {
+        Cow::Borrowed(b) => Cow::Borrowed(b.trim_start_matches('0')),
+        Cow::Owned(o) => {
+            let trimmed = o.trim_start_matches('0');
+            if trimmed.len() == o.len() {
+                Cow::Owned(o)
+            } else {
+                Cow::Owned(trimmed.to_string())
+            }
+        }
+    }
+}
 
 /// Result of a comparison between two tracks that represents how similar they are to each other.
 #[derive(Debug, Clone)]
@@ -78,7 +94,10 @@ impl TrackSimilarity {
             rhs.track_title().or_else(|| rhs.track_file_stem()),
         );
         let track_artist = Difference::between_options(lhs.track_artist(), rhs.track_artist());
-        let track_number = Difference::between_options(lhs.track_number(), rhs.track_number());
+        let track_number = Difference::between_options(
+            lhs.track_number().map(trim_leading_zeros),
+            rhs.track_number().map(trim_leading_zeros),
+        );
         let track_length = Difference::between_options(lhs.track_length(), rhs.track_length());
         let musicbrainz_recording_id = Difference::between_options_fn(
             lhs.musicbrainz_recording_id(),

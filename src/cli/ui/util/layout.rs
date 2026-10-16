@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Jan Holthuis <jan.holthuis@rub.de>
+// Copyright (c) 2026 Jan Holthuis <jan.holthuis@rub.de>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy
 // of the MPL was not distributed with this file, You can obtain one at
@@ -162,23 +162,9 @@ pub fn print_column_layout(
             next_line = StyledContentList::default()
                 .fill_right(' ', indent.len())
                 .into_iter()
-                .chain(
-                    lhs_line
-                        .unwrap_or_default()
-                        .fill_right(' ', column_width)
-                        .into_iter(),
-                )
-                .chain(
-                    StyledContentList::default()
-                        .fill_right(' ', separator.len())
-                        .into_iter(),
-                )
-                .chain(
-                    rhs_line
-                        .unwrap_or_default()
-                        .fill_right(' ', column_width)
-                        .into_iter(),
-                )
+                .chain(lhs_line.unwrap_or_default().fill_right(' ', column_width))
+                .chain(StyledContentList::default().fill_right(' ', separator.len()))
+                .chain(rhs_line.unwrap_or_default().fill_right(' ', column_width))
                 .collect::<StyledContentList<'_>>()
                 .into();
         } else {

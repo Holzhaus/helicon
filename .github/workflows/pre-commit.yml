@@ -14,21 +14,15 @@ jobs:
             contents: read
         steps:
             - name: Check out repository
-              uses: actions/checkout@v5
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
               with:
                   persist-credentials: false
 
             - name: Install Rust toolchain
-              uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921
-              with:
-                  toolchain: stable
-
-            - name: Generate Cargo.lock
-              run: |
-                  cargo generate-lockfile
+              run: rustup toolchain install
 
             - name: Set up Python
-              uses: actions/setup-python@v6
+              uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
 
             - name: Detect code style issues
               uses: pre-commit/action@1b06ec171f2f6faa71ed760c4042bd969e4f8b43
@@ -45,7 +39,7 @@ jobs:
 
             - name: Upload patch artifact
               if: failure() && env.UPLOAD_PATCH_FILE != null
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
               with:
                   name: ${{ env.UPLOAD_PATCH_FILE }}
                   path: ${{ env.UPLOAD_PATCH_FILE }}

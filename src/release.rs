@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Jan Holthuis <jan.holthuis@rub.de>
+// Copyright (c) 2026 Jan Holthuis <jan.holthuis@rub.de>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy
 // of the MPL was not distributed with this file, You can obtain one at
@@ -13,10 +13,8 @@ use crate::musicbrainz;
 use crate::track::TrackLike;
 use crate::Config;
 use itertools::Itertools;
-use musicbrainz_rs_nova::entity::release::{Release as MusicBrainzRelease, ReleaseStatus};
-use musicbrainz_rs_nova::entity::release_group::{
-    ReleaseGroupPrimaryType, ReleaseGroupSecondaryType,
-};
+use musicbrainz_rs::entity::release::{Release as MusicBrainzRelease, ReleaseStatus};
+use musicbrainz_rs::entity::release_group::{ReleaseGroupPrimaryType, ReleaseGroupSecondaryType};
 use std::borrow::Cow;
 
 /// Represent a generic release, independent of the underlying source.
@@ -271,14 +269,14 @@ impl ReleaseLike for MusicBrainzRelease {
     }
 
     fn release_date(&self) -> Option<Cow<'_, str>> {
-        self.date
-            .map(|date| date.format("%Y-%m-%d").to_string())
-            .map(Cow::from)
+        self.date.as_ref().map(ToString::to_string).map(Cow::from)
     }
 
     fn release_year(&self) -> Option<Cow<'_, str>> {
         self.date
-            .map(|date| date.format("%Y").to_string())
+            .as_ref()
+            .and_then(musicbrainz_rs::entity::date_string::DateString::year)
+            .map(|year| year.to_string())
             .map(Cow::from)
     }
 

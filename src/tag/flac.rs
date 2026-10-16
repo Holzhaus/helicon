@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Jan Holthuis <jan.holthuis@rub.de>
+// Copyright (c) 2026 Jan Holthuis <jan.holthuis@rub.de>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy
 // of the MPL was not distributed with this file, You can obtain one at
@@ -13,6 +13,9 @@ use crate::track::InvolvedPerson;
 use crate::util::parse_year_from_str;
 use std::borrow::Cow;
 use std::path::Path;
+
+/// Lowercase file extensions of the files that contain FLAC tags.
+pub const EXTENSIONS: &[&str] = &["flac"];
 
 /// FLAC tag.
 pub struct FlacTag {

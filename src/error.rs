@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Jan Holthuis <jan.holthuis@rub.de>
+// Copyright (c) 2026 Jan Holthuis <jan.holthuis@rub.de>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy
 // of the MPL was not distributed with this file, You can obtain one at
@@ -33,8 +33,8 @@ pub enum ErrorType {
     #[error("File has unknown file type")]
     UnknownFileType,
     /// A MusicBrainz API request failed.
-    #[error("API request failed")]
-    Request(#[from] musicbrainz_rs_nova::Error),
+    #[error("API request failed: {0}")]
+    Request(#[from] Box<musicbrainz_rs::ApiEndpointError>),
     /// A MusicBrainz API request failed.
     #[error("MusicBrainz lookup failed")]
     MusicBrainzLookupFailed(&'static str),
@@ -46,6 +46,10 @@ pub enum ErrorType {
     #[cfg(feature = "flac")]
     #[error("Failed to read FLAC tag")]
     Flac(#[from] metaflac::Error),
+    /// Errors raised by the [`mp4ameta`] crate.
+    #[cfg(feature = "mp4")]
+    #[error("Failed to read MP4 tag")]
+    Mp4(#[from] mp4ameta::Error),
     /// An error from the user interface.
     #[error("Error encountered while showing UI: {0}")]
     InquireError(#[from] inquire::InquireError),
@@ -55,6 +59,12 @@ pub enum ErrorType {
     /// An error occurred while formatting a template string.
     #[error("Template formatting failed: {0}")]
     TemplateFormattingFailed(#[from] handlebars::RenderError),
+}
+
+impl From<musicbrainz_rs::ApiEndpointError> for ErrorType {
+    fn from(err: musicbrainz_rs::ApiEndpointError) -> Self {
+        Self::Request(Box::new(err))
+    }
 }
 
 /// Convenience type.

@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Jan Holthuis <jan.holthuis@rub.de>
+// Copyright (c) 2026 Jan Holthuis <jan.holthuis@rub.de>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy
 // of the MPL was not distributed with this file, You can obtain one at
@@ -9,12 +9,13 @@
 //! Caching for MusicBrainz API queries.
 
 use chrono::{DateTime, Utc};
-use musicbrainz_rs_nova::entity::{
+use musicbrainz_rs::entity::{
     release::Release as MusicBrainzRelease, release_group::ReleaseGroup as MusicBrainzReleaseGroup,
     search::SearchResult as MusicBrainzSearchResult,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::fmt::Write;
 use std::fs::File;
 use std::io::{self, BufReader, BufWriter};
 use std::path::{Path, PathBuf};
@@ -64,7 +65,7 @@ impl<T> CacheEnvelope<T> {
 }
 
 /// Maximum age of a a cache entry after which it expires.
-const MAX_AGE: Duration = Duration::from_secs(60 * 60 * 24 * 7);
+const MAX_AGE: Duration = Duration::from_hours(24 * 7);
 
 /// Cache for MusicBrainz queries (to not use their API too much unnecessarily).
 #[derive(Debug, Clone)]
@@ -106,7 +107,19 @@ impl Cache {
 
         let f = File::open(&path)?;
         let reader = BufReader::new(f);
-        let envelope: CacheEnvelope<T> = serde_json::from_reader(reader)?;
+        let envelope: CacheEnvelope<T> = match serde_json::from_reader(reader) {
+            Ok(envelope) => envelope,
+            Err(err) => {
+                // Entry is corrupt or was written in an incompatible format; drop it so it gets
+                // re-fetched and overwritten.
+                log::debug!(
+                    "Cache item {item_path} could not be deserialized ({err}), removing it",
+                    item_path = item_path.display()
+                );
+                std::fs::remove_file(path)?;
+                return Err(CacheError::CacheMiss);
+            }
+        };
 
         let age = Utc::now().signed_duration_since(envelope.created);
         // TODO: Make this configurable
@@ -205,6 +218,11 @@ impl<'a> Cacheable<'a> for MusicBrainzReleaseSearchResult {
         hasher.update([b'|', limit, b'|']);
         hasher.update(offset.to_be_bytes());
         let hash = hasher.finalize();
-        Path::new(Self::CACHE_DIRECTORY).join(format!("{hash:064x}.json"))
+
+        let mut s = String::with_capacity(64);
+        for &byte in hash.as_slice() {
+            write!(&mut s, "{byte:02x}").expect("unable to write to in-memory string");
+        }
+        Path::new(Self::CACHE_DIRECTORY).join(format!("{s}.json"))
     }
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Jan Holthuis <jan.holthuis@rub.de>
+// Copyright (c) 2026 Jan Holthuis <jan.holthuis@rub.de>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy
 // of the MPL was not distributed with this file, You can obtain one at
@@ -14,11 +14,12 @@
 use crate::analyzer;
 use crate::musicbrainz::{MusicBrainzClient, MusicBrainzRelease};
 use crate::release_candidate::ReleaseCandidateCollection;
+use crate::tag::is_supported_extension;
 use crate::util::walk_dir;
-use crate::Cache;
 use crate::{Config, TaggedFile, TaggedFileCollection};
 use futures::FutureExt;
-use std::collections::HashSet;
+use regex::RegexBuilder;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use tokio::runtime::{Builder, Runtime};
 use tokio::sync::mpsc::Receiver;
@@ -29,7 +30,7 @@ pub struct ScanError {
     /// The path for which the error occurred.
     pub path: PathBuf,
     /// The actual error.
-    pub source: crate::Error,
+    pub source: Box<crate::Error>,
 }
 
 /// Convenience Alias for a Scan Result.
@@ -54,7 +55,7 @@ pub struct Scanner {
 
 impl Scanner {
     /// Create a scanner for the given path.
-    pub fn scan(config: Config, cache: Option<Cache>, path: PathBuf) -> Scanner {
+    pub fn scan(config: Config, musicbrainz: MusicBrainzClient, path: PathBuf) -> Scanner {
         log::info!("Starting scan of {}", path.display());
 
         let (results_tx, results_rx) = tokio::sync::mpsc::channel(20);
@@ -76,7 +77,6 @@ impl Scanner {
             // First, search the file system to find track paths.
             for (path, tracks) in find_track_paths(path) {
                 let cloned_config = config.clone();
-                let cloned_config2 = config.clone();
 
                 // Some tracks were found, spawn individual tasks for analyzing the tracks in the
                 // threadpool. We keep track of the spawned task handles in a Vec, so that we
@@ -92,15 +92,13 @@ impl Scanner {
 
                 // When all handles are joined, make a collection out of it and search similar
                 // releases on MusicBrainz. The result is sent to the `results_tx` queue.
-                let cloned_cache = cache.clone();
+                let cloned_musicbrainz = musicbrainz.clone();
                 let results_tx = cloned_results_tx.clone();
                 let _matching_logic = pool_handle.spawn(async move {
-                    let musicbrainz =
-                        MusicBrainzClient::new(&cloned_config2, cloned_cache.as_ref());
                     if let Err(err) = results_tx
                         .send(
                             join_analysis_tasks_to_collection_and_find_release_candidates(
-                                &musicbrainz,
+                                &cloned_musicbrainz,
                                 path,
                                 handles,
                             )
@@ -136,21 +134,22 @@ impl Drop for Scanner {
 
 /// Find track collections in the given path.
 fn find_track_paths(input_path: PathBuf) -> impl Iterator<Item = (PathBuf, Vec<TaggedFile>)> {
-    let supported_extensions = HashSet::from(["mp3", "flac"]);
+    let disc_pattern = RegexBuilder::new(r"^(?:CD|Disc)\s*\d+$")
+        .case_insensitive(true)
+        .build()
+        .unwrap();
+
+    let mut grouped_tracks: HashMap<PathBuf, Vec<TaggedFile>> = HashMap::new();
+
     walk_dir(input_path)
         .filter_map(Result::ok)
-        .filter_map(move |(path, _dirs, files)| {
+        .for_each(|(path, _dirs, files)| {
             let tagged_files: Vec<TaggedFile> = files
                 .iter()
                 .filter(|path| {
                     path.extension()
-                        .map(std::ffi::OsStr::to_ascii_lowercase)
-                        .and_then(|extension| {
-                            extension
-                                .to_str()
-                                .map(|extension| supported_extensions.contains(extension))
-                        })
-                        .unwrap_or(false)
+                        .and_then(std::ffi::OsStr::to_str)
+                        .is_some_and(is_supported_extension)
                 })
                 .filter_map(|path| match TaggedFile::read_from_path(path) {
                     Ok(file) => Some(file),
@@ -162,13 +161,33 @@ fn find_track_paths(input_path: PathBuf) -> impl Iterator<Item = (PathBuf, Vec<T
                 .collect();
 
             if tagged_files.is_empty() {
-                return None;
+                return;
             }
+
+            // Check if the leaf directory matches CD/Disc pattern
+            let group_path = if let Some(file_name) = path.file_name() {
+                if let Some(name_str) = file_name.to_str() {
+                    if disc_pattern.is_match(name_str) {
+                        path.parent().unwrap_or(&path).to_path_buf()
+                    } else {
+                        path.clone()
+                    }
+                } else {
+                    path.clone()
+                }
+            } else {
+                path.clone()
+            };
 
             log::info!("Found {} tracks in {}", tagged_files.len(), path.display());
 
-            Some((path, tagged_files))
-        })
+            grouped_tracks
+                .entry(group_path)
+                .or_default()
+                .extend(tagged_files);
+        });
+
+    grouped_tracks.into_iter()
 }
 
 /// Analyze a file and assign the analysis results to it.
@@ -185,7 +204,7 @@ fn analyze_tagged_file(config: &Config, tagged_file: TaggedFile) -> TaggedFile {
 /// Join all analysis tasks, then create a TaggedFieCollection from it. Then find similar
 /// candidates on MusicBrainz.
 async fn join_analysis_tasks_to_collection_and_find_release_candidates(
-    musicbrainz: &MusicBrainzClient<'_>,
+    musicbrainz: &MusicBrainzClient,
     path: PathBuf,
     handles: JoinSet<TaggedFile>,
 ) -> ScanResult {
@@ -201,5 +220,8 @@ async fn join_analysis_tasks_to_collection_and_find_release_candidates(
                 .map(|candidates| (track_collection, candidates))
         })
         .await
-        .map_err(|source| ScanError { path, source })
+        .map_err(|source| ScanError {
+            path,
+            source: Box::new(source),
+        })
 }

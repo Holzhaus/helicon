@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Jan Holthuis <jan.holthuis@rub.de>
+// Copyright (c) 2026 Jan Holthuis <jan.holthuis@rub.de>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy
 // of the MPL was not distributed with this file, You can obtain one at
@@ -16,7 +16,6 @@ use crate::release_candidate::{ReleaseCandidate, ReleaseCandidateCollection};
 use crate::scanner::Scanner;
 use crate::track::TrackLike;
 use crate::util::FormattedDuration;
-use crate::Cache;
 use crate::{Config, TaggedFileCollection};
 use clap::Parser;
 use futures::StreamExt;
@@ -42,9 +41,9 @@ enum SelectionResult {
 }
 
 /// Select the release for the given track collection from the list of candidates.
-async fn select_release<'a>(
+async fn select_release(
     config: &Config,
-    musicbrainz: &'a MusicBrainzClient<'a>,
+    musicbrainz: &MusicBrainzClient,
     track_collection: TaggedFileCollection,
     mut candidates: ReleaseCandidateCollection<MusicBrainzRelease>,
 ) -> crate::Result<SelectionResult> {
@@ -213,8 +212,12 @@ fn print_tracklist(release: &impl ReleaseLike) {
 ///
 /// If the underlying [`walk_dir`] function encounters any form of I/O or other error, an error
 /// variant will be returned.
-pub async fn run(config: &Config, cache: Option<&Cache>, args: Args) -> crate::Result<()> {
-    let mut scanner = Scanner::scan(config.clone(), cache.cloned(), args.path);
+pub async fn run(
+    config: &Config,
+    musicbrainz: &MusicBrainzClient,
+    args: Args,
+) -> crate::Result<()> {
+    let mut scanner = Scanner::scan(config.clone(), musicbrainz.clone(), args.path);
 
     let (importer_tx, mut importer_rx) = tokio::sync::mpsc::channel::<(
         TaggedFileCollection,
@@ -232,10 +235,14 @@ pub async fn run(config: &Config, cache: Option<&Cache>, args: Args) -> crate::R
             if let Err(err) = track_collection.write_tags() {
                 log::error!("Failed to write tags: {err}");
             }
+
+            #[cfg(unix)]
+            if let Err(err) = track_collection.set_permissions(&cloned_config) {
+                log::error!("Failed to set permissions: {err}");
+            }
         }
     });
 
-    let musicbrainz = MusicBrainzClient::new(config, cache);
     while let Some(result) = scanner.recv().await {
         let (track_collection, candidates) = match result {
             Ok(res) => res,
@@ -244,7 +251,7 @@ pub async fn run(config: &Config, cache: Option<&Cache>, args: Args) -> crate::R
                 continue;
             }
         };
-        match select_release(config, &musicbrainz, track_collection, candidates).await? {
+        match select_release(config, musicbrainz, track_collection, candidates).await? {
             SelectionResult::Selected(track_collection, selected_candidate) => {
                 if let Err(err) = importer_tx
                     .send((track_collection, selected_candidate))

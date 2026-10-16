@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Jan Holthuis <jan.holthuis@rub.de>
+// Copyright (c) 2026 Jan Holthuis <jan.holthuis@rub.de>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy
 // of the MPL was not distributed with this file, You can obtain one at
@@ -8,11 +8,11 @@
 
 //! Generic release implementations.
 use itertools::Itertools;
-use musicbrainz_rs_nova::entity::artist::Artist as MusicBrainzArtist;
-use musicbrainz_rs_nova::entity::relations::Relation as MusicBrainzRelation;
-use musicbrainz_rs_nova::entity::relations::RelationContent as MusicBrainzRelationContent;
-use musicbrainz_rs_nova::entity::release::Track as MusicBrainzReleaseTrack;
-use musicbrainz_rs_nova::entity::work::Work as MusicBrainzWork;
+use musicbrainz_rs::entity::artist::Artist as MusicBrainzArtist;
+use musicbrainz_rs::entity::relations::Relation as MusicBrainzRelation;
+use musicbrainz_rs::entity::relations::RelationContent as MusicBrainzRelationContent;
+use musicbrainz_rs::entity::release::Track as MusicBrainzReleaseTrack;
+use musicbrainz_rs::entity::work::Work as MusicBrainzWork;
 use std::borrow::Cow;
 use std::iter::Iterator;
 use std::path::Path;
@@ -626,15 +626,18 @@ impl TrackLike for MusicBrainzReleaseTrack {
     fn original_release_date(&self) -> Option<Cow<'_, str>> {
         self.recording
             .as_ref()
-            .and_then(|recording| recording.first_release_date)
-            .map(|date| Cow::from(date.format("%Y-%m-%d").to_string()))
+            .and_then(|recording| recording.first_release_date.as_ref())
+            .map(ToString::to_string)
+            .map(Cow::from)
     }
 
     fn original_release_year(&self) -> Option<Cow<'_, str>> {
         self.recording
             .as_ref()
-            .and_then(|recording| recording.first_release_date)
-            .map(|date| Cow::from(date.format("%Y").to_string()))
+            .and_then(|recording| recording.first_release_date.as_ref())
+            .and_then(musicbrainz_rs::entity::date_string::DateString::year)
+            .map(|year| year.to_string())
+            .map(Cow::from)
     }
 
     fn performers(&self) -> Option<Vec<InvolvedPerson<'_>>> {
