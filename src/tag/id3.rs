@@ -8,6 +8,7 @@
 
 //! Support for ID3 tags.
 
+use crate::coverart::CoverArt;
 use crate::tag::{Tag, TagKey, TagType};
 use crate::track::InvolvedPerson;
 use crate::util::parse_year_from_str;
@@ -604,6 +605,23 @@ impl Tag for ID3v2Tag {
                 FrameId::DerivedValue(_, _) => (),
             }
         }
+    }
+
+    fn has_front_cover(&self) -> bool {
+        self.data
+            .pictures()
+            .any(|picture| picture.picture_type == id3::frame::PictureType::CoverFront)
+    }
+
+    fn set_front_cover(&mut self, cover: &CoverArt) {
+        self.data
+            .remove_picture_by_type(id3::frame::PictureType::CoverFront);
+        let _replaced = self.data.add_frame(id3::frame::Picture {
+            mime_type: cover.mime_type().to_owned(),
+            picture_type: id3::frame::PictureType::CoverFront,
+            description: String::new(),
+            data: cover.data().to_vec(),
+        });
     }
 
     fn write(&mut self, path: &Path) -> crate::Result<()> {
@@ -1386,4 +1404,74 @@ mod tests {
     add_tests_with_id3_versions_all!(&TagKey::ArtistWebsite, artistwebsite);
     add_tests_with_id3_versions_all!(&TagKey::WorkTitle, worktitle);
     add_tests_with_id3_versions_all!(&TagKey::Writer, writer);
+
+    use crate::coverart::testing::{jpeg_cover, png_cover};
+
+    const UNTAGGED_MP3: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/data/media/untagged/track.mp3"
+    );
+
+    #[test]
+    fn test_front_cover_initially_missing() {
+        assert!(!ID3v2Tag::with_version(Version::Id3v24).has_front_cover());
+    }
+
+    #[test]
+    fn test_set_front_cover() {
+        let mut tag = ID3v2Tag::with_version(Version::Id3v24);
+        tag.set_front_cover(&jpeg_cover());
+        assert!(tag.has_front_cover());
+    }
+
+    #[test]
+    fn test_set_front_cover_replaces_existing() {
+        let mut tag = ID3v2Tag::with_version(Version::Id3v24);
+        tag.set_front_cover(&jpeg_cover());
+        tag.set_front_cover(&png_cover());
+        assert!(tag.has_front_cover());
+        assert_eq!(tag.data.pictures().count(), 1);
+        let picture = tag.data.pictures().next().unwrap();
+        assert_eq!(picture.mime_type, "image/png");
+        assert_eq!(picture.picture_type, id3::frame::PictureType::CoverFront);
+        assert_eq!(picture.data, png_cover().data());
+    }
+
+    #[test]
+    fn test_front_cover_write_read_roundtrip() {
+        let file = tempfile::Builder::new().suffix(".mp3").tempfile().unwrap();
+        let _ = std::fs::copy(UNTAGGED_MP3, file.path()).unwrap();
+
+        let mut tag = ID3v2Tag::read_from_path(file.path()).unwrap();
+        assert!(!tag.has_front_cover());
+        tag.set_front_cover(&jpeg_cover());
+        tag.write(file.path()).unwrap();
+
+        let mut tag = ID3v2Tag::read_from_path(file.path()).unwrap();
+        assert!(tag.has_front_cover());
+        tag.set_front_cover(&png_cover());
+        tag.write(file.path()).unwrap();
+
+        let tag = ID3v2Tag::read_from_path(file.path()).unwrap();
+        assert!(tag.has_front_cover());
+        let picture = tag.data.pictures().next().unwrap();
+        assert_eq!(tag.data.pictures().count(), 1);
+        assert_eq!(picture.mime_type, "image/png");
+        assert_eq!(picture.data, png_cover().data());
+    }
+
+    #[test]
+    fn test_set_front_cover_keeps_other_pictures() {
+        let mut tag = ID3v2Tag::with_version(Version::Id3v24);
+        let _unused = tag.data.add_frame(id3::frame::Picture {
+            mime_type: "image/png".to_owned(),
+            picture_type: id3::frame::PictureType::CoverBack,
+            description: String::new(),
+            data: vec![1, 2, 3],
+        });
+        assert!(!tag.has_front_cover());
+        tag.set_front_cover(&jpeg_cover());
+        assert!(tag.has_front_cover());
+        assert_eq!(tag.data.pictures().count(), 2);
+    }
 }

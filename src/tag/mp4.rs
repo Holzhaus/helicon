@@ -21,6 +21,7 @@
 //!   `----:com.apple.iTunes:MusicBrainz Artist Id`. Helicon only ever uses freeform atoms with
 //!   the `mean` set to `com.apple.iTunes`, matching what Picard/iTunes do.
 
+use crate::coverart::{CoverArt, ImageFormat};
 use crate::tag::{Tag, TagKey, TagType};
 use crate::track::InvolvedPerson;
 use crate::util::parse_year_from_str;
@@ -324,6 +325,20 @@ impl Tag for Mp4Tag {
         }
     }
 
+    fn has_front_cover(&self) -> bool {
+        // MP4 artwork has no picture type, so any artwork is treated as the front cover.
+        self.data.artworks().next().is_some()
+    }
+
+    fn set_front_cover(&mut self, cover: &CoverArt) {
+        let fmt = match cover.format() {
+            ImageFormat::Jpeg => mp4ameta::ImgFmt::Jpeg,
+            ImageFormat::Png => mp4ameta::ImgFmt::Png,
+        };
+        self.data
+            .set_artwork(mp4ameta::Img::new(fmt, cover.data().to_vec()));
+    }
+
     fn write(&mut self, path: &Path) -> crate::Result<()> {
         self.data.write_to_path(path)?;
         Ok(())
@@ -621,5 +636,59 @@ mod tests {
         assert!(tag.get(&TagKey::TotalTracks).is_none());
         assert_eq!(tag.get(&TagKey::TrackNumber).as_deref(), Some("3"));
         assert_eq!(tag.get(&TagKey::Compilation).as_deref(), Some("0"));
+    }
+
+    use crate::coverart::testing::{jpeg_cover, png_cover};
+
+    const UNTAGGED_FILE: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/data/media/untagged/track.m4a"
+    );
+
+    #[test]
+    fn test_front_cover_initially_missing() {
+        assert!(!Mp4Tag::new().has_front_cover());
+    }
+
+    #[test]
+    fn test_set_front_cover() {
+        let mut tag = Mp4Tag::new();
+        tag.set_front_cover(&jpeg_cover());
+        assert!(tag.has_front_cover());
+    }
+
+    #[test]
+    fn test_set_front_cover_replaces_existing() {
+        let mut tag = Mp4Tag::new();
+        tag.set_front_cover(&jpeg_cover());
+        tag.set_front_cover(&png_cover());
+        assert!(tag.has_front_cover());
+        assert_eq!(tag.data.artworks().count(), 1);
+        let artwork = tag.data.artwork().unwrap();
+        assert_eq!(artwork.fmt, mp4ameta::ImgFmt::Png);
+        assert_eq!(artwork.data, png_cover().data());
+    }
+
+    #[test]
+    fn test_front_cover_write_read_roundtrip() {
+        let file = tempfile::Builder::new().suffix(".m4a").tempfile().unwrap();
+        let _ = std::fs::copy(UNTAGGED_FILE, file.path()).unwrap();
+
+        let mut tag = Mp4Tag::read_from_path(file.path()).unwrap();
+        assert!(!tag.has_front_cover());
+        tag.set_front_cover(&jpeg_cover());
+        tag.write(file.path()).unwrap();
+
+        let mut tag = Mp4Tag::read_from_path(file.path()).unwrap();
+        assert!(tag.has_front_cover());
+        tag.set_front_cover(&png_cover());
+        tag.write(file.path()).unwrap();
+
+        let tag = Mp4Tag::read_from_path(file.path()).unwrap();
+        assert!(tag.has_front_cover());
+        assert_eq!(tag.data.artworks().count(), 1);
+        let artwork = tag.data.artwork().unwrap();
+        assert_eq!(artwork.fmt, mp4ameta::ImgFmt::Png);
+        assert_eq!(artwork.data, png_cover().data());
     }
 }
