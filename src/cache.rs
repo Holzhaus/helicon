@@ -9,7 +9,7 @@
 //! Caching for MusicBrainz API queries.
 
 use chrono::{DateTime, Utc};
-use musicbrainz_rs_nova::entity::{
+use musicbrainz_rs::entity::{
     release::Release as MusicBrainzRelease, release_group::ReleaseGroup as MusicBrainzReleaseGroup,
     search::SearchResult as MusicBrainzSearchResult,
 };
@@ -107,7 +107,19 @@ impl Cache {
 
         let f = File::open(&path)?;
         let reader = BufReader::new(f);
-        let envelope: CacheEnvelope<T> = serde_json::from_reader(reader)?;
+        let envelope: CacheEnvelope<T> = match serde_json::from_reader(reader) {
+            Ok(envelope) => envelope,
+            Err(err) => {
+                // Entry is corrupt or was written in an incompatible format; drop it so it gets
+                // re-fetched and overwritten.
+                log::debug!(
+                    "Cache item {item_path} could not be deserialized ({err}), removing it",
+                    item_path = item_path.display()
+                );
+                std::fs::remove_file(path)?;
+                return Err(CacheError::CacheMiss);
+            }
+        };
 
         let age = Utc::now().signed_duration_since(envelope.created);
         // TODO: Make this configurable

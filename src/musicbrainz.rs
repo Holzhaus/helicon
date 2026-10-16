@@ -17,10 +17,11 @@ use futures::{
     future::TryFutureExt,
     stream::{self, Stream, StreamExt},
 };
-pub use musicbrainz_rs_nova::entity::{
+use musicbrainz_rs::client::MusicBrainzClient as UpstreamMusicBrainzClient;
+pub use musicbrainz_rs::entity::{
     release::Release as MusicBrainzRelease, release_group::ReleaseGroup as MusicBrainzReleaseGroup,
 };
-use musicbrainz_rs_nova::{
+use musicbrainz_rs::{
     entity::release::ReleaseSearchQuery as MusicBrainzReleaseSearchQuery, Fetch, Search,
 };
 use regex::Regex;
@@ -32,18 +33,24 @@ use std::borrow::Cow;
 pub const VARIOUS_ARTISTS_ID: &str = "89ad4ac3-39f7-470e-963a-56509c546377";
 
 /// Configurable MusicBrainz API client with caching support.
-#[derive(Debug)]
-pub struct MusicBrainzClient<'a> {
+#[derive(Debug, Clone)]
+pub struct MusicBrainzClient {
     /// Configuration
-    config: &'a Config,
+    config: Config,
     /// Cache
-    cache: Option<&'a Cache>,
+    cache: Option<Cache>,
+    /// Upstream MusicBrainz API client used for the actual HTTP requests.
+    upstream_client: UpstreamMusicBrainzClient,
 }
 
-impl<'a> MusicBrainzClient<'a> {
+impl MusicBrainzClient {
     /// Create a new MusicBrainz client.
-    pub fn new(config: &'a Config, cache: Option<&'a Cache>) -> Self {
-        Self { config, cache }
+    pub fn new(config: &Config, cache: Option<&Cache>, user_agent: &str) -> Self {
+        Self {
+            config: config.clone(),
+            cache: cache.cloned(),
+            upstream_client: UpstreamMusicBrainzClient::new(user_agent),
+        }
     }
 
     /// Find MusicBrainz Release information for the given (generic) Release.
@@ -55,7 +62,7 @@ impl<'a> MusicBrainzClient<'a> {
             match self.find_release_by_id(release_id.into_owned()).await {
                 Ok(release) => {
                     let candidate =
-                        ReleaseCandidate::with_base_release(release, base_release, self.config);
+                        ReleaseCandidate::with_base_release(release, base_release, &self.config);
                     return Ok(vec![candidate]);
                 }
                 Err(err) => {
@@ -75,7 +82,7 @@ impl<'a> MusicBrainzClient<'a> {
             .await?;
         let heap = KeyedBinaryHeap::with_capacity(
             similar_release_ids.len(),
-            |candidate: &ReleaseCandidate<MusicBrainzRelease>| candidate.distance(self.config),
+            |candidate: &ReleaseCandidate<MusicBrainzRelease>| candidate.distance(&self.config),
         );
         let heap = stream::iter(similar_release_ids)
             .map(|release_id| self.find_release_by_id(release_id))
@@ -86,12 +93,12 @@ impl<'a> MusicBrainzClient<'a> {
                 };
 
                 let candidate =
-                    ReleaseCandidate::with_base_release(release, base_release, self.config);
+                    ReleaseCandidate::with_base_release(release, base_release, &self.config);
 
                 log::debug!(
                     "Release '{}' has distance to track collection: {}",
                     candidate.release().title,
-                    candidate.distance(self.config),
+                    candidate.distance(&self.config),
                 );
                 heap.push(candidate);
                 heap
@@ -112,7 +119,7 @@ impl<'a> MusicBrainzClient<'a> {
     ) -> crate::Result<Vec<String>> {
         let search_query = build_search_query(base_release);
         log::debug!("Querying MusicBrainz: {search_query}");
-        let response = if let Some(cached_response) = self.cache.and_then(|cache| cache.get_item((search_query.as_ref(), limit, offset))
+        let response = if let Some(cached_response) = self.cache.as_ref().and_then(|cache| cache.get_item((search_query.as_ref(), limit, offset))
                 .inspect_err(|err| {
                     log::debug!("Failed to get release search result for query {search_query} (limit {limit}) from cache: {err}");
                 })
@@ -122,14 +129,14 @@ impl<'a> MusicBrainzClient<'a> {
             let response = MusicBrainzRelease::search(search_query.clone())
                 .limit(limit)
                 .offset(offset)
-                .execute()
+                .execute_with_client_async(&self.upstream_client)
                 .await?;
             log::debug!(
                 "Found {} releases using query: {}",
                 response.entities.len(),
                 search_query
             );
-            if let Some(cache) = self.cache {
+            if let Some(cache) = self.cache.as_ref() {
                 match cache.insert_item((search_query.as_ref(), limit, offset), &response) {
                 Ok(()) => {
                     log::debug!("Inserted release search {search_query:?} (limit: {limit}, offset: {offset}) into cache");
@@ -155,7 +162,7 @@ impl<'a> MusicBrainzClient<'a> {
         &self,
         release_group_id: String,
     ) -> crate::Result<MusicBrainzReleaseGroup> {
-        if let Some(release_group) = self.cache.and_then(|cache| {
+        if let Some(release_group) = self.cache.as_ref().and_then(|cache| {
             cache
                 .get_item(release_group_id.as_ref())
                 .inspect_err(|err| {
@@ -169,11 +176,11 @@ impl<'a> MusicBrainzClient<'a> {
         MusicBrainzReleaseGroup::fetch()
             .id(&release_group_id)
             .with_releases()
-            .execute()
+            .execute_with_client_async(&self.upstream_client)
             .map_err(crate::Error::from)
             .await
             .inspect(|release_group| {
-                if let Some(cache) = self.cache {
+                if let Some(cache) = self.cache.as_ref() {
                     match cache.insert_item(release_group_id.as_ref(), release_group) {
                         Ok(()) => {
                             log::debug!("Inserted release group {release_group_id} into cache");
@@ -221,7 +228,7 @@ impl<'a> MusicBrainzClient<'a> {
         &self,
         release_id: String,
     ) -> crate::Result<MusicBrainzRelease> {
-        if let Some(release) = self.cache.and_then(|cache| {
+        if let Some(release) = self.cache.as_ref().and_then(|cache| {
             cache
                 .get_item(release_id.as_ref())
                 .inspect_err(|err| {
@@ -245,11 +252,11 @@ impl<'a> MusicBrainzClient<'a> {
             .with_work_level_relations()
             .with_artist_relations()
             .with_url_relations()
-            .execute()
+            .execute_with_client_async(&self.upstream_client)
             .map_err(crate::Error::from)
             .await
             .inspect(|release| {
-                if let Some(cache) = self.cache {
+                if let Some(cache) = self.cache.as_ref() {
                     match cache.insert_item(release_id.as_ref(), release) {
                         Ok(()) => {
                             log::debug!("Inserted release {release_id} into cache");
@@ -449,7 +456,7 @@ mod tests {
     use super::*;
     use crate::release::ReleaseLike;
     use crate::track::TrackLike;
-    use musicbrainz_rs_nova::entity::release::Release as MusicBrainzRelease;
+    use musicbrainz_rs::entity::release::Release as MusicBrainzRelease;
 
     const MUSICBRAINZ_RELEASE_JSON: &str = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

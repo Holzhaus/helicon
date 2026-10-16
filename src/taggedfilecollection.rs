@@ -672,7 +672,7 @@ mod tests {
         );
         assert_eq!(collection.record_label().as_deref(), Some("Argo"));
         assert_eq!(collection.release_country().as_deref(), Some("US"));
-        assert_eq!(collection.release_date().as_deref(), Some("1958-01-01"));
+        assert_eq!(collection.release_date().as_deref(), Some("1958"));
         assert_eq!(collection.release_year().as_deref(), Some("1958"));
         assert_eq!(collection.release_status().as_deref(), Some("official"));
         assert_eq!(collection.release_type().as_deref(), Some("album"));
@@ -722,7 +722,7 @@ mod tests {
         );
         assert_eq!(collection.record_label().as_deref(), Some("Argo"));
         assert_eq!(collection.release_country().as_deref(), Some("US"));
-        assert_eq!(collection.release_date().as_deref(), Some("1958-01-01"));
+        assert_eq!(collection.release_date().as_deref(), Some("1958"));
         assert_eq!(collection.release_year().as_deref(), Some("1958"));
         assert_eq!(collection.release_status().as_deref(), Some("official"));
         assert_eq!(collection.release_type().as_deref(), Some("album"));
@@ -770,7 +770,7 @@ mod tests {
         );
         assert_eq!(collection.record_label().as_deref(), Some("Argo"));
         assert_eq!(collection.release_country().as_deref(), Some("US"));
-        assert_eq!(collection.release_date().as_deref(), Some("1958-01-01"));
+        assert_eq!(collection.release_date().as_deref(), Some("1958"));
         assert_eq!(collection.release_year().as_deref(), Some("1958"));
         assert_eq!(collection.release_status().as_deref(), Some("official"));
         assert_eq!(collection.release_type().as_deref(), Some("album"));

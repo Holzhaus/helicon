@@ -11,7 +11,7 @@
 use crate::cache::Cache;
 use crate::Config;
 use clap::Parser;
-use musicbrainz_rs_nova::entity::{
+use musicbrainz_rs::entity::{
     release::Release as MusicBrainzRelease, release_group::ReleaseGroup as MusicBrainzReleaseGroup,
     search::SearchResult as MusicBrainzSearchResult,
 };
