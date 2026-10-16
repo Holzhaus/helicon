@@ -9,6 +9,7 @@
 //! Module for the `config` CLI subcommand.
 
 use crate::cache::Cache;
+use crate::coverart::CoverArt;
 use crate::Config;
 use clap::Parser;
 use musicbrainz_rs::entity::{
@@ -34,6 +35,9 @@ pub fn run(_config: &Config, cache: Option<&Cache>, _args: Args) -> crate::Resul
 
     let (count, size) = cache.get_stats::<MusicBrainzSearchResult<MusicBrainzRelease>>()?;
     println!("Release Search Results: {count} ({size:?} bytes)");
+
+    let (count, size) = cache.get_stats::<CoverArt>()?;
+    println!("Front Covers: {count} ({size:?} bytes)");
 
     Ok(())
 }

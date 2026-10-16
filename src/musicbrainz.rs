@@ -8,6 +8,8 @@
 
 //! MusicBrainz helper functions.
 
+use crate::config::CoverArtResolution;
+use crate::coverart::{self, CoverArt};
 use crate::release::ReleaseLike;
 use crate::release_candidate::ReleaseCandidate;
 use crate::util::KeyedBinaryHeap;
@@ -22,7 +24,8 @@ pub use musicbrainz_rs::entity::{
     release::Release as MusicBrainzRelease, release_group::ReleaseGroup as MusicBrainzReleaseGroup,
 };
 use musicbrainz_rs::{
-    entity::release::ReleaseSearchQuery as MusicBrainzReleaseSearchQuery, Fetch, Search,
+    entity::release::ReleaseSearchQuery as MusicBrainzReleaseSearchQuery, entity::CoverartResponse,
+    Fetch, FetchCoverart, Search,
 };
 use regex::Regex;
 use std::borrow::Cow;
@@ -37,6 +40,9 @@ pub const VARIOUS_ARTISTS_ID: &str = "89ad4ac3-39f7-470e-963a-56509c546377";
 pub struct MusicBrainzClient {
     /// Configuration
     config: Config,
+    /// User agent for requests that are not made via the upstream client.
+    #[allow(dead_code)]
+    user_agent: String,
     /// Cache
     cache: Option<Cache>,
     /// Upstream MusicBrainz API client used for the actual HTTP requests.
@@ -48,6 +54,7 @@ impl MusicBrainzClient {
     pub fn new(config: &Config, cache: Option<&Cache>, user_agent: &str) -> Self {
         Self {
             config: config.clone(),
+            user_agent: user_agent.to_owned(),
             cache: cache.cloned(),
             upstream_client: UpstreamMusicBrainzClient::new(user_agent),
         }
@@ -221,6 +228,63 @@ impl MusicBrainzClient {
             .map(move |release_id| self.find_release_by_id(release_id))
             .buffer_unordered(self.config.lookup.connection_limit);
         Ok(release_stream)
+    }
+
+    /// Fetch the front cover art of a MusicBrainz release from the Cover Art Archive.
+    ///
+    /// Returns `Ok(None)` if the release has no front cover.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the query or the image download fails or the image has an
+    /// unsupported format.
+    #[allow(dead_code)]
+    pub async fn find_front_cover_by_release_id(
+        &self,
+        release_id: &str,
+    ) -> crate::Result<Option<CoverArt>> {
+        let resolution = self.config.cover_art.resolution;
+        if let Some(cover) = self.cache.as_ref().and_then(|cache| {
+            cache
+                .get_item::<CoverArt>((release_id, resolution))
+                .inspect_err(|err| {
+                    log::debug!("Failed to get cover art for {release_id} from cache: {err}");
+                })
+                .ok()
+        }) {
+            return Ok(Some(cover));
+        }
+
+        let mut query = MusicBrainzRelease::fetch_coverart();
+        let query = query.id(release_id).front();
+        let query = match resolution {
+            CoverArtResolution::Res250 => query.res_250(),
+            CoverArtResolution::Res500 => query.res_500(),
+            CoverArtResolution::Res1200 => query.res_1200(),
+            CoverArtResolution::Original => query,
+        };
+        let url = match query.execute_with_client_async(&self.upstream_client).await {
+            Ok(CoverartResponse::Url(url)) => url,
+            Ok(CoverartResponse::Json(_)) => return Ok(None),
+            Err(err) if coverart::is_not_found(&err) => {
+                log::debug!("Release {release_id} has no front cover art");
+                return Ok(None);
+            }
+            Err(err) => return Err(err.into()),
+        };
+
+        log::debug!("Downloading front cover for {release_id} from {url}");
+        let user_agent = self.user_agent.clone();
+        let cover = tokio::task::spawn_blocking(move || coverart::download(&url, &user_agent))
+            .await
+            .map_err(std::io::Error::other)??;
+
+        if let Some(cache) = self.cache.as_ref() {
+            if let Err(err) = cache.insert_item((release_id, resolution), &cover) {
+                log::warn!("Failed to insert cover art for {release_id} into cache: {err}");
+            }
+        }
+        Ok(Some(cover))
     }
 
     /// Fetch a MusicBrainz release by its release ID.
