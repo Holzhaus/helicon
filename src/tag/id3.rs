@@ -265,7 +265,7 @@ impl ID3v2Tag {
                         text_values = frame.content().text_values();
                     }
                     Content::Unknown(unknown) => {
-                        println!("{:02x?}", &unknown.data);
+                        println!("{:02x?}", unknown.data);
                     }
                     _ => (),
                 }

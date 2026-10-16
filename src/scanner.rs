@@ -30,7 +30,7 @@ pub struct ScanError {
     /// The path for which the error occurred.
     pub path: PathBuf,
     /// The actual error.
-    pub source: crate::Error,
+    pub source: Box<crate::Error>,
 }
 
 /// Convenience Alias for a Scan Result.
@@ -220,5 +220,8 @@ async fn join_analysis_tasks_to_collection_and_find_release_candidates(
                 .map(|candidates| (track_collection, candidates))
         })
         .await
-        .map_err(|source| ScanError { path, source })
+        .map_err(|source| ScanError {
+            path,
+            source: Box::new(source),
+        })
 }
