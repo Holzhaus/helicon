@@ -23,6 +23,9 @@ use std::iter;
 use std::mem;
 use std::path::Path;
 
+/// Lowercase file extensions of the files that contain ID3 tags.
+pub const EXTENSIONS: &[&str] = &["mp3"];
+
 /// Determines which part of an combined text part.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum CombinedTextPart {
