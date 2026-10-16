@@ -310,7 +310,7 @@ impl<'a> StyledContentList<'a> {
 
         // Split the two lists at the item border.
         let mut second_vec = self.0.split_off(first_item_count);
-        debug_assert!(!second_vec.is_empty());
+        debug_assert_ne!(second_vec.len(), 0);
         debug_assert!(self.char_width() <= max_width);
 
         // Now check if we can split the first item in the second list and move the first part into

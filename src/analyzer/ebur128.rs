@@ -85,8 +85,6 @@ pub struct EbuR128AlbumResult {
 impl EbuR128AlbumResult {
     /// Calculate the ReplayGain 2.0 Album Peak and Album Gain from an iterator of `EbuR128Result`
     /// values.
-    // FIXME: Remove this when anonymous lifetimes in `impl Trait` become stable.
-    #[expect(single_use_lifetimes)]
     pub fn from_iter<'a>(
         results: impl Iterator<Item = &'a EbuR128Result>,
     ) -> Option<EbuR128AlbumResult> {
