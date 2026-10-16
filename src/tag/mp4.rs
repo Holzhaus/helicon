@@ -31,6 +31,9 @@ use mp4ameta::{
 use std::borrow::Cow;
 use std::path::Path;
 
+/// Lowercase file extensions of the files that contain MP4 tags.
+pub const EXTENSIONS: &[&str] = &["m4a", "m4b", "m4p", "m4v", "m4r", "mp4"];
+
 /// The storage primitive used for a [`TagKey`].
 #[derive(Debug, Clone)]
 enum TagItem {

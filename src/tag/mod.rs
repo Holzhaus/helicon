@@ -303,6 +303,28 @@ pub trait Tag: Send + Sync {
     }
 }
 
+/// Lowercase file extensions of all file types for which tags can be read.
+///
+/// The extensions are defined by the individual tag modules (`EXTENSIONS`), and only include the
+/// formats enabled via cargo features.
+pub fn supported_extensions() -> impl Iterator<Item = &'static str> {
+    let groups: &[&[&str]] = &[
+        #[cfg(feature = "id3")]
+        id3::EXTENSIONS,
+        #[cfg(feature = "flac")]
+        flac::EXTENSIONS,
+        #[cfg(feature = "mp4")]
+        mp4::EXTENSIONS,
+    ];
+    groups.iter().flat_map(|group| group.iter().copied())
+}
+
+/// Returns `true` if tags can be read from files with the given extension (case-insensitive).
+#[must_use]
+pub fn is_supported_extension(extension: &str) -> bool {
+    supported_extensions().any(|supported| supported.eq_ignore_ascii_case(extension))
+}
+
 /// Return a vector of tags from the file at the given path.
 pub fn read_tags_from_path(path: impl AsRef<Path>) -> crate::Result<Vec<Box<dyn Tag>>> {
     path.as_ref()
@@ -315,19 +337,17 @@ pub fn read_tags_from_path(path: impl AsRef<Path>) -> crate::Result<Vec<Box<dyn 
                 .ok_or(crate::Error::UnknownFileType)
                 .map(|ext| match ext {
                     #[cfg(feature = "id3")]
-                    "mp3" => id3::ID3v2Tag::read_from_path(&path)
+                    ext if id3::EXTENSIONS.contains(&ext) => id3::ID3v2Tag::read_from_path(&path)
                         .map(Box::new)
                         .map(|tag| Box::<dyn Tag>::from(tag))
                         .map(|tag| vec![tag]),
                     #[cfg(feature = "mp4")]
-                    "m4a" | "m4b" | "m4p" | "m4v" | "m4r" | "mp4" => {
-                        mp4::Mp4Tag::read_from_path(&path)
-                            .map(Box::new)
-                            .map(|tag| Box::<dyn Tag>::from(tag))
-                            .map(|tag| vec![tag])
-                    }
+                    ext if mp4::EXTENSIONS.contains(&ext) => mp4::Mp4Tag::read_from_path(&path)
+                        .map(Box::new)
+                        .map(|tag| Box::<dyn Tag>::from(tag))
+                        .map(|tag| vec![tag]),
                     #[cfg(feature = "flac")]
-                    "flac" => flac::FlacTag::read_from_path(&path)
+                    ext if flac::EXTENSIONS.contains(&ext) => flac::FlacTag::read_from_path(&path)
                         .map(Box::new)
                         .map(|tag| Box::<dyn Tag>::from(tag))
                         .map(|tag| vec![tag]),
@@ -337,4 +357,37 @@ pub fn read_tags_from_path(path: impl AsRef<Path>) -> crate::Result<Vec<Box<dyn 
                     }
                 })?
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_supported_extensions_are_dispatched() {
+        for extension in supported_extensions() {
+            let path = format!("/nonexistent/track.{extension}");
+            let result = read_tags_from_path(&path);
+            assert!(
+                !matches!(result, Err(crate::Error::UnknownFileType)),
+                "extension {extension:?} is listed as supported but not handled"
+            );
+        }
+    }
+
+    #[test]
+    fn test_unsupported_extension() {
+        assert!(!is_supported_extension("txt"));
+        assert!(matches!(
+            read_tags_from_path("/nonexistent/track.txt"),
+            Err(crate::Error::UnknownFileType)
+        ));
+    }
+
+    #[test]
+    fn test_is_supported_extension_ignores_case() {
+        for extension in supported_extensions() {
+            assert!(is_supported_extension(&extension.to_ascii_uppercase()));
+        }
+    }
 }
