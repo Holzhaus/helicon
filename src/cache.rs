@@ -8,6 +8,8 @@
 
 //! Caching for MusicBrainz API queries.
 
+use crate::config::CoverArtResolution;
+use crate::coverart::CoverArt;
 use chrono::{DateTime, Utc};
 use musicbrainz_rs::entity::{
     release::Release as MusicBrainzRelease, release_group::ReleaseGroup as MusicBrainzReleaseGroup,
@@ -224,5 +226,32 @@ impl<'a> Cacheable<'a> for MusicBrainzReleaseSearchResult {
             write!(&mut s, "{byte:02x}").expect("unable to write to in-memory string");
         }
         Path::new(Self::CACHE_DIRECTORY).join(format!("{s}.json"))
+    }
+}
+
+impl<'a> Cacheable<'a> for CoverArt {
+    type Key = (&'a str, CoverArtResolution);
+
+    const CACHE_DIRECTORY: &'static str = "musicbrainz/coverart-front";
+
+    fn cache_path((mb_id, resolution): (&str, CoverArtResolution)) -> PathBuf {
+        Path::new(Self::CACHE_DIRECTORY).join(format!("{mb_id}-{}.json", resolution.as_str()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cover_art_cache_path_depends_on_resolution() {
+        let id = "76df3287-6cda-33eb-8e9a-044b5e15ffdd";
+        let path_500 = CoverArt::cache_path((id, CoverArtResolution::Res500));
+        let path_orig = CoverArt::cache_path((id, CoverArtResolution::Original));
+        assert_eq!(
+            path_500,
+            Path::new("musicbrainz/coverart-front").join(format!("{id}-500.json"))
+        );
+        assert_ne!(path_500, path_orig);
     }
 }

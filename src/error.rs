@@ -53,6 +53,12 @@ pub enum ErrorType {
     /// An error from the user interface.
     #[error("Error encountered while showing UI: {0}")]
     InquireError(#[from] inquire::InquireError),
+    /// Downloading cover art failed.
+    #[error("Cover art download failed: {0}")]
+    CoverArtDownload(#[from] Box<ureq::Error>),
+    /// The downloaded cover art is not a supported image format.
+    #[error("Cover art has an unsupported image format")]
+    UnsupportedCoverArtFormat,
     /// An error occurred while analyzing the audio track.
     #[error("Audio analysis failed: {0}")]
     AnalyzerError(#[from] crate::analyzer::AnalyzerError),

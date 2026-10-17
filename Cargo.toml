@@ -52,6 +52,7 @@ tempfile = "3.27.0"
 expanduser = "1.2.2"
 soundtouch = { version = "0.5.1", default-features = false, features = ["bundled"], optional = true }
 bitflags = "2.13.2"
+ureq = "3"
 
 [dev-dependencies]
 paste = "1"
