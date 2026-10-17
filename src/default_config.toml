@@ -11,10 +11,16 @@ compilation_format = "{{album_artist}}/{{#if year}}{{zfill year width=4}} - {{/i
 connection_limit = 10
 release_candidate_limit = 5
 
-[import]
-# Automatically select and apply the best release candidate if its similarity (in percent) is at
-# least this high. Set to a value above 100 to disable.
-auto_select_min_similarity = 90.0
+[recommendation]
+# Distances (0.0 to 1.0) that determine how strongly the best release candidate is recommended.
+# Only candidates with a strong recommendation are selected automatically.
+# Best candidate distance below this value: strong recommendation.
+strong = 0.04
+# Best candidate distance up to this value: medium recommendation.
+medium = 0.25
+# Otherwise, the recommendation is low if there is only one candidate or the distance gap to the
+# second-best candidate is at least this large. If not, there is no recommendation.
+gap = 0.25
 
 [cover_art]
 # Fetch the front cover from the Cover Art Archive and embed it into the files.

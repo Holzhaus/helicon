@@ -433,14 +433,10 @@ pub struct PathTemplateConfig {
     pub compilation_format: String,
 }
 
-/// Default minimum similarity (in percent) for automatically selecting the best candidate.
-fn default_auto_select_min_similarity() -> f64 {
-    90.0
-}
-
 /// The import configuration struct.
 #[expect(missing_copy_implementations)]
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[expect(clippy::struct_field_names)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct ImportConfig {
     /// User ID to set.
     #[serde(default)]
@@ -451,19 +447,43 @@ pub struct ImportConfig {
     /// File mode to set.
     #[serde(default)]
     pub set_mode: Option<u32>,
-    /// Minimum similarity (in percent, 0-100) of the best release candidate for it to be selected
-    /// and applied automatically. Set to a value above 100 to disable automatic selection.
-    #[serde(default = "default_auto_select_min_similarity")]
-    pub auto_select_min_similarity: f64,
 }
 
-impl Default for ImportConfig {
+/// Distance thresholds that determine the recommendation level for release candidates.
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
+pub struct RecommendationConfig {
+    /// Distances below this value result in a strong recommendation.
+    #[serde(default = "default_strong_threshold")]
+    pub strong: f64,
+    /// Distances up to this value result in a medium recommendation.
+    #[serde(default = "default_medium_threshold")]
+    pub medium: f64,
+    /// Minimum distance gap between the best and second-best candidate for a low recommendation.
+    #[serde(default = "default_gap_threshold")]
+    pub gap: f64,
+}
+
+/// Default for [`RecommendationConfig::strong`].
+const fn default_strong_threshold() -> f64 {
+    0.04
+}
+
+/// Default for [`RecommendationConfig::medium`].
+const fn default_medium_threshold() -> f64 {
+    0.25
+}
+
+/// Default for [`RecommendationConfig::gap`].
+const fn default_gap_threshold() -> f64 {
+    0.25
+}
+
+impl Default for RecommendationConfig {
     fn default() -> Self {
         Self {
-            set_uid: None,
-            set_gid: None,
-            set_mode: None,
-            auto_select_min_similarity: default_auto_select_min_similarity(),
+            strong: default_strong_threshold(),
+            medium: default_medium_threshold(),
+            gap: default_gap_threshold(),
         }
     }
 }
@@ -486,6 +506,9 @@ pub struct Config {
     /// Import configuration.
     #[serde(default)]
     pub import: ImportConfig,
+    /// Recommendation thresholds.
+    #[serde(default)]
+    pub recommendation: RecommendationConfig,
 }
 
 impl Default for Config {

@@ -12,7 +12,7 @@ use super::util;
 use crate::config::Config;
 use crate::musicbrainz::MusicBrainzId;
 use crate::release::ReleaseLike;
-use crate::release_candidate::{ReleaseCandidate, ReleaseCandidateCollection};
+use crate::release_candidate::{Recommendation, ReleaseCandidate, ReleaseCandidateCollection};
 use inquire::{validator::Validation, InquireError, Select, Text};
 use itertools::Itertools;
 use std::borrow::Cow;
@@ -444,10 +444,9 @@ pub fn autoselectable_candidate<'a, T: ReleaseLike>(
     config: &Config,
     candidates: &'a ReleaseCandidateCollection<T>,
 ) -> Option<&'a ReleaseCandidate<T>> {
-    candidates.iter().next().filter(|best_candidate| {
-        util::as_similarity_percentage(&best_candidate.distance(config))
-            >= config.import.auto_select_min_similarity
-    })
+    (candidates.recommendation(config) == Recommendation::Strong)
+        .then(|| candidates.iter().next())
+        .flatten()
 }
 
 /// Present a selection of releases to the user, and loop until either a release was selected or
@@ -462,6 +461,11 @@ pub fn select_candidate<'a, T: ReleaseLike>(
             return Ok(ReleaseCandidateSelectionResult::Candidate(best_candidate));
         }
     }
+
+    log::debug!(
+        "Recommendation for best candidate: {:?}",
+        candidates.recommendation(config)
+    );
 
     let additional_options = [
         ReleaseCandidateSelectionOption::EnterMusicBrainzId,

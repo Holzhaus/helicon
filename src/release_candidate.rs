@@ -12,6 +12,19 @@ use crate::distance::{Distance, ReleaseSimilarity};
 use crate::release::ReleaseLike;
 use crate::Config;
 
+/// How strongly the best release candidate is recommended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Recommendation {
+    /// No conclusion can be drawn.
+    None,
+    /// Low recommendation.
+    Low,
+    /// Medium recommendation.
+    Medium,
+    /// Strong recommendation.
+    Strong,
+}
+
 /// A candidate release that potentially matches the base release.
 #[derive(Debug, Clone)]
 pub struct ReleaseCandidate<T: ReleaseLike> {
@@ -117,6 +130,28 @@ impl<T: ReleaseLike> ReleaseCandidateCollection<T> {
         self.add_candidate(candidate, config);
     }
 
+    /// Determine the recommendation level based on the distances of the best candidates.
+    pub fn recommendation(&self, config: &Config) -> Recommendation {
+        let thresholds = &config.recommendation;
+        let Some(best) = self.candidates.first() else {
+            return Recommendation::None;
+        };
+        let min_dist = best.distance(config).as_f64();
+        if min_dist < thresholds.strong {
+            Recommendation::Strong
+        } else if min_dist <= thresholds.medium {
+            Recommendation::Medium
+        } else if let Some(second) = self.candidates.get(1) {
+            if second.distance(config).as_f64() - min_dist >= thresholds.gap {
+                Recommendation::Low
+            } else {
+                Recommendation::None
+            }
+        } else {
+            Recommendation::Low
+        }
+    }
+
     /// Iterate over the candidates in this collection.
     pub fn iter(&self) -> std::slice::Iter<'_, ReleaseCandidate<T>> {
         self.candidates.iter()
@@ -141,7 +176,7 @@ impl<T: ReleaseLike> From<Vec<ReleaseCandidate<T>>> for ReleaseCandidateCollecti
 mod tests {
     use crate::{
         distance::Distance,
-        release_candidate::{ReleaseCandidate, ReleaseCandidateCollection},
+        release_candidate::{Recommendation, ReleaseCandidate, ReleaseCandidateCollection},
         util::FakeRelease,
         Config,
     };
@@ -172,5 +207,30 @@ mod tests {
             .map(|candidate| candidate.similarity().total_distance(&config))
             .collect::<Vec<_>>();
         assert_eq!(distances, [Distance::MIN]);
+    }
+
+    #[test]
+    fn test_recommendation() {
+        let release: FakeRelease = serde_json::from_slice(RELEASE_DATA).unwrap();
+        let candidate_0: FakeRelease = serde_json::from_slice(RELEASE_CANDIDATE_0_DATA).unwrap();
+        let mut config = Config::default();
+        let collection =
+            ReleaseCandidateCollection::from(vec![ReleaseCandidate::with_base_release(
+                candidate_0,
+                &release,
+                &config,
+            )]);
+        assert_eq!(collection.recommendation(&config), Recommendation::Strong);
+
+        // Distance 0.0 is not below a threshold of 0.0, but within the medium threshold.
+        config.recommendation.strong = 0.0;
+        assert_eq!(collection.recommendation(&config), Recommendation::Medium);
+
+        // A single candidate that exceeds all thresholds is a low recommendation.
+        config.recommendation.medium = -1.0;
+        assert_eq!(collection.recommendation(&config), Recommendation::Low);
+
+        let empty = ReleaseCandidateCollection::<FakeRelease>::default();
+        assert_eq!(empty.recommendation(&config), Recommendation::None);
     }
 }
