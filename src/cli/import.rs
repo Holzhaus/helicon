@@ -54,7 +54,7 @@ async fn select_release(
             .unwrap_or("[unknown artist]".into()),
         title = track_collection
             .release_title()
-            .unwrap_or("[unknown title]".into()),
+            .unwrap_or("[unknown album]".into()),
         track_count = track_collection.release_track_count().unwrap_or(0),
     );
     let mut allow_autoselection = candidates.len() == 1;
