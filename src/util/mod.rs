@@ -10,6 +10,7 @@
 
 mod fs;
 mod keyed_binheap;
+mod size;
 #[cfg(any(test, feature = "dev"))]
 mod testing;
 mod time;
@@ -18,6 +19,7 @@ mod time;
 pub use fs::set_file_permissions;
 pub use fs::{move_file, walk_dir};
 pub use keyed_binheap::KeyedBinaryHeap;
+pub use size::format_size;
 #[cfg(any(test, feature = "dev"))]
 pub use testing::FakeRelease;
 #[cfg(test)]

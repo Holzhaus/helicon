@@ -41,7 +41,7 @@ struct Args {
 /// Supported CLI Commands.
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// Show the current cache usage.
+    /// Show the current cache usage or clear the cache.
     Cache(cache::Args),
     /// Show your current configuration.
     Config(config::Args),

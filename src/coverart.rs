@@ -9,6 +9,7 @@
 //! Cover art support.
 
 use crate::config::CoverArtResolution;
+use crate::util::format_size;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -98,14 +99,14 @@ impl CoverArt {
         self.format.mime_type()
     }
 
-    /// A short description, e.g. `Front Cover (JPG, 500px, 32KiB)`.
+    /// A short description, e.g. `Front Cover (JPG, 500px, 32 KiB)`.
     #[must_use]
     pub fn description(&self, resolution: CoverArtResolution) -> String {
         format!(
             "Front Cover ({}, {}, {})",
             self.format.name(),
             resolution.label(),
-            format_size(self.data.len())
+            format_size(u64::try_from(self.data.len()).unwrap_or(u64::MAX))
         )
     }
 
@@ -184,37 +185,20 @@ impl CoverInfo {
         }
     }
 
-    /// A short description, e.g. `Front Cover (JPG, 500x500px, 32KiB)`.
+    /// A short description, e.g. `Front Cover (JPG, 500x500px, 32 KiB)`.
     #[must_use]
     pub fn description(&self) -> String {
         let details = [
             self.format.map(|format| format.name().to_owned()),
             self.dimensions
                 .map(|(width, height)| format!("{width}x{height}px")),
-            Some(format_size(self.size)),
+            Some(format_size(u64::try_from(self.size).unwrap_or(u64::MAX))),
         ]
         .into_iter()
         .flatten()
         .collect::<Vec<_>>()
         .join(", ");
         format!("Front Cover ({details})")
-    }
-}
-
-/// Format a byte count in a short human-readable form (e.g. `32KiB`).
-#[must_use]
-pub fn format_size(bytes: usize) -> String {
-    const KIB: usize = 1024;
-    const MIB: usize = 1024 * KIB;
-    if bytes < KIB {
-        format!("{bytes}B")
-    } else if bytes < MIB {
-        format!("{}KiB", bytes.div_ceil(KIB))
-    } else {
-        // Precision loss is irrelevant for a display value.
-        #[allow(clippy::cast_precision_loss)]
-        let mebibytes = bytes as f64 / MIB as f64;
-        format!("{mebibytes:.1}MiB")
     }
 }
 
@@ -346,26 +330,14 @@ mod tests {
     }
 
     #[test]
-    fn test_format_size() {
-        assert_eq!(format_size(0), "0B");
-        assert_eq!(format_size(1023), "1023B");
-        assert_eq!(format_size(1024), "1KiB");
-        assert_eq!(format_size(1025), "2KiB");
-        assert_eq!(format_size(32 * 1024), "32KiB");
-        assert_eq!(format_size(1024 * 1024 - 1), "1024KiB");
-        assert_eq!(format_size(1024 * 1024), "1.0MiB");
-        assert_eq!(format_size(5 * 1024 * 1024 / 2), "2.5MiB");
-    }
-
-    #[test]
     fn test_description() {
         assert_eq!(
             jpeg_cover().description(CoverArtResolution::Res500),
-            "Front Cover (JPG, 500px, 8B)"
+            "Front Cover (JPG, 500px, 8 B)"
         );
         assert_eq!(
             png_cover().description(CoverArtResolution::Original),
-            "Front Cover (PNG, original, 11B)"
+            "Front Cover (PNG, original, 11 B)"
         );
     }
 
@@ -413,15 +385,15 @@ mod tests {
         data.resize(32 * 1024, 0);
         assert_eq!(
             CoverInfo::from_data(&data).description(),
-            "Front Cover (JPG, 500x500px, 32KiB)"
+            "Front Cover (JPG, 500x500px, 32 KiB)"
         );
         assert_eq!(
             CoverInfo::from_data(&png_header(250, 250)).description(),
-            "Front Cover (PNG, 250x250px, 24B)"
+            "Front Cover (PNG, 250x250px, 24 B)"
         );
         assert_eq!(
             CoverInfo::from_data(b"GIF89a").description(),
-            "Front Cover (6B)"
+            "Front Cover (6 B)"
         );
     }
 

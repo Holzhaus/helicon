@@ -175,6 +175,23 @@ impl Cache {
             .sum::<io::Result<u64>>()?;
         Ok((item_count, item_size))
     }
+
+    /// Remove all cached items of the given type and return `(item_count, total_size_in_bytes)`
+    /// of the removed items.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a cache file could not be inspected or removed.
+    pub fn clear_items<'a, T: Cacheable<'a>>(&self) -> Result<(usize, u64), CacheError> {
+        let mut item_count = 0;
+        let mut item_size = 0;
+        for file in self.0.list_cache_files(T::CACHE_DIRECTORY) {
+            item_size += file.metadata()?.len();
+            std::fs::remove_file(file)?;
+            item_count += 1;
+        }
+        Ok((item_count, item_size))
+    }
 }
 
 /// Marks an item as cacheable.
