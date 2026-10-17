@@ -55,6 +55,10 @@ pub struct Args {
     /// Don't write metadata (opposite of -w).
     #[arg(short = 'W', long, overrides_with = "write")]
     nowrite: bool,
+
+    /// Only consider collections with an existing MusicBrainz release ID and skip all others.
+    #[arg(long)]
+    refresh: bool,
 }
 
 impl Args {
@@ -315,7 +319,7 @@ pub async fn run(
 ) -> crate::Result<()> {
     let transfer_mode = args.transfer_mode();
     let write_tags = !args.nowrite;
-    let mut scanner = Scanner::scan(config.clone(), musicbrainz.clone(), args.path);
+    let mut scanner = Scanner::scan(config.clone(), musicbrainz.clone(), args.path, args.refresh);
 
     let (importer_tx, mut importer_rx) = tokio::sync::mpsc::channel::<(
         TaggedFileCollection,

@@ -13,11 +13,11 @@
 
 use crate::analyzer;
 use crate::musicbrainz::{MusicBrainzClient, MusicBrainzRelease};
-use crate::release_candidate::ReleaseCandidateCollection;
+use crate::release::ReleaseLike;
+use crate::release_candidate::{ReleaseCandidate, ReleaseCandidateCollection};
 use crate::tag::is_supported_extension;
 use crate::util::walk_dir;
 use crate::{Config, TaggedFile, TaggedFileCollection};
-use futures::FutureExt;
 use regex::RegexBuilder;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -55,7 +55,15 @@ pub struct Scanner {
 
 impl Scanner {
     /// Create a scanner for the given path.
-    pub fn scan(config: Config, musicbrainz: MusicBrainzClient, path: PathBuf) -> Scanner {
+    ///
+    /// If `refresh_only` is set, only collections with a consensual MusicBrainz release ID are
+    /// considered. The release with that ID is the only candidate; no similarity search is done.
+    pub fn scan(
+        config: Config,
+        musicbrainz: MusicBrainzClient,
+        path: PathBuf,
+        refresh_only: bool,
+    ) -> Scanner {
         log::info!("Starting scan of {}", path.display());
 
         let (results_tx, results_rx) = tokio::sync::mpsc::channel(20);
@@ -94,18 +102,21 @@ impl Scanner {
                 // releases on MusicBrainz. The result is sent to the `results_tx` queue.
                 let cloned_musicbrainz = musicbrainz.clone();
                 let results_tx = cloned_results_tx.clone();
+                let cloned_config = cloned_config.clone();
                 let _matching_logic = pool_handle.spawn(async move {
-                    if let Err(err) = results_tx
-                        .send(
-                            join_analysis_tasks_to_collection_and_find_release_candidates(
-                                &cloned_musicbrainz,
-                                path,
-                                handles,
-                            )
-                            .await,
+                    let Some(result) =
+                        join_analysis_tasks_to_collection_and_find_release_candidates(
+                            &cloned_config,
+                            &cloned_musicbrainz,
+                            path,
+                            handles,
+                            refresh_only,
                         )
                         .await
-                    {
+                    else {
+                        return;
+                    };
+                    if let Err(err) = results_tx.send(result).await {
                         log::error!("Failed to queue results: {err}");
                     }
                 });
@@ -203,25 +214,53 @@ fn analyze_tagged_file(config: &Config, tagged_file: TaggedFile) -> TaggedFile {
 
 /// Join all analysis tasks, then create a TaggedFieCollection from it. Then find similar
 /// candidates on MusicBrainz.
+///
+/// In refresh-only mode, the release referenced by the tags is the only candidate. Returns `None`
+/// if the collection should be skipped.
 async fn join_analysis_tasks_to_collection_and_find_release_candidates(
+    config: &Config,
     musicbrainz: &MusicBrainzClient,
     path: PathBuf,
     handles: JoinSet<TaggedFile>,
-) -> ScanResult {
-    handles
-        .join_all()
-        .then(|mut tracks| async {
-            tracks.sort_unstable_by(|a, b| a.path.as_path().cmp(b.path.as_path()));
-            let track_collection = TaggedFileCollection::new(tracks);
-            musicbrainz
-                .find_releases_by_similarity(&track_collection)
-                .await
-                .map(ReleaseCandidateCollection::from)
-                .map(|candidates| (track_collection, candidates))
-        })
-        .await
-        .map_err(|source| ScanError {
-            path,
-            source: Box::new(source),
-        })
+    refresh_only: bool,
+) -> Option<ScanResult> {
+    let mut tracks = handles.join_all().await;
+    tracks.sort_unstable_by(|a, b| a.path.as_path().cmp(b.path.as_path()));
+    let track_collection = TaggedFileCollection::new(tracks);
+
+    let candidates = if refresh_only {
+        let Some(release_id) = track_collection
+            .musicbrainz_release_id()
+            .map(|id| id.trim().to_owned())
+            .filter(|id| !id.is_empty())
+        else {
+            log::info!(
+                "Skipping {}: no consensual MusicBrainz release ID",
+                path.display()
+            );
+            return None;
+        };
+        musicbrainz
+            .find_release_by_id(release_id)
+            .await
+            .map(|release| {
+                let candidate =
+                    ReleaseCandidate::with_base_release(release, &track_collection, config);
+                ReleaseCandidateCollection::from(vec![candidate])
+            })
+    } else {
+        musicbrainz
+            .find_releases_by_similarity(&track_collection)
+            .await
+            .map(ReleaseCandidateCollection::from)
+    };
+
+    Some(
+        candidates
+            .map(|candidates| (track_collection, candidates))
+            .map_err(|source| ScanError {
+                path,
+                source: Box::new(source),
+            }),
+    )
 }
