@@ -24,10 +24,14 @@ use symphonia::core::meta::MetadataOptions;
 
 mod chromaprint;
 mod ebur128;
+#[cfg(feature = "soundtouch")]
+mod soundtouch_bpm;
 mod track_length;
 
 use chromaprint::ChromaprintFingerprintAnalyzer;
 use ebur128::EbuR128Analyzer;
+#[cfg(feature = "soundtouch")]
+use soundtouch_bpm::SoundTouchBpmAnalyzer;
 use track_length::TrackLengthAnalyzer;
 
 pub use ebur128::EbuR128AlbumResult;
@@ -95,6 +99,9 @@ enum CompoundAnalyzerItem {
     ChromaprintFingerprint(Box<ChromaprintFingerprintAnalyzer>),
     /// EBU R 128 Analyzer.
     EbuR128(Box<EbuR128Analyzer>),
+    /// SoundTouch BPM Analyzer.
+    #[cfg(feature = "soundtouch")]
+    SoundTouchBpm(Box<SoundTouchBpmAnalyzer>),
 }
 
 impl CompoundAnalyzerItem {
@@ -129,6 +136,19 @@ impl CompoundAnalyzerItem {
                     None
                 }
             },
+            #[cfg(feature = "soundtouch")]
+            AnalyzerType::SoundTouchBpm => match SoundTouchBpmAnalyzer::initialize(config, track) {
+                Ok(analyzer) => Some(Self::SoundTouchBpm(Box::from(analyzer))),
+                Err(err) => {
+                    result.soundtouch_bpm = Some(Err(err));
+                    None
+                }
+            },
+            #[cfg(not(feature = "soundtouch"))]
+            AnalyzerType::SoundTouchBpm => {
+                log::warn!("SoundTouch BPM analyzer is enabled, but support was not compiled in");
+                None
+            }
         }
     }
 
@@ -138,6 +158,8 @@ impl CompoundAnalyzerItem {
             Self::TrackLength(analyzer) => analyzer.is_complete(),
             Self::ChromaprintFingerprint(analyzer) => analyzer.is_complete(),
             Self::EbuR128(analyzer) => analyzer.is_complete(),
+            #[cfg(feature = "soundtouch")]
+            Self::SoundTouchBpm(analyzer) => analyzer.is_complete(),
         }
     }
 
@@ -170,6 +192,14 @@ impl CompoundAnalyzerItem {
                     false
                 }
             },
+            #[cfg(feature = "soundtouch")]
+            Self::SoundTouchBpm(analyzer) => match analyzer.feed(samples) {
+                Ok(()) => true,
+                Err(err) => {
+                    result.soundtouch_bpm = Some(Err(err));
+                    false
+                }
+            },
         }
     }
 
@@ -188,6 +218,10 @@ impl CompoundAnalyzerItem {
             Self::EbuR128(analyzer) => {
                 result.ebur128 = Some(analyzer.finalize());
             }
+            #[cfg(feature = "soundtouch")]
+            Self::SoundTouchBpm(analyzer) => {
+                result.soundtouch_bpm = Some(analyzer.finalize());
+            }
         }
         result
     }
@@ -203,6 +237,9 @@ pub struct CompoundAnalyzerResult {
         Option<Result<<ChromaprintFingerprintAnalyzer as Analyzer>::Result, AnalyzerError>>,
     /// Result of the EBU R 128 analysis.
     pub ebur128: Option<Result<<EbuR128Analyzer as Analyzer>::Result, AnalyzerError>>,
+    /// Result of the SoundTouch BPM analysis.
+    #[cfg(feature = "soundtouch")]
+    pub soundtouch_bpm: Option<Result<<SoundTouchBpmAnalyzer as Analyzer>::Result, AnalyzerError>>,
 }
 
 impl Analyzer for CompoundAnalyzer {
