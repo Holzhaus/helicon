@@ -1139,6 +1139,7 @@ dependencies = [
  "unicode-segmentation",
  "unicode-width",
  "unidecode",
+ "ureq",
  "xdg",
 ]
 

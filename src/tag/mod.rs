@@ -7,6 +7,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 //! Tags and tag-related functions.
+use crate::coverart::{CoverArt, CoverInfo};
 use crate::track::InvolvedPerson;
 use std::borrow::Cow;
 use std::path::Path;
@@ -280,6 +281,14 @@ pub trait Tag: Send + Sync {
             self.clear(key);
         }
     }
+    /// Get information about the front cover image in the tag (if any).
+    fn front_cover_info(&self) -> Option<CoverInfo>;
+    /// Whether the tag contains a front cover image.
+    fn has_front_cover(&self) -> bool {
+        self.front_cover_info().is_some()
+    }
+    /// Set the front cover image, replacing an existing front cover.
+    fn set_front_cover(&mut self, cover: &CoverArt);
     /// Write the tags to the path.
     fn write(&mut self, path: &Path) -> crate::Result<()>;
 

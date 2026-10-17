@@ -50,6 +50,7 @@ mod analyzer;
 mod cache;
 mod cli;
 mod config;
+mod coverart;
 mod distance;
 mod error;
 mod media;

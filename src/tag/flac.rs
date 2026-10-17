@@ -8,6 +8,7 @@
 
 //! Support for FLAC tags.
 
+use crate::coverart::{CoverArt, CoverInfo};
 use crate::tag::{Tag, TagKey, TagType};
 use crate::track::InvolvedPerson;
 use crate::util::parse_year_from_str;
@@ -189,6 +190,21 @@ impl Tag for FlacTag {
         if let Some(frame) = Self::tag_key_to_frame(key) {
             self.data.remove_vorbis(frame);
         }
+    }
+
+    fn front_cover_info(&self) -> Option<CoverInfo> {
+        self.data
+            .pictures()
+            .find(|picture| picture.picture_type == metaflac::block::PictureType::CoverFront)
+            .map(|picture| CoverInfo::from_data(&picture.data))
+    }
+
+    fn set_front_cover(&mut self, cover: &CoverArt) {
+        self.data.add_picture(
+            cover.mime_type(),
+            metaflac::block::PictureType::CoverFront,
+            cover.data().to_vec(),
+        );
     }
 
     fn write(&mut self, path: &Path) -> crate::Result<()> {
@@ -446,4 +462,76 @@ mod tests {
     add_tests!(&TagKey::ArtistWebsite, artistwebsite);
     add_tests!(&TagKey::WorkTitle, worktitle);
     add_tests!(&TagKey::Writer, writer);
+
+    use crate::coverart::testing::{jpeg_cover, png_cover};
+
+    const UNTAGGED_FILE: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/data/media/untagged/track.flac"
+    );
+
+    #[test]
+    fn test_front_cover_initially_missing() {
+        assert!(!FlacTag::new().has_front_cover());
+    }
+
+    #[test]
+    fn test_set_front_cover() {
+        let mut tag = FlacTag::new();
+        tag.set_front_cover(&jpeg_cover());
+        assert!(tag.has_front_cover());
+    }
+
+    #[test]
+    fn test_set_front_cover_replaces_existing() {
+        let mut tag = FlacTag::new();
+        tag.set_front_cover(&jpeg_cover());
+        tag.set_front_cover(&png_cover());
+        assert!(tag.has_front_cover());
+        let pictures: Vec<_> = tag.data.pictures().collect();
+        assert_eq!(pictures.len(), 1);
+        assert_eq!(pictures[0].mime_type, "image/png");
+        assert_eq!(pictures[0].data, png_cover().data());
+    }
+
+    #[test]
+    fn test_front_cover_write_read_roundtrip() {
+        let file = tempfile::Builder::new().suffix(".flac").tempfile().unwrap();
+        let _ = std::fs::copy(UNTAGGED_FILE, file.path()).unwrap();
+
+        let mut tag = FlacTag::read_from_path(file.path()).unwrap();
+        assert!(!tag.has_front_cover());
+        tag.set_front_cover(&jpeg_cover());
+        tag.write(file.path()).unwrap();
+
+        let mut tag = FlacTag::read_from_path(file.path()).unwrap();
+        assert!(tag.has_front_cover());
+        tag.set_front_cover(&png_cover());
+        tag.write(file.path()).unwrap();
+
+        let tag = FlacTag::read_from_path(file.path()).unwrap();
+        assert!(tag.has_front_cover());
+        let pictures: Vec<_> = tag.data.pictures().collect();
+        assert_eq!(pictures.len(), 1);
+        assert_eq!(pictures[0].mime_type, "image/png");
+        assert_eq!(
+            pictures[0].picture_type,
+            metaflac::block::PictureType::CoverFront
+        );
+        assert_eq!(pictures[0].data, png_cover().data());
+    }
+
+    #[test]
+    fn test_set_front_cover_keeps_other_pictures() {
+        let mut tag = FlacTag::new();
+        tag.data.add_picture(
+            "image/png",
+            metaflac::block::PictureType::CoverBack,
+            vec![1, 2, 3],
+        );
+        assert!(!tag.has_front_cover());
+        tag.set_front_cover(&jpeg_cover());
+        assert!(tag.has_front_cover());
+        assert_eq!(tag.data.pictures().count(), 2);
+    }
 }

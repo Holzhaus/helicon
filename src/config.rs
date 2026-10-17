@@ -90,6 +90,58 @@ pub struct LookupConfig {
     pub release_candidate_limit: u8,
 }
 
+/// Resolution of the cover art that is fetched from the Cover Art Archive.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+pub enum CoverArtResolution {
+    /// Thumbnail with a maximum size of 250px.
+    #[serde(rename = "250")]
+    Res250,
+    /// Thumbnail with a maximum size of 500px.
+    #[serde(rename = "500")]
+    Res500,
+    /// Thumbnail with a maximum size of 1200px.
+    #[serde(rename = "1200")]
+    Res1200,
+    /// The original image as uploaded.
+    #[serde(rename = "original")]
+    Original,
+}
+
+impl CoverArtResolution {
+    /// Human-readable label of the resolution (e.g. `500px`).
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Res250 => "250px",
+            Self::Res500 => "500px",
+            Self::Res1200 => "1200px",
+            Self::Original => "original",
+        }
+    }
+
+    /// A string that identifies the resolution (e.g. for use in cache file names).
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Res250 => "250",
+            Self::Res500 => "500",
+            Self::Res1200 => "1200",
+            Self::Original => "original",
+        }
+    }
+}
+
+/// Configuration for cover art.
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+pub struct CoverArtConfig {
+    /// Whether to fetch and embed the front cover art.
+    pub enabled: bool,
+    /// Replace front covers that are already embedded in the files.
+    pub overwrite_existing: bool,
+    /// Resolution of the cover art to fetch.
+    pub resolution: CoverArtResolution,
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(remote = "crossterm::style::Color")]
 #[serde(rename_all = "snake_case")]
@@ -404,6 +456,8 @@ pub struct Config {
     pub paths: PathConfig,
     /// Configuration for track/release lookup.
     pub lookup: LookupConfig,
+    /// Cover art configuration.
+    pub cover_art: CoverArtConfig,
     /// Weight configuration.
     pub weights: DistanceWeights,
     /// UI configuration.
@@ -511,6 +565,40 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_default_cover_art_config() {
+        let config = Config::default().cover_art;
+        assert!(config.enabled);
+        assert!(!config.overwrite_existing);
+        assert_eq!(config.resolution, CoverArtResolution::Res500);
+    }
+
+    #[test]
+    fn test_cover_art_config_override() {
+        let config = builder::ConfigBuilder::default()
+            .with_defaults()
+            .with_str("[cover_art]\noverwrite_existing = true\nresolution = \"original\"\n")
+            .build()
+            .unwrap()
+            .cover_art;
+        assert!(config.enabled);
+        assert!(config.overwrite_existing);
+        assert_eq!(config.resolution, CoverArtResolution::Original);
+    }
+
+    #[test]
+    fn test_cover_art_resolution_names() {
+        for (name, res) in [
+            ("250", CoverArtResolution::Res250),
+            ("500", CoverArtResolution::Res500),
+            ("1200", CoverArtResolution::Res1200),
+            ("original", CoverArtResolution::Original),
+        ] {
+            assert_eq!(res.as_str(), name);
+            assert!(res.label().starts_with(name));
+        }
+    }
 
     #[test]
     fn test_load_default() {

@@ -9,6 +9,7 @@
 //! The [`TaggedFile`] struct represents a file that contains tags.
 
 use crate::analyzer::CompoundAnalyzerResult;
+use crate::coverart::{CoverArt, CoverInfo};
 use crate::media::MediaLike;
 use crate::release::ReleaseLike;
 use crate::tag::{read_tags_from_path, Tag, TagKey, TagType};
@@ -374,6 +375,31 @@ impl TaggedFile {
             &TagKey::Writer,
             track.writer().collect::<Vec<_>>().as_slice(),
         );
+    }
+
+    /// Get information about the front cover of the first tag that has one.
+    #[must_use]
+    pub fn front_cover_info(&self) -> Option<CoverInfo> {
+        self.content.iter().find_map(|tag| tag.front_cover_info())
+    }
+
+    /// Whether any of the tags would accept a front cover with the given overwrite behavior.
+    #[must_use]
+    pub fn needs_front_cover(&self, overwrite_existing: bool) -> bool {
+        self.content
+            .iter()
+            .any(|tag| overwrite_existing || !tag.has_front_cover())
+    }
+
+    /// Set the front cover on all tags.
+    ///
+    /// Tags that already have a front cover are skipped unless `overwrite_existing` is set.
+    pub fn set_front_cover(&mut self, cover: &CoverArt, overwrite_existing: bool) {
+        for tag in &mut self.content {
+            if overwrite_existing || !tag.has_front_cover() {
+                tag.set_front_cover(cover);
+            }
+        }
     }
 
     /// Write tags to file.
@@ -814,5 +840,47 @@ mod tests {
         assert!(tagged_file_collection.release_artist().is_some());
         assert!(tagged_file_collection.release_country().is_some());
         assert!(tagged_file_collection.musicbrainz_release_id().is_some());
+    }
+
+    #[cfg(feature = "flac")]
+    #[test]
+    fn test_front_cover_keeps_existing_by_default() {
+        use crate::coverart::testing::{jpeg_cover, png_cover};
+
+        let contains = |path: &Path, needle: &[u8]| {
+            let bytes = std::fs::read(path).unwrap();
+            bytes.windows(needle.len()).any(|window| window == needle)
+        };
+
+        let file = tempfile::Builder::new().suffix(".flac").tempfile().unwrap();
+        let _ = std::fs::copy(
+            concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/tests/data/media/untagged/track.flac"
+            ),
+            file.path(),
+        )
+        .unwrap();
+
+        let mut tagged_file = TaggedFile::read_from_path(file.path()).unwrap();
+        assert!(tagged_file.needs_front_cover(false));
+        tagged_file.set_front_cover(&jpeg_cover(), false);
+        assert!(!tagged_file.needs_front_cover(false));
+        assert!(tagged_file.needs_front_cover(true));
+        tagged_file.write_tags().unwrap();
+        assert!(contains(file.path(), jpeg_cover().data()));
+
+        // An existing cover is only replaced when explicitly requested.
+        let mut tagged_file = TaggedFile::read_from_path(file.path()).unwrap();
+        assert!(!tagged_file.needs_front_cover(false));
+        tagged_file.set_front_cover(&png_cover(), false);
+        tagged_file.write_tags().unwrap();
+        assert!(contains(file.path(), jpeg_cover().data()));
+        assert!(!contains(file.path(), png_cover().data()));
+
+        tagged_file.set_front_cover(&png_cover(), true);
+        tagged_file.write_tags().unwrap();
+        assert!(!contains(file.path(), jpeg_cover().data()));
+        assert!(contains(file.path(), png_cover().data()));
     }
 }

@@ -9,6 +9,7 @@
 //! Utilities for matching and lookup up albums and tracks.
 
 use crate::analyzer::EbuR128AlbumResult;
+use crate::coverart::{CoverArt, CoverInfo};
 use crate::media::MediaLike;
 use crate::pathformat::PathFormatterValues;
 use crate::release::ReleaseLike;
@@ -339,6 +340,38 @@ impl TaggedFileCollection {
         }
 
         Ok(())
+    }
+
+    /// For each track (in order), information about its existing front cover (if any).
+    #[must_use]
+    pub fn front_cover_infos(&self) -> Vec<Option<CoverInfo>> {
+        self.media
+            .iter()
+            .flat_map(|media| media.tracks.iter())
+            .map(TaggedFile::front_cover_info)
+            .collect()
+    }
+
+    /// Whether any track would accept a front cover with the given overwrite behavior.
+    #[must_use]
+    pub fn needs_front_cover(&self, overwrite_existing: bool) -> bool {
+        self.media
+            .iter()
+            .flat_map(|media| media.tracks.iter())
+            .any(|track| track.needs_front_cover(overwrite_existing))
+    }
+
+    /// Set the front cover for all tracks in this collection.
+    ///
+    /// Tracks that already have a front cover are skipped unless `overwrite_existing` is set.
+    pub fn set_front_cover(&mut self, cover: &CoverArt, overwrite_existing: bool) {
+        for track in self
+            .media
+            .iter_mut()
+            .flat_map(|media| media.tracks.iter_mut())
+        {
+            track.set_front_cover(cover, overwrite_existing);
+        }
     }
 
     /// Write tags for all tracks in this collection.
@@ -871,5 +904,28 @@ mod tests {
         assert_eq!(collection.release_type().as_deref(), Some("album"));
         assert_eq!(collection.script().as_deref(), Some("Latn"));
         assert_eq!(collection.total_discs().as_deref(), Some("1"));
+    }
+
+    #[test]
+    #[cfg(feature = "flac")]
+    fn test_set_front_cover_on_collection() {
+        use crate::coverart::testing::jpeg_cover;
+        use crate::tag::flac::FlacTag;
+
+        let mut collection = make_collection_from_assignment(|| Box::new(FlacTag::new()));
+        assert!(collection.needs_front_cover(false));
+        let total = collection.front_cover_infos().len();
+        assert!(total > 0);
+        assert!(collection.front_cover_infos().iter().all(Option::is_none));
+        collection.set_front_cover(&jpeg_cover(), false);
+        let expected = Some(CoverInfo::from_data(jpeg_cover().data()));
+        assert_eq!(collection.front_cover_infos(), vec![expected; total]);
+        assert!(!collection.needs_front_cover(false));
+        assert!(collection.needs_front_cover(true));
+        assert!(collection
+            .media
+            .iter()
+            .flat_map(|media| media.tracks.iter())
+            .all(|track| !track.needs_front_cover(false)));
     }
 }

@@ -11,6 +11,14 @@ compilation_format = "{{album_artist}}/{{#if year}}{{zfill year width=4}} - {{/i
 connection_limit = 10
 release_candidate_limit = 5
 
+[cover_art]
+# Fetch the front cover from the Cover Art Archive and embed it into the files.
+enabled = true
+# Replace front covers that are already embedded in the files.
+overwrite_existing = false
+# One of "250", "500", "1200" or "original".
+resolution = "500"
+
 [weights.track]
 track_title = 3.0
 track_artist = 3.0

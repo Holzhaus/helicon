@@ -9,6 +9,7 @@
 //! Functions related to importing files.
 
 use super::ui;
+use crate::coverart::CoverInfo;
 use crate::media::MediaLike;
 use crate::musicbrainz::{MusicBrainzClient, MusicBrainzRelease};
 use crate::release::ReleaseLike;
@@ -163,7 +164,15 @@ async fn select_release(
         };
         allow_autoselection = false;
 
-        match ui::handle_candidate(config, &track_collection, selected_candidate)? {
+        let cover_art =
+            build_cover_art_preview(config, musicbrainz, &track_collection, selected_candidate)
+                .await;
+        match ui::handle_candidate(
+            config,
+            &track_collection,
+            selected_candidate,
+            cover_art.as_ref(),
+        )? {
             ui::HandleCandidateResult::Apply => {
                 let candidate_index = candidates.find_index(selected_candidate);
                 let selected_candidate = candidates.select_index(candidate_index);
@@ -187,6 +196,39 @@ async fn select_release(
             }
         }
     }
+}
+
+/// Fetch the front cover of the candidate to preview what will be embedded.
+async fn build_cover_art_preview(
+    config: &Config,
+    musicbrainz: &MusicBrainzClient,
+    track_collection: &TaggedFileCollection,
+    candidate: &ReleaseCandidate<MusicBrainzRelease>,
+) -> Option<ui::CoverArtPreview> {
+    let cover_art_config = config.cover_art;
+    if !cover_art_config.enabled {
+        return None;
+    }
+
+    let new_cover = match musicbrainz
+        .find_front_cover_by_release_id(&candidate.release().id)
+        .await
+    {
+        Ok(cover) => cover.map(|cover| cover.description(cover_art_config.resolution)),
+        Err(err) => {
+            log::warn!("Failed to fetch front cover art: {err}");
+            None
+        }
+    };
+    Some(ui::CoverArtPreview {
+        existing_covers: track_collection
+            .front_cover_infos()
+            .iter()
+            .map(|info| info.as_ref().map(CoverInfo::description))
+            .collect(),
+        new_cover,
+        overwrite_existing: cover_art_config.overwrite_existing,
+    })
 }
 
 /// Print Tracklist (for copy & paste into MusicBrainz).
@@ -239,12 +281,35 @@ pub async fn run(
         ReleaseCandidate<MusicBrainzRelease>,
     )>(20);
     let cloned_config = config.clone();
+    let cloned_musicbrainz = musicbrainz.clone();
     let importer_handle = tokio::task::spawn(async move {
         while let Some((track_collection, selected_candidate)) = importer_rx.recv().await {
             let mut track_collection = track_collection.assign_tags(&selected_candidate);
             if let Err(err) = track_collection.move_files(&cloned_config) {
                 log::error!("Failed to move files: {err}");
                 continue;
+            }
+
+            let cover_art_config = cloned_config.cover_art;
+            if cover_art_config.enabled
+                && track_collection.needs_front_cover(cover_art_config.overwrite_existing)
+            {
+                match cloned_musicbrainz
+                    .find_front_cover_by_release_id(&selected_candidate.release().id)
+                    .await
+                {
+                    Ok(Some(cover)) => {
+                        log::info!(
+                            "Embedding front cover art ({}, {} bytes)",
+                            cover.mime_type(),
+                            cover.data().len()
+                        );
+                        track_collection
+                            .set_front_cover(&cover, cover_art_config.overwrite_existing);
+                    }
+                    Ok(None) => log::info!("No front cover art available for this release"),
+                    Err(err) => log::warn!("Failed to fetch front cover art: {err}"),
+                }
             }
 
             if let Err(err) = track_collection.write_tags() {
