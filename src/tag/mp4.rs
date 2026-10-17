@@ -208,9 +208,31 @@ impl Mp4Tag {
     }
 }
 
+/// Parse an integer tag value, rounding fractional values (e.g. BPM "119.44").
+#[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // Range is checked.
+fn parse_int_value(text: &str) -> Option<u16> {
+    let text = text.trim();
+    text.parse::<u16>().ok().or_else(|| {
+        text.parse::<f64>()
+            .ok()
+            .map(f64::round)
+            .filter(|n| (0.0..=f64::from(u16::MAX)).contains(n))
+            .map(|n| n as u16)
+    })
+}
+
 impl Tag for Mp4Tag {
     fn tag_type(&self) -> TagType {
         TagType::MP4
+    }
+
+    fn written_value<'a>(&self, key: &TagKey, value: Cow<'a, str>) -> Cow<'a, str> {
+        match Self::tag_key_to_item(key) {
+            Some(TagItem::Int(_)) => {
+                parse_int_value(&value).map_or(value, |n| Cow::from(n.to_string()))
+            }
+            _ => value,
+        }
     }
 
     fn get<'a>(&'a self, key: &'a TagKey) -> Option<Cow<'a, str>> {
@@ -275,12 +297,15 @@ impl Tag for Mp4Tag {
                 let flag = u8::from(values[0].trim() == "1");
                 self.data.set_data(fourcc, Data::BeSigned(vec![flag]));
             }
-            TagItem::Int(fourcc) => match values[0].trim().parse::<u16>() {
-                Ok(number) => self
-                    .data
-                    .set_data(fourcc, Data::BeSigned(number.to_be_bytes().to_vec())),
-                Err(err) => log::warn!("Cannot write {:?} as integer to MP4 tag: {err}", values[0]),
-            },
+            TagItem::Int(fourcc) => {
+                let number = parse_int_value(&values[0]);
+                match number {
+                    Some(number) => self
+                        .data
+                        .set_data(fourcc, Data::BeSigned(number.to_be_bytes().to_vec())),
+                    None => log::warn!("Cannot write {:?} as integer to MP4 tag", values[0]),
+                }
+            }
             TagItem::Track(part) | TagItem::Disc(part) => {
                 let Ok(number) = values[0].trim().parse::<u16>() else {
                     log::warn!("Cannot write {:?} as integer to MP4 tag", values[0]);
@@ -529,6 +554,8 @@ mod tests {
         assert!(tag.get(&TagKey::Bpm).is_none());
         tag.set(&TagKey::Bpm, Cow::from("128"));
         assert_eq!(tag.get(&TagKey::Bpm).as_deref(), Some("128"));
+        tag.set(&TagKey::Bpm, Cow::from("119.56"));
+        assert_eq!(tag.get(&TagKey::Bpm).as_deref(), Some("120"));
     }
 
     #[test]

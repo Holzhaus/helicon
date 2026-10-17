@@ -267,6 +267,10 @@ pub trait Tag: Send + Sync {
     fn tag_type(&self) -> TagType;
     /// Get the string value for the tag key.
     fn get<'a>(&'a self, key: &'a TagKey) -> Option<Cow<'a, str>>;
+    /// Get the value as it would be stored in this tag format (e.g. after rounding).
+    fn written_value<'a>(&self, _key: &TagKey, value: Cow<'a, str>) -> Cow<'a, str> {
+        value
+    }
     /// Set the value for tag key..
     fn set(&mut self, key: &TagKey, value: Cow<'_, str>);
     /// Set the value for tag key to multiple values.

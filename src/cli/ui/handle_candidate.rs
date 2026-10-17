@@ -15,6 +15,7 @@ use crate::media::MediaLike;
 use crate::pathformat::PathFormatterValues;
 use crate::release::ReleaseLike;
 use crate::release_candidate::ReleaseCandidate;
+use crate::tag::TagKey;
 use crate::track::{AnalyzedTrackMetadata, InvolvedPerson, TrackLike};
 use crate::util::{FormattedDuration, KeyedBinaryHeap};
 use crossterm::{
@@ -692,7 +693,11 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                 }
 
                 // Print the BPM (if available/different)
-                if let Some(bpm) = lhs_track.analyzed_metadata().bpm() {
+                if let Some(bpm) = lhs_track
+                    .analyzed_metadata()
+                    .bpm()
+                    .map(|bpm| lhs_track.written_tag_value(&TagKey::Bpm, bpm))
+                {
                     if lhs_track.bpm().is_none_or(|l| l != bpm) {
                         print_extra_metadata(
                             lhs_track.bpm(),

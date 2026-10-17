@@ -7,6 +7,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 //! Generic release implementations.
+use crate::tag::TagKey;
 use itertools::Itertools;
 use musicbrainz_rs::entity::artist::Artist as MusicBrainzArtist;
 use musicbrainz_rs::entity::relations::Relation as MusicBrainzRelation;
@@ -229,6 +230,11 @@ pub trait TrackLike {
     /// Analyzed metadata for this track.
     fn analyzed_metadata(&self) -> impl AnalyzedTrackMetadata {
         NoAnalyzedTrackMetadata
+    }
+
+    /// Returns the value as it would actually be stored in the track's tags.
+    fn written_tag_value<'a>(&self, _key: &TagKey, value: Cow<'a, str>) -> Cow<'a, str> {
+        value
     }
 
     /// Path to the track in the filesystem.
