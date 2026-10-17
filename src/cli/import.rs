@@ -47,6 +47,14 @@ pub struct Args {
     /// Don't move tracks into the library (overrides -m).
     #[arg(short = 'M', long, overrides_with = "move")]
     nomove: bool,
+
+    /// Write new metadata to files' tags (default).
+    #[arg(short = 'w', long, overrides_with = "nowrite")]
+    write: bool,
+
+    /// Don't write metadata (opposite of -w).
+    #[arg(short = 'W', long, overrides_with = "write")]
+    nowrite: bool,
 }
 
 impl Args {
@@ -306,6 +314,7 @@ pub async fn run(
     args: Args,
 ) -> crate::Result<()> {
     let transfer_mode = args.transfer_mode();
+    let write_tags = !args.nowrite;
     let mut scanner = Scanner::scan(config.clone(), musicbrainz.clone(), args.path);
 
     let (importer_tx, mut importer_rx) = tokio::sync::mpsc::channel::<(
@@ -344,8 +353,10 @@ pub async fn run(
                 }
             }
 
-            if let Err(err) = track_collection.write_tags() {
-                log::error!("Failed to write tags: {err}");
+            if write_tags {
+                if let Err(err) = track_collection.write_tags() {
+                    log::error!("Failed to write tags: {err}");
+                }
             }
 
             #[cfg(unix)]
