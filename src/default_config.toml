@@ -11,7 +11,7 @@ compilation_format = "{{album_artist}}/{{#if year}}{{zfill year width=4}} - {{/i
 connection_limit = 10
 release_candidate_limit = 5
 
-[recommendation]
+[recommendation.similarity]
 # Distances (0.0 to 1.0) that determine how strongly the best release candidate is recommended.
 # Only candidates with a strong recommendation are selected automatically.
 # Best candidate distance below this value: strong recommendation.
@@ -21,6 +21,13 @@ medium = 0.25
 # Otherwise, the recommendation is low if there is only one candidate or the distance gap to the
 # second-best candidate is at least this large. If not, there is no recommendation.
 gap = 0.25
+
+[recommendation.limit]
+# Upper limit of the recommendation if the best candidate has the given problem. One of "none",
+# "low", "medium" or "strong".
+missing_tracks = "medium"
+residual_tracks = "medium"
+wrong_release_id = "medium"
 
 [cover_art]
 # Fetch the front cover from the Cover Art Archive and embed it into the files.

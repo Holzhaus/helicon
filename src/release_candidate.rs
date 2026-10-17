@@ -8,12 +8,14 @@
 
 //! Release Candidate
 
-use crate::distance::{Distance, ReleaseSimilarity};
+use crate::distance::{Distance, ReleaseSimilarity, SimilarityProblem};
 use crate::release::ReleaseLike;
 use crate::Config;
+use serde::{Deserialize, Serialize};
 
 /// How strongly the best release candidate is recommended.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Recommendation {
     /// No conclusion can be drawn.
     None,
@@ -130,9 +132,26 @@ impl<T: ReleaseLike> ReleaseCandidateCollection<T> {
         self.add_candidate(candidate, config);
     }
 
-    /// Determine the recommendation level based on the distances of the best candidates.
+    /// Determine the recommendation level based on the distances of the best candidates, capped
+    /// by the limits configured for the problems of the best candidate.
     pub fn recommendation(&self, config: &Config) -> Recommendation {
-        let thresholds = &config.recommendation;
+        let Some(best) = self.candidates.first() else {
+            return Recommendation::None;
+        };
+        let limits = &config.recommendation.limit;
+        best.similarity()
+            .problems()
+            .map(|problem| match problem {
+                SimilarityProblem::MissingTracks(_) => limits.missing_tracks,
+                SimilarityProblem::ResidualTracks(_) => limits.residual_tracks,
+                SimilarityProblem::WrongReleaseId => limits.wrong_release_id,
+            })
+            .fold(self.similarity_recommendation(config), Recommendation::min)
+    }
+
+    /// Determine the recommendation level from the candidate distances only.
+    fn similarity_recommendation(&self, config: &Config) -> Recommendation {
+        let thresholds = &config.recommendation.similarity;
         let Some(best) = self.candidates.first() else {
             return Recommendation::None;
         };
@@ -223,14 +242,37 @@ mod tests {
         assert_eq!(collection.recommendation(&config), Recommendation::Strong);
 
         // Distance 0.0 is not below a threshold of 0.0, but within the medium threshold.
-        config.recommendation.strong = 0.0;
+        config.recommendation.similarity.strong = 0.0;
         assert_eq!(collection.recommendation(&config), Recommendation::Medium);
 
         // A single candidate that exceeds all thresholds is a low recommendation.
-        config.recommendation.medium = -1.0;
+        config.recommendation.similarity.medium = -1.0;
         assert_eq!(collection.recommendation(&config), Recommendation::Low);
 
         let empty = ReleaseCandidateCollection::<FakeRelease>::default();
         assert_eq!(empty.recommendation(&config), Recommendation::None);
+    }
+
+    #[test]
+    fn test_recommendation_limited_by_problems() {
+        let candidate: FakeRelease = serde_json::from_slice(RELEASE_CANDIDATE_0_DATA).unwrap();
+        let mut base: serde_json::Value = serde_json::from_slice(RELEASE_DATA).unwrap();
+        // Remove a track from the base release, so that the candidate has a missing track.
+        base["media"][0]["media_tracks"]
+            .as_array_mut()
+            .unwrap()
+            .truncate(1);
+        let base: FakeRelease = serde_json::from_value(base).unwrap();
+
+        let mut config = Config::default();
+        config.recommendation.similarity.strong = 1.1;
+        let collection =
+            ReleaseCandidateCollection::from(vec![ReleaseCandidate::with_base_release(
+                candidate, &base, &config,
+            )]);
+        assert_eq!(collection.recommendation(&config), Recommendation::Medium);
+
+        config.recommendation.limit.missing_tracks = Recommendation::Strong;
+        assert_eq!(collection.recommendation(&config), Recommendation::Strong);
     }
 }

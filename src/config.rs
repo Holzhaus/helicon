@@ -10,6 +10,7 @@
 
 use crate::pathformat::PathFormatterValues;
 use crate::pathformat::PathTemplate;
+use crate::release_candidate::Recommendation;
 use expanduser::expanduser;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -451,7 +452,7 @@ pub struct ImportConfig {
 
 /// Distance thresholds that determine the recommendation level for release candidates.
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
-pub struct RecommendationConfig {
+pub struct RecommendationSimilarityConfig {
     /// Distances below this value result in a strong recommendation.
     #[serde(default = "default_strong_threshold")]
     pub strong: f64,
@@ -463,22 +464,22 @@ pub struct RecommendationConfig {
     pub gap: f64,
 }
 
-/// Default for [`RecommendationConfig::strong`].
+/// Default for [`RecommendationSimilarityConfig::strong`].
 const fn default_strong_threshold() -> f64 {
     0.04
 }
 
-/// Default for [`RecommendationConfig::medium`].
+/// Default for [`RecommendationSimilarityConfig::medium`].
 const fn default_medium_threshold() -> f64 {
     0.25
 }
 
-/// Default for [`RecommendationConfig::gap`].
+/// Default for [`RecommendationSimilarityConfig::gap`].
 const fn default_gap_threshold() -> f64 {
     0.25
 }
 
-impl Default for RecommendationConfig {
+impl Default for RecommendationSimilarityConfig {
     fn default() -> Self {
         Self {
             strong: default_strong_threshold(),
@@ -486,6 +487,46 @@ impl Default for RecommendationConfig {
             gap: default_gap_threshold(),
         }
     }
+}
+
+/// Default upper limit for recommendations if problems are found.
+const fn default_problem_limit() -> Recommendation {
+    Recommendation::Medium
+}
+
+/// Upper limits for the recommendation if the best candidate has a certain problem.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+pub struct RecommendationLimitConfig {
+    /// Limit if the base release has missing tracks.
+    #[serde(default = "default_problem_limit")]
+    pub missing_tracks: Recommendation,
+    /// Limit if the base release has residual tracks.
+    #[serde(default = "default_problem_limit")]
+    pub residual_tracks: Recommendation,
+    /// Limit if the release ID is present on both releases, but differs.
+    #[serde(default = "default_problem_limit")]
+    pub wrong_release_id: Recommendation,
+}
+
+impl Default for RecommendationLimitConfig {
+    fn default() -> Self {
+        Self {
+            missing_tracks: default_problem_limit(),
+            residual_tracks: default_problem_limit(),
+            wrong_release_id: default_problem_limit(),
+        }
+    }
+}
+
+/// Configuration for release candidate recommendations.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Deserialize, Serialize)]
+pub struct RecommendationConfig {
+    /// Similarity thresholds.
+    #[serde(default)]
+    pub similarity: RecommendationSimilarityConfig,
+    /// Recommendation limits for problems.
+    #[serde(default)]
+    pub limit: RecommendationLimitConfig,
 }
 
 /// The main configuration struct.
