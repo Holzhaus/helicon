@@ -124,18 +124,20 @@ enum SelectionResult {
     Quit,
 }
 
-/// Print which candidate was selected automatically.
-fn print_autoselected(candidate: &ReleaseCandidate<MusicBrainzRelease>) {
-    println!(
-        "Automatically selected: {} - {}",
-        candidate
-            .release()
-            .release_artist()
-            .unwrap_or("[unknown artist]".into()),
-        candidate
-            .release()
-            .release_title()
-            .unwrap_or("[unknown album]".into())
+/// Show the details of the automatically selected candidate.
+async fn show_autoselected(
+    config: &Config,
+    musicbrainz: &MusicBrainzClient,
+    track_collection: &TaggedFileCollection,
+    candidate: &ReleaseCandidate<MusicBrainzRelease>,
+) {
+    let cover_art = build_cover_art_preview(config, musicbrainz, track_collection, candidate).await;
+    ui::show_candidate(
+        config,
+        track_collection,
+        candidate,
+        cover_art.as_ref(),
+        false,
     );
 }
 
@@ -176,7 +178,7 @@ async fn select_release(
             println!("Skipping: no strong recommendation");
             return Ok(SelectionResult::Skipped);
         };
-        print_autoselected(best_candidate);
+        show_autoselected(config, musicbrainz, &track_collection, best_candidate).await;
         let candidate_index = candidates.find_index(best_candidate);
         return Ok(SelectionResult::Selected(
             track_collection,
@@ -277,7 +279,7 @@ async fn select_release(
         allow_autoselection = false;
 
         if autoselected && prompt_mode != PromptMode::Always {
-            print_autoselected(selected_candidate);
+            show_autoselected(config, musicbrainz, &track_collection, selected_candidate).await;
             let candidate_index = candidates.find_index(selected_candidate);
             let selected_candidate = candidates.select_index(candidate_index);
             return Ok(SelectionResult::Selected(
@@ -450,6 +452,7 @@ pub async fn run(
         }
     });
 
+    let mut first_collection = true;
     while let Some(result) = scanner.recv().await {
         let (track_collection, candidates) = match result {
             Ok(res) => res,
@@ -458,6 +461,10 @@ pub async fn run(
                 continue;
             }
         };
+        if !first_collection {
+            println!();
+        }
+        first_collection = false;
         match select_release(
             config,
             musicbrainz,
