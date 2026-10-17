@@ -10,19 +10,15 @@
 
 use super::ui;
 use crate::coverart::CoverInfo;
-use crate::media::MediaLike;
 use crate::musicbrainz::{MusicBrainzClient, MusicBrainzRelease};
 use crate::release::ReleaseLike;
 use crate::release_candidate::{ReleaseCandidate, ReleaseCandidateCollection};
 use crate::scanner::Scanner;
 use crate::taggedfilecollection::TransferMode;
-use crate::track::TrackLike;
-use crate::util::FormattedDuration;
 use crate::{Config, TaggedFileCollection};
 use clap::{Parser, ValueEnum};
 use crossterm::style::Stylize;
 use futures::StreamExt;
-use std::borrow::Cow;
 use std::path::PathBuf;
 
 /// Command line arguments for the `import` CLI command.
@@ -219,7 +215,7 @@ async fn select_release(
                         .await;
                 }
                 ui::ReleaseCandidateSelectionResult::PrintTrackList => {
-                    print_tracklist(&track_collection);
+                    ui::print_tracklist(&track_collection);
                     continue 'select_candidate;
                 }
                 #[cfg(feature = "dev")]
@@ -353,38 +349,6 @@ async fn build_cover_art_preview(
         new_cover,
         overwrite_existing: cover_art_config.overwrite_existing,
     })
-}
-
-/// Print Tracklist (for copy & paste into MusicBrainz).
-fn print_tracklist(release: &impl ReleaseLike) {
-    for (media_index, media) in release.media().enumerate() {
-        let format = media.media_format().unwrap_or_else(|| "Medium".into());
-        if media_index > 0 {
-            println!();
-        }
-        if let Some(title) = media.media_title() {
-            println!("{format} {index}: {title}", index = media_index + 1);
-        } else {
-            println!("{format} {index}", index = media_index + 1);
-        }
-        for (track_index, track) in media.media_tracks().enumerate() {
-            let track_number = track
-                .track_number()
-                .unwrap_or_else(|| Cow::from(format!("{track_index}")));
-            let track_artist = track
-                .track_artist()
-                .unwrap_or_else(|| Cow::from("[unknown]"));
-            let track_title = track
-                .track_title()
-                .or_else(|| track.track_file_stem())
-                .unwrap_or_else(|| Cow::from("[unnamed track]"));
-            let track_length = track.track_length().map_or_else(
-                || Cow::from("?:??"),
-                |length| Cow::from(length.formatted_duration()),
-            );
-            println!("{track_number}. {track_title} - {track_artist} ({track_length})");
-        }
-    }
 }
 
 /// Run an import.

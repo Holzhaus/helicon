@@ -782,6 +782,38 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
     }
 }
 
+/// Print Tracklist (for copy & paste into MusicBrainz).
+pub fn print_tracklist(release: &impl ReleaseLike) {
+    for (media_index, media) in release.media().enumerate() {
+        let format = media.media_format().unwrap_or_else(|| "Medium".into());
+        if media_index > 0 {
+            println!();
+        }
+        if let Some(title) = media.media_title() {
+            println!("{format} {index}: {title}", index = media_index + 1);
+        } else {
+            println!("{format} {index}", index = media_index + 1);
+        }
+        for (track_index, track) in media.media_tracks().enumerate() {
+            let track_number = track
+                .track_number()
+                .unwrap_or_else(|| Cow::from(format!("{track_index}")));
+            let track_artist = track
+                .track_artist()
+                .unwrap_or_else(|| Cow::from("[unknown]"));
+            let track_title = track
+                .track_title()
+                .or_else(|| track.track_file_stem())
+                .unwrap_or_else(|| Cow::from("[unnamed track]"));
+            let track_length = track.track_length().map_or_else(
+                || Cow::from("?:??"),
+                |length| Cow::from(length.formatted_duration()),
+            );
+            println!("{track_number}. {track_title} - {track_artist} ({track_length})");
+        }
+    }
+}
+
 /// Prompt the user how to handle the candidate.
 pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
     config: &Config,
@@ -812,6 +844,10 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
             }
             Ok(StyledHandleCandidateResult(_, HandleCandidateResult::HideDetails)) => {
                 show_details = false;
+                continue;
+            }
+            Ok(StyledHandleCandidateResult(_, HandleCandidateResult::PrintTrackList)) => {
+                print_tracklist(base_release);
                 continue;
             }
             Ok(option) => Ok(option.into()),
