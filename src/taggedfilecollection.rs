@@ -22,6 +22,7 @@ use itertools::Itertools;
 use regex::{Regex, RegexBuilder};
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 /// Represents the the count of a specific item and the first index at which that item was found.
 ///
@@ -287,6 +288,23 @@ impl TaggedFileCollection {
             .collect();
         self = TaggedFileCollection::new(tracks);
         self
+    }
+
+    /// The deepest directory that contains all tracks of this collection.
+    #[must_use]
+    pub fn common_directory(&self) -> Option<PathBuf> {
+        self.media
+            .iter()
+            .flat_map(|media| media.tracks.iter())
+            .filter_map(|tagged_file| tagged_file.track_path()?.parent().map(Path::to_path_buf))
+            .reduce(|common, dir| {
+                common
+                    .components()
+                    .zip(dir.components())
+                    .take_while(|(a, b)| a == b)
+                    .map(|(a, _)| a)
+                    .collect()
+            })
     }
 
     /// Move files for all tracks in this collection.
@@ -655,6 +673,32 @@ mod tests {
             .map(|_| TaggedFile::new(vec![func()]))
             .collect();
         TaggedFileCollection::new(tracks).assign_tags(&release_candidate)
+    }
+
+    #[test]
+    fn test_common_directory() {
+        let collection_for = |paths: &[&str]| {
+            TaggedFileCollection::new(
+                paths
+                    .iter()
+                    .map(|path| {
+                        let mut file = TaggedFile::new(vec![]);
+                        file.path = PathBuf::from(path);
+                        file
+                    })
+                    .collect(),
+            )
+        };
+        assert_eq!(
+            collection_for(&["/music/album/01.mp3", "/music/album/02.mp3"]).common_directory(),
+            Some(PathBuf::from("/music/album"))
+        );
+        assert_eq!(
+            collection_for(&["/music/album/CD1/01.mp3", "/music/album/CD2/01.mp3"])
+                .common_directory(),
+            Some(PathBuf::from("/music/album"))
+        );
+        assert_eq!(collection_for(&[]).common_directory(), None);
     }
 
     #[test]

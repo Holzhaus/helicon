@@ -18,6 +18,7 @@ use crate::track::TrackLike;
 use crate::util::FormattedDuration;
 use crate::{Config, TaggedFileCollection};
 use clap::Parser;
+use crossterm::style::Stylize;
 use futures::StreamExt;
 use std::borrow::Cow;
 use std::path::PathBuf;
@@ -48,15 +49,29 @@ async fn select_release(
     mut candidates: ReleaseCandidateCollection<MusicBrainzRelease>,
 ) -> crate::Result<SelectionResult> {
     println!(
-        "Tagging: {artist} - {title} ({track_count} tracks)",
-        artist = track_collection
-            .release_artist()
-            .unwrap_or("[unknown artist]".into()),
-        title = track_collection
-            .release_title()
-            .unwrap_or("[unknown album]".into()),
+        "Tagging: {release} ({track_count} tracks)",
+        release = format!(
+            "{artist} - {title}",
+            artist = track_collection
+                .release_artist()
+                .unwrap_or("[unknown artist]".into()),
+            title = track_collection
+                .release_title()
+                .unwrap_or("[unknown album]".into()),
+        )
+        .bold(),
         track_count = track_collection.release_track_count().unwrap_or(0),
     );
+    if let Some(directory) = track_collection.common_directory() {
+        println!(
+            "{}",
+            config
+                .user_interface
+                .candidate_details
+                .release_meta_style
+                .apply(directory.display())
+        );
+    }
     let mut allow_autoselection = candidates.len() == 1;
     'select_candidate: loop {
         let selected_candidate: &ReleaseCandidate<_> = loop {
