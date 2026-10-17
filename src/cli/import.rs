@@ -19,7 +19,7 @@ use crate::taggedfilecollection::TransferMode;
 use crate::track::TrackLike;
 use crate::util::FormattedDuration;
 use crate::{Config, TaggedFileCollection};
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use crossterm::style::Stylize;
 use futures::StreamExt;
 use std::borrow::Cow;
@@ -60,12 +60,47 @@ pub struct Args {
     #[arg(long)]
     refresh: bool,
 
-    /// Always confirm all actions.
-    #[arg(short = 't', long)]
+    /// When to prompt for input.
+    ///
+    /// `always` confirms all actions (same as --timid). `never` imports only strongly
+    /// recommended candidates and skips the rest (same as --quiet).
+    #[arg(long, value_enum, conflicts_with_all = ["timid", "quiet"])]
+    prompt: Option<PromptMode>,
+
+    /// Always confirm all actions (same as --prompt=always).
+    #[arg(short = 't', long, conflicts_with = "quiet")]
     timid: bool,
+
+    /// Never prompt for input; import only strongly recommended candidates and skip the rest
+    /// (same as --prompt=never).
+    #[arg(short = 'q', long, conflicts_with = "timid")]
+    quiet: bool,
+}
+
+/// Determines when the user is prompted for input.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, ValueEnum)]
+enum PromptMode {
+    /// Prompt only if there is no strong recommendation.
+    #[default]
+    Auto,
+    /// Always confirm all actions.
+    Always,
+    /// Never prompt; skip collections without a strong recommendation.
+    Never,
 }
 
 impl Args {
+    /// Determine when the user should be prompted for input.
+    fn prompt_mode(&self) -> PromptMode {
+        if self.timid {
+            PromptMode::Always
+        } else if self.quiet {
+            PromptMode::Never
+        } else {
+            self.prompt.unwrap_or_default()
+        }
+    }
+
     /// Determine how files should be transferred into the library.
     fn transfer_mode(&self) -> TransferMode {
         if self.r#move {
@@ -89,13 +124,28 @@ enum SelectionResult {
     Quit,
 }
 
+/// Print which candidate was selected automatically.
+fn print_autoselected(candidate: &ReleaseCandidate<MusicBrainzRelease>) {
+    println!(
+        "Automatically selected: {} - {}",
+        candidate
+            .release()
+            .release_artist()
+            .unwrap_or("[unknown artist]".into()),
+        candidate
+            .release()
+            .release_title()
+            .unwrap_or("[unknown album]".into())
+    );
+}
+
 /// Select the release for the given track collection from the list of candidates.
 async fn select_release(
     config: &Config,
     musicbrainz: &MusicBrainzClient,
     track_collection: TaggedFileCollection,
     mut candidates: ReleaseCandidateCollection<MusicBrainzRelease>,
-    timid: bool,
+    prompt_mode: PromptMode,
 ) -> crate::Result<SelectionResult> {
     println!(
         "Tagging: {release} ({track_count} tracks)",
@@ -120,6 +170,18 @@ async fn select_release(
                 .release_meta_style
                 .apply(directory.display())
         );
+    }
+    if prompt_mode == PromptMode::Never {
+        let Some(best_candidate) = ui::autoselectable_candidate(config, &candidates) else {
+            println!("Skipping: no strong recommendation");
+            return Ok(SelectionResult::Skipped);
+        };
+        print_autoselected(best_candidate);
+        let candidate_index = candidates.find_index(best_candidate);
+        return Ok(SelectionResult::Selected(
+            track_collection,
+            candidates.select_index(candidate_index),
+        ));
     }
     let mut allow_autoselection = true;
     'select_candidate: loop {
@@ -214,18 +276,8 @@ async fn select_release(
         };
         allow_autoselection = false;
 
-        if autoselected && !timid {
-            println!(
-                "Automatically selected: {} - {}",
-                selected_candidate
-                    .release()
-                    .release_artist()
-                    .unwrap_or("[unknown artist]".into()),
-                selected_candidate
-                    .release()
-                    .release_title()
-                    .unwrap_or("[unknown album]".into())
-            );
+        if autoselected && prompt_mode != PromptMode::Always {
+            print_autoselected(selected_candidate);
             let candidate_index = candidates.find_index(selected_candidate);
             let selected_candidate = candidates.select_index(candidate_index);
             return Ok(SelectionResult::Selected(
@@ -346,6 +398,7 @@ pub async fn run(
 ) -> crate::Result<()> {
     let transfer_mode = args.transfer_mode();
     let write_tags = !args.nowrite;
+    let prompt_mode = args.prompt_mode();
     let mut scanner = Scanner::scan(config.clone(), musicbrainz.clone(), args.path, args.refresh);
 
     let (importer_tx, mut importer_rx) = tokio::sync::mpsc::channel::<(
@@ -410,7 +463,7 @@ pub async fn run(
             musicbrainz,
             track_collection,
             candidates,
-            args.timid,
+            prompt_mode,
         )
         .await?
         {
