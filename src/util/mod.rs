@@ -16,7 +16,7 @@ mod time;
 
 #[cfg(unix)]
 pub use fs::set_file_permissions;
-pub use fs::{move_file, walk_dir};
+pub use fs::{copy_file, move_file, walk_dir};
 pub use keyed_binheap::KeyedBinaryHeap;
 #[cfg(any(test, feature = "dev"))]
 pub use testing::FakeRelease;

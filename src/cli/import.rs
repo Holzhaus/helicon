@@ -15,6 +15,7 @@ use crate::musicbrainz::{MusicBrainzClient, MusicBrainzRelease};
 use crate::release::ReleaseLike;
 use crate::release_candidate::{ReleaseCandidate, ReleaseCandidateCollection};
 use crate::scanner::Scanner;
+use crate::taggedfilecollection::TransferMode;
 use crate::track::TrackLike;
 use crate::util::FormattedDuration;
 use crate::{Config, TaggedFileCollection};
@@ -26,9 +27,39 @@ use std::path::PathBuf;
 
 /// Command line arguments for the `import` CLI command.
 #[derive(Parser, Debug)]
+#[expect(clippy::struct_excessive_bools)]
 pub struct Args {
     /// Path to import.
     path: PathBuf,
+
+    /// Copy tracks into library directory (default).
+    #[arg(short = 'c', long, overrides_with = "nocopy")]
+    copy: bool,
+
+    /// Don't copy tracks (opposite of -c).
+    #[arg(short = 'C', long, overrides_with = "copy")]
+    nocopy: bool,
+
+    /// Move tracks into the library (overrides -c).
+    #[arg(short = 'm', long = "move", id = "move", overrides_with = "nomove")]
+    r#move: bool,
+
+    /// Don't move tracks into the library (overrides -m).
+    #[arg(short = 'M', long, overrides_with = "move")]
+    nomove: bool,
+}
+
+impl Args {
+    /// Determine how files should be transferred into the library.
+    fn transfer_mode(&self) -> TransferMode {
+        if self.r#move {
+            TransferMode::Move
+        } else if !self.nocopy {
+            TransferMode::Copy
+        } else {
+            TransferMode::InPlace
+        }
+    }
 }
 
 /// Result returned from the [`select_release()`] function.
@@ -274,6 +305,7 @@ pub async fn run(
     musicbrainz: &MusicBrainzClient,
     args: Args,
 ) -> crate::Result<()> {
+    let transfer_mode = args.transfer_mode();
     let mut scanner = Scanner::scan(config.clone(), musicbrainz.clone(), args.path);
 
     let (importer_tx, mut importer_rx) = tokio::sync::mpsc::channel::<(
@@ -285,8 +317,8 @@ pub async fn run(
     let importer_handle = tokio::task::spawn(async move {
         while let Some((track_collection, selected_candidate)) = importer_rx.recv().await {
             let mut track_collection = track_collection.assign_tags(&selected_candidate);
-            if let Err(err) = track_collection.move_files(&cloned_config) {
-                log::error!("Failed to move files: {err}");
+            if let Err(err) = track_collection.transfer_files(&cloned_config, transfer_mode) {
+                log::error!("Failed to transfer files: {err}");
                 continue;
             }
 
