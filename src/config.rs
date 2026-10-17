@@ -291,9 +291,21 @@ pub struct UnmatchedTrackStyleConfig {
     pub track_title_style: TextStyleConfig,
 }
 
+/// Determines which tracks are listed in the candidate details.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TracklistMode {
+    /// Show all tracks.
+    Full,
+    /// Only show tracks that have changes (the details view still shows all tracks).
+    Diff,
+}
+
 /// Configuration for the user interface.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CandidateDetails {
+    /// Which tracks to show in the tracklist.
+    pub tracklist_mode: TracklistMode,
     /// Indent string for the tracklist.
     pub tracklist_indent: String,
     /// Separator between the left and the right side of the tracklist.

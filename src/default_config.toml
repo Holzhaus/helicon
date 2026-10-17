@@ -58,6 +58,9 @@ track_assignment = 1.0
 default_terminal_width = 80
 
 [user_interface.candidate_details]
+# Either "full" (show all tracks) or "diff" (only show tracks that have changes).
+# The details view always shows all tracks.
+tracklist_mode = "full"
 tracklist_indent = " * "
 tracklist_separator = " -> "
 tracklist_extra_indent = "   "

@@ -9,7 +9,7 @@
 //! Show candidate details and select next action.
 
 use super::util::{self, LayoutItem, StyledContentList};
-use crate::config::{CandidateDetails, Config, UnmatchedTrackStyleConfig};
+use crate::config::{CandidateDetails, Config, TracklistMode, UnmatchedTrackStyleConfig};
 use crate::distance::{Distance, UnmatchedTracksSource};
 use crate::media::MediaLike;
 use crate::pathformat::PathFormatterValues;
@@ -349,10 +349,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
             format!("{format} {index}", index = media_index + 1)
         };
 
-        println!(
-            "{}",
-            candidate_details_config.disc_title_style.apply(disc_title)
-        );
+        let mut disc_title = Some(disc_title);
 
         for rhs_track in media.media_tracks() {
             let Some((lhs_track_index, track_similarity)) = matched_track_map.get(&rhs_track_index)
@@ -365,6 +362,27 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                 rhs_track_index += 1;
                 continue;
             };
+
+            if !show_details
+                && candidate_details_config.tracklist_mode == TracklistMode::Diff
+                && track_similarity.track_number.is_equal()
+                && track_similarity.track_title.is_equal()
+                && track_similarity.track_length.is_equal()
+                && track_similarity.track_artist.is_equal()
+                && (!track_similarity.musicbrainz_recording_id.is_present_left()
+                    || track_similarity.musicbrainz_recording_id.is_equal())
+            {
+                rhs_track_index += 1;
+                continue;
+            }
+
+            // Only print the disc title once the first track of the disc is shown.
+            if let Some(disc_title) = disc_title.take() {
+                println!(
+                    "{}",
+                    candidate_details_config.disc_title_style.apply(disc_title)
+                );
+            }
 
             let changes = [
                 (!track_similarity.track_number.is_equal()).then_some("#"),
