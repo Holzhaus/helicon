@@ -23,6 +23,7 @@ use itertools::Itertools;
 use regex::{Regex, RegexBuilder};
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 /// Represents the the count of a specific item and the first index at which that item was found.
 ///
@@ -119,6 +120,21 @@ fn find_most_common_tag_value<'a>(
     MostCommonItem::find(tracks.filter_map(|tagged_file| tagged_file.first_tag_value(key)))
 }
 
+/// Strip leading and trailing whitespace from the `Cow` string.
+fn trim_cow(value: Cow<'_, str>) -> Cow<'_, str> {
+    match value {
+        Cow::Borrowed(s) => Cow::Borrowed(s.trim()),
+        Cow::Owned(s) => {
+            let trimmed = s.trim();
+            if trimmed.len() == s.len() {
+                Cow::Owned(s)
+            } else {
+                Cow::Owned(trimmed.to_owned())
+            }
+        }
+    }
+}
+
 /// Strip disc suffix from the end of the `Cow` string.
 fn strip_disc_suffix<'a>(title: Cow<'a, str>, pattern: &Regex) -> Cow<'a, str> {
     match pattern.find(&title) {
@@ -197,6 +213,18 @@ impl TaggedFileCollection {
             .and_then(MostCommonItem::into_concensus)
     }
 
+    /// Like `find_consensual_tag_value`, but ignores leading and trailing whitespace.
+    fn find_consensual_trimmed_tag_value<'a>(&'a self, key: &'a TagKey) -> Option<Cow<'a, str>> {
+        MostCommonItem::find(
+            self.media
+                .iter()
+                .flat_map(|media| media.tracks.iter())
+                .filter_map(|tagged_file| tagged_file.first_tag_value(key))
+                .map(trim_cow),
+        )
+        .and_then(MostCommonItem::into_concensus)
+    }
+
     /// Assign tracks from a release candidate.
     #[must_use]
     pub fn assign_tags<T: ReleaseLike>(mut self, release_candidate: &ReleaseCandidate<T>) -> Self {
@@ -261,6 +289,23 @@ impl TaggedFileCollection {
             .collect();
         self = TaggedFileCollection::new(tracks);
         self
+    }
+
+    /// The deepest directory that contains all tracks of this collection.
+    #[must_use]
+    pub fn common_directory(&self) -> Option<PathBuf> {
+        self.media
+            .iter()
+            .flat_map(|media| media.tracks.iter())
+            .filter_map(|tagged_file| tagged_file.track_path()?.parent().map(Path::to_path_buf))
+            .reduce(|common, dir| {
+                common
+                    .components()
+                    .zip(dir.components())
+                    .take_while(|(a, b)| a == b)
+                    .map(|(a, _)| a)
+                    .collect()
+            })
     }
 
     /// Move files for all tracks in this collection.
@@ -403,14 +448,14 @@ impl ReleaseLike for TaggedFileCollection {
                 .iter()
                 .flat_map(|media| media.tracks.iter())
                 .filter_map(|tagged_file| tagged_file.first_tag_value(&TagKey::Album))
-                .map(|title| strip_disc_suffix(title, &disc_pattern)),
+                .map(|title| trim_cow(strip_disc_suffix(trim_cow(title), &disc_pattern))),
         )
         .and_then(MostCommonItem::into_concensus)
     }
 
     fn release_artist(&self) -> Option<Cow<'_, str>> {
-        self.find_consensual_tag_value(&TagKey::AlbumArtist)
-            .or_else(|| self.find_consensual_tag_value(&TagKey::Artist))
+        self.find_consensual_trimmed_tag_value(&TagKey::AlbumArtist)
+            .or_else(|| self.find_consensual_trimmed_tag_value(&TagKey::Artist))
     }
 
     fn release_artist_sort_order(&self) -> Option<Cow<'_, str>> {
@@ -661,6 +706,56 @@ mod tests {
             .map(|_| TaggedFile::new(vec![func()]))
             .collect();
         TaggedFileCollection::new(tracks).assign_tags(&release_candidate)
+    }
+
+    #[test]
+    fn test_common_directory() {
+        let collection_for = |paths: &[&str]| {
+            TaggedFileCollection::new(
+                paths
+                    .iter()
+                    .map(|path| {
+                        let mut file = TaggedFile::new(vec![]);
+                        file.path = PathBuf::from(path);
+                        file
+                    })
+                    .collect(),
+            )
+        };
+        assert_eq!(
+            collection_for(&["/music/album/01.mp3", "/music/album/02.mp3"]).common_directory(),
+            Some(PathBuf::from("/music/album"))
+        );
+        assert_eq!(
+            collection_for(&["/music/album/CD1/01.mp3", "/music/album/CD2/01.mp3"])
+                .common_directory(),
+            Some(PathBuf::from("/music/album"))
+        );
+        assert_eq!(collection_for(&[]).common_directory(), None);
+    }
+
+    #[test]
+    #[cfg(feature = "id3")]
+    fn test_release_title_and_artist_are_trimmed() {
+        use crate::tag::id3::ID3v2Tag;
+
+        let values = [
+            ("  Album (Disc 1) ", " Artist"),
+            ("Album (Disc 2)", "Artist  "),
+        ];
+        let tracks = values
+            .iter()
+            .map(|(album, artist)| {
+                let mut file =
+                    TaggedFile::new(vec![Box::new(ID3v2Tag::with_version(id3::Version::Id3v24))]);
+                file.set_tag_value(&TagKey::Album, Some(Cow::from(*album)));
+                file.set_tag_value(&TagKey::AlbumArtist, Some(Cow::from(*artist)));
+                file
+            })
+            .collect();
+        let collection = TaggedFileCollection::new(tracks);
+        assert_eq!(collection.release_title().as_deref(), Some("Album"));
+        assert_eq!(collection.release_artist().as_deref(), Some("Artist"));
     }
 
     #[test]
