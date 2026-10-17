@@ -10,6 +10,7 @@
 
 use crate::cache::Cache;
 use crate::coverart::CoverArt;
+use crate::util::format_size;
 use crate::Config;
 use clap::Parser;
 use musicbrainz_rs::entity::{
@@ -28,16 +29,19 @@ pub fn run(_config: &Config, cache: Option<&Cache>, _args: Args) -> crate::Resul
     };
 
     let (count, size) = cache.get_stats::<MusicBrainzRelease>()?;
-    println!("Releases: {count} ({size:?} bytes)");
+    println!("Releases: {count} ({size})", size = format_size(size));
 
     let (count, size) = cache.get_stats::<MusicBrainzReleaseGroup>()?;
-    println!("Release Groups: {count} ({size:?} bytes)");
+    println!("Release Groups: {count} ({size})", size = format_size(size));
 
     let (count, size) = cache.get_stats::<MusicBrainzSearchResult<MusicBrainzRelease>>()?;
-    println!("Release Search Results: {count} ({size:?} bytes)");
+    println!(
+        "Release Search Results: {count} ({size})",
+        size = format_size(size)
+    );
 
     let (count, size) = cache.get_stats::<CoverArt>()?;
-    println!("Front Covers: {count} ({size:?} bytes)");
+    println!("Front Covers: {count} ({size})");
 
     Ok(())
 }
