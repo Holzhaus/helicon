@@ -433,18 +433,39 @@ pub struct PathTemplateConfig {
     pub compilation_format: String,
 }
 
+/// Default minimum similarity (in percent) for automatically selecting the best candidate.
+fn default_auto_select_min_similarity() -> f64 {
+    90.0
+}
+
 /// The import configuration struct.
-#[cfg(unix)]
 #[expect(missing_copy_implementations)]
-#[expect(clippy::struct_field_names)]
-#[derive(Debug, Default, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ImportConfig {
     /// User ID to set.
+    #[serde(default)]
     pub set_uid: Option<u32>,
     /// Group ID to set.
+    #[serde(default)]
     pub set_gid: Option<u32>,
     /// File mode to set.
+    #[serde(default)]
     pub set_mode: Option<u32>,
+    /// Minimum similarity (in percent, 0-100) of the best release candidate for it to be selected
+    /// and applied automatically. Set to a value above 100 to disable automatic selection.
+    #[serde(default = "default_auto_select_min_similarity")]
+    pub auto_select_min_similarity: f64,
+}
+
+impl Default for ImportConfig {
+    fn default() -> Self {
+        Self {
+            set_uid: None,
+            set_gid: None,
+            set_mode: None,
+            auto_select_min_similarity: default_auto_select_min_similarity(),
+        }
+    }
 }
 
 /// The main configuration struct.
@@ -463,7 +484,6 @@ pub struct Config {
     /// UI configuration.
     pub user_interface: UiConfig,
     /// Import configuration.
-    #[cfg(unix)]
     #[serde(default)]
     pub import: ImportConfig,
 }

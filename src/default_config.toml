@@ -11,6 +11,11 @@ compilation_format = "{{album_artist}}/{{#if year}}{{zfill year width=4}} - {{/i
 connection_limit = 10
 release_candidate_limit = 5
 
+[import]
+# Automatically select and apply the best release candidate if its similarity (in percent) is at
+# least this high. Set to a value above 100 to disable.
+auto_select_min_similarity = 90.0
+
 [cover_art]
 # Fetch the front cover from the Cover Art Archive and embed it into the files.
 enabled = true

@@ -59,6 +59,10 @@ pub struct Args {
     /// Only consider collections with an existing MusicBrainz release ID and skip all others.
     #[arg(long)]
     refresh: bool,
+
+    /// Always confirm all actions.
+    #[arg(short = 't', long)]
+    timid: bool,
 }
 
 impl Args {
@@ -91,6 +95,7 @@ async fn select_release(
     musicbrainz: &MusicBrainzClient,
     track_collection: TaggedFileCollection,
     mut candidates: ReleaseCandidateCollection<MusicBrainzRelease>,
+    timid: bool,
 ) -> crate::Result<SelectionResult> {
     println!(
         "Tagging: {release} ({track_count} tracks)",
@@ -116,8 +121,10 @@ async fn select_release(
                 .apply(directory.display())
         );
     }
-    let mut allow_autoselection = candidates.len() == 1;
+    let mut allow_autoselection = true;
     'select_candidate: loop {
+        let autoselected =
+            allow_autoselection && ui::autoselectable_candidate(config, &candidates).is_some();
         let selected_candidate: &ReleaseCandidate<_> = loop {
             match ui::select_candidate(config, &candidates, allow_autoselection)? {
                 ui::ReleaseCandidateSelectionResult::Candidate(candidate) => break candidate,
@@ -206,6 +213,26 @@ async fn select_release(
             };
         };
         allow_autoselection = false;
+
+        if autoselected && !timid {
+            println!(
+                "Automatically selected: {} - {}",
+                selected_candidate
+                    .release()
+                    .release_artist()
+                    .unwrap_or("[unknown artist]".into()),
+                selected_candidate
+                    .release()
+                    .release_title()
+                    .unwrap_or("[unknown album]".into())
+            );
+            let candidate_index = candidates.find_index(selected_candidate);
+            let selected_candidate = candidates.select_index(candidate_index);
+            return Ok(SelectionResult::Selected(
+                track_collection,
+                selected_candidate,
+            ));
+        }
 
         let cover_art =
             build_cover_art_preview(config, musicbrainz, &track_collection, selected_candidate)
@@ -378,7 +405,15 @@ pub async fn run(
                 continue;
             }
         };
-        match select_release(config, musicbrainz, track_collection, candidates).await? {
+        match select_release(
+            config,
+            musicbrainz,
+            track_collection,
+            candidates,
+            args.timid,
+        )
+        .await?
+        {
             SelectionResult::Selected(track_collection, selected_candidate) => {
                 if let Err(err) = importer_tx
                     .send((track_collection, selected_candidate))

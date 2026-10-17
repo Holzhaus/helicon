@@ -439,6 +439,17 @@ impl<'a, T: ReleaseLike> From<StyledReleaseCandidateSelectionOption<'a, T>>
     }
 }
 
+/// Get the best candidate if it is similar enough to be selected automatically.
+pub fn autoselectable_candidate<'a, T: ReleaseLike>(
+    config: &Config,
+    candidates: &'a ReleaseCandidateCollection<T>,
+) -> Option<&'a ReleaseCandidate<T>> {
+    candidates.iter().next().filter(|best_candidate| {
+        util::as_similarity_percentage(&best_candidate.distance(config))
+            >= config.import.auto_select_min_similarity
+    })
+}
+
 /// Present a selection of releases to the user, and loop until either a release was selected or
 /// the item is skipped. In the latter case, `None` is returned.
 pub fn select_candidate<'a, T: ReleaseLike>(
@@ -447,10 +458,8 @@ pub fn select_candidate<'a, T: ReleaseLike>(
     allow_autoselection: bool,
 ) -> Result<ReleaseCandidateSelectionResult<'a, T>, InquireError> {
     if allow_autoselection {
-        if let Some(best_candidate) = candidates.iter().next() {
-            if best_candidate.distance(config).as_f64() <= 0.05 {
-                return Ok(ReleaseCandidateSelectionResult::Candidate(best_candidate));
-            }
+        if let Some(best_candidate) = autoselectable_candidate(config, candidates) {
+            return Ok(ReleaseCandidateSelectionResult::Candidate(best_candidate));
         }
     }
 
