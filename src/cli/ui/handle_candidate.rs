@@ -9,7 +9,7 @@
 //! Show candidate details and select next action.
 
 use super::util::{self, LayoutItem, StyledContentList};
-use crate::config::{CandidateDetails, Config, UnmatchedTrackStyleConfig};
+use crate::config::{CandidateDetails, Config, TracklistMode, UnmatchedTrackStyleConfig};
 use crate::distance::{Distance, UnmatchedTracksSource};
 use crate::media::MediaLike;
 use crate::pathformat::PathFormatterValues;
@@ -354,10 +354,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
             format!("{format} {index}", index = media_index + 1)
         };
 
-        println!(
-            "{}",
-            candidate_details_config.disc_title_style.apply(disc_title)
-        );
+        let mut disc_title = Some(disc_title);
 
         for rhs_track in media.media_tracks() {
             let Some((lhs_track_index, track_similarity)) = matched_track_map.get(&rhs_track_index)
@@ -370,6 +367,27 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                 rhs_track_index += 1;
                 continue;
             };
+
+            if !show_details
+                && candidate_details_config.tracklist_mode == TracklistMode::Diff
+                && track_similarity.track_number.is_equal()
+                && track_similarity.track_title.is_equal()
+                && track_similarity.track_length.is_equal()
+                && track_similarity.track_artist.is_equal()
+                && (!track_similarity.musicbrainz_recording_id.is_present_left()
+                    || track_similarity.musicbrainz_recording_id.is_equal())
+            {
+                rhs_track_index += 1;
+                continue;
+            }
+
+            // Only print the disc title once the first track of the disc is shown.
+            if let Some(disc_title) = disc_title.take() {
+                println!(
+                    "{}",
+                    candidate_details_config.disc_title_style.apply(disc_title)
+                );
+            }
 
             let changes = [
                 (!track_similarity.track_number.is_equal()).then_some("#"),
@@ -769,6 +787,38 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
     }
 }
 
+/// Print Tracklist (for copy & paste into MusicBrainz).
+pub fn print_tracklist(release: &impl ReleaseLike) {
+    for (media_index, media) in release.media().enumerate() {
+        let format = media.media_format().unwrap_or_else(|| "Medium".into());
+        if media_index > 0 {
+            println!();
+        }
+        if let Some(title) = media.media_title() {
+            println!("{format} {index}: {title}", index = media_index + 1);
+        } else {
+            println!("{format} {index}", index = media_index + 1);
+        }
+        for (track_index, track) in media.media_tracks().enumerate() {
+            let track_number = track
+                .track_number()
+                .unwrap_or_else(|| Cow::from(format!("{track_index}")));
+            let track_artist = track
+                .track_artist()
+                .unwrap_or_else(|| Cow::from("[unknown]"));
+            let track_title = track
+                .track_title()
+                .or_else(|| track.track_file_stem())
+                .unwrap_or_else(|| Cow::from("[unnamed track]"));
+            let track_length = track.track_length().map_or_else(
+                || Cow::from("?:??"),
+                |length| Cow::from(length.formatted_duration()),
+            );
+            println!("{track_number}. {track_title} - {track_artist} ({track_length})");
+        }
+    }
+}
+
 /// Prompt the user how to handle the candidate.
 pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
     config: &Config,
@@ -799,6 +849,10 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
             }
             Ok(StyledHandleCandidateResult(_, HandleCandidateResult::HideDetails)) => {
                 show_details = false;
+                continue;
+            }
+            Ok(StyledHandleCandidateResult(_, HandleCandidateResult::PrintTrackList)) => {
+                print_tracklist(base_release);
                 continue;
             }
             Ok(option) => Ok(option.into()),

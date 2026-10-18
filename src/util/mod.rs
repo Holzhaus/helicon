@@ -17,7 +17,7 @@ mod time;
 
 #[cfg(unix)]
 pub use fs::set_file_permissions;
-pub use fs::{move_file, walk_dir};
+pub use fs::{copy_file, move_file, walk_dir};
 pub use keyed_binheap::KeyedBinaryHeap;
 pub use size::format_size;
 #[cfg(any(test, feature = "dev"))]

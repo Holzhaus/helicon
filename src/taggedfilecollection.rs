@@ -162,6 +162,17 @@ pub struct TaggedFileCollection {
     ebur128_album_result: Option<EbuR128AlbumResult>,
 }
 
+/// How track files are transferred into the library.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransferMode {
+    /// Move the files into the library.
+    Move,
+    /// Copy the files into the library.
+    Copy,
+    /// Leave the files where they are.
+    InPlace,
+}
+
 impl TaggedFileCollection {
     /// Creates a new collection from a `Vec` of `TaggedFile` instances.
     #[must_use]
@@ -308,12 +319,16 @@ impl TaggedFileCollection {
             })
     }
 
-    /// Move files for all tracks in this collection.
+    /// Move or copy files for all tracks in this collection into the library.
     ///
     /// # Errors
     ///
-    /// Returns an error if moving any of the files fails.
-    pub fn move_files(&mut self, config: &Config) -> crate::Result<()> {
+    /// Returns an error if moving or copying any of the files fails.
+    pub fn transfer_files(&mut self, config: &Config, mode: TransferMode) -> crate::Result<()> {
+        if mode == TransferMode::InPlace {
+            return Ok(());
+        }
+
         let paths = self
             .media()
             .flat_map(|media| media.media_tracks().map(move |track| (media, track)))
@@ -335,7 +350,11 @@ impl TaggedFileCollection {
             .flat_map(|media| media.tracks.iter_mut())
             .zip(paths)
         {
-            util::move_file(&track.path, &dest_path)?;
+            match mode {
+                TransferMode::Move => util::move_file(&track.path, &dest_path)?,
+                TransferMode::Copy => util::copy_file(&track.path, &dest_path)?,
+                TransferMode::InPlace => unreachable!(),
+            }
             track.path = dest_path;
         }
 

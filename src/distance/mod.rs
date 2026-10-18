@@ -21,7 +21,7 @@ mod time;
 mod track;
 
 pub use difference::Difference;
-pub use release::{ReleaseSimilarity, UnmatchedTracksSource};
+pub use release::{ReleaseSimilarity, SimilarityProblem, UnmatchedTracksSource};
 pub use track::TrackSimilarity;
 
 /// A distance in the range (0.0, 1.0) between two items.

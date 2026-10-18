@@ -99,13 +99,18 @@ impl CoverArt {
         self.format.mime_type()
     }
 
-    /// A short description, e.g. `Front Cover (JPG, 500px, 32 KiB)`.
+    /// A short description, e.g. `Front Cover (JPG, 500x500px, 32KiB)`.
+    ///
+    /// Falls back to the resolution label if the dimensions can't be determined.
     #[must_use]
     pub fn description(&self, resolution: CoverArtResolution) -> String {
+        let dimensions = image_dimensions(&self.data).map_or_else(
+            || resolution.label().to_owned(),
+            |(width, height)| format!("{width}x{height}px"),
+        );
         format!(
-            "Front Cover ({}, {}, {})",
+            "Front Cover ({}, {dimensions}, {})",
             self.format.name(),
-            resolution.label(),
             format_size(u64::try_from(self.data.len()).unwrap_or(u64::MAX))
         )
     }
@@ -338,6 +343,17 @@ mod tests {
         assert_eq!(
             png_cover().description(CoverArtResolution::Original),
             "Front Cover (PNG, original, 11 B)"
+        );
+    }
+
+    #[test]
+    fn test_description_with_dimensions() {
+        let mut data = png_header(500, 400);
+        data.extend_from_slice(&[0; 4]);
+        let cover = CoverArt::from_data(data).unwrap();
+        assert_eq!(
+            cover.description(CoverArtResolution::Res500),
+            "Front Cover (PNG, 500x400px, 28 B)"
         );
     }
 

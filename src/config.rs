@@ -10,6 +10,7 @@
 
 use crate::pathformat::PathFormatterValues;
 use crate::pathformat::PathTemplate;
+use crate::release_candidate::Recommendation;
 use expanduser::expanduser;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -290,9 +291,21 @@ pub struct UnmatchedTrackStyleConfig {
     pub track_title_style: TextStyleConfig,
 }
 
+/// Determines which tracks are listed in the candidate details.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TracklistMode {
+    /// Show all tracks.
+    Full,
+    /// Only show tracks that have changes (the details view still shows all tracks).
+    Diff,
+}
+
 /// Configuration for the user interface.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CandidateDetails {
+    /// Which tracks to show in the tracklist.
+    pub tracklist_mode: TracklistMode,
     /// Indent string for the tracklist.
     pub tracklist_indent: String,
     /// Separator between the left and the right side of the tracklist.
@@ -434,17 +447,98 @@ pub struct PathTemplateConfig {
 }
 
 /// The import configuration struct.
-#[cfg(unix)]
 #[expect(missing_copy_implementations)]
 #[expect(clippy::struct_field_names)]
-#[derive(Debug, Default, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct ImportConfig {
     /// User ID to set.
+    #[serde(default)]
     pub set_uid: Option<u32>,
     /// Group ID to set.
+    #[serde(default)]
     pub set_gid: Option<u32>,
     /// File mode to set.
+    #[serde(default)]
     pub set_mode: Option<u32>,
+}
+
+/// Distance thresholds that determine the recommendation level for release candidates.
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
+pub struct RecommendationSimilarityConfig {
+    /// Distances below this value result in a strong recommendation.
+    #[serde(default = "default_strong_threshold")]
+    pub strong: f64,
+    /// Distances up to this value result in a medium recommendation.
+    #[serde(default = "default_medium_threshold")]
+    pub medium: f64,
+    /// Minimum distance gap between the best and second-best candidate for a low recommendation.
+    #[serde(default = "default_gap_threshold")]
+    pub gap: f64,
+}
+
+/// Default for [`RecommendationSimilarityConfig::strong`].
+const fn default_strong_threshold() -> f64 {
+    0.04
+}
+
+/// Default for [`RecommendationSimilarityConfig::medium`].
+const fn default_medium_threshold() -> f64 {
+    0.25
+}
+
+/// Default for [`RecommendationSimilarityConfig::gap`].
+const fn default_gap_threshold() -> f64 {
+    0.25
+}
+
+impl Default for RecommendationSimilarityConfig {
+    fn default() -> Self {
+        Self {
+            strong: default_strong_threshold(),
+            medium: default_medium_threshold(),
+            gap: default_gap_threshold(),
+        }
+    }
+}
+
+/// Default upper limit for recommendations if problems are found.
+const fn default_problem_limit() -> Recommendation {
+    Recommendation::Medium
+}
+
+/// Upper limits for the recommendation if the best candidate has a certain problem.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+pub struct RecommendationLimitConfig {
+    /// Limit if the base release has missing tracks.
+    #[serde(default = "default_problem_limit")]
+    pub missing_tracks: Recommendation,
+    /// Limit if the base release has residual tracks.
+    #[serde(default = "default_problem_limit")]
+    pub residual_tracks: Recommendation,
+    /// Limit if the release ID is present on both releases, but differs.
+    #[serde(default = "default_problem_limit")]
+    pub wrong_release_id: Recommendation,
+}
+
+impl Default for RecommendationLimitConfig {
+    fn default() -> Self {
+        Self {
+            missing_tracks: default_problem_limit(),
+            residual_tracks: default_problem_limit(),
+            wrong_release_id: default_problem_limit(),
+        }
+    }
+}
+
+/// Configuration for release candidate recommendations.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Deserialize, Serialize)]
+pub struct RecommendationConfig {
+    /// Similarity thresholds.
+    #[serde(default)]
+    pub similarity: RecommendationSimilarityConfig,
+    /// Recommendation limits for problems.
+    #[serde(default)]
+    pub limit: RecommendationLimitConfig,
 }
 
 /// The main configuration struct.
@@ -463,9 +557,11 @@ pub struct Config {
     /// UI configuration.
     pub user_interface: UiConfig,
     /// Import configuration.
-    #[cfg(unix)]
     #[serde(default)]
     pub import: ImportConfig,
+    /// Recommendation thresholds.
+    #[serde(default)]
+    pub recommendation: RecommendationConfig,
 }
 
 impl Default for Config {

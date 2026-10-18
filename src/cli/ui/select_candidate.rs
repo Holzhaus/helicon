@@ -12,7 +12,7 @@ use super::util;
 use crate::config::Config;
 use crate::musicbrainz::MusicBrainzId;
 use crate::release::ReleaseLike;
-use crate::release_candidate::{ReleaseCandidate, ReleaseCandidateCollection};
+use crate::release_candidate::{Recommendation, ReleaseCandidate, ReleaseCandidateCollection};
 use inquire::{validator::Validation, InquireError, Select, Text};
 use itertools::Itertools;
 use std::borrow::Cow;
@@ -439,6 +439,16 @@ impl<'a, T: ReleaseLike> From<StyledReleaseCandidateSelectionOption<'a, T>>
     }
 }
 
+/// Get the best candidate if it is similar enough to be selected automatically.
+pub fn autoselectable_candidate<'a, T: ReleaseLike>(
+    config: &Config,
+    candidates: &'a ReleaseCandidateCollection<T>,
+) -> Option<&'a ReleaseCandidate<T>> {
+    (candidates.recommendation(config) == Recommendation::Strong)
+        .then(|| candidates.iter().next())
+        .flatten()
+}
+
 /// Present a selection of releases to the user, and loop until either a release was selected or
 /// the item is skipped. In the latter case, `None` is returned.
 pub fn select_candidate<'a, T: ReleaseLike>(
@@ -447,12 +457,15 @@ pub fn select_candidate<'a, T: ReleaseLike>(
     allow_autoselection: bool,
 ) -> Result<ReleaseCandidateSelectionResult<'a, T>, InquireError> {
     if allow_autoselection {
-        if let Some(best_candidate) = candidates.iter().next() {
-            if best_candidate.distance(config).as_f64() <= 0.05 {
-                return Ok(ReleaseCandidateSelectionResult::Candidate(best_candidate));
-            }
+        if let Some(best_candidate) = autoselectable_candidate(config, candidates) {
+            return Ok(ReleaseCandidateSelectionResult::Candidate(best_candidate));
         }
     }
+
+    log::debug!(
+        "Recommendation for best candidate: {:?}",
+        candidates.recommendation(config)
+    );
 
     let additional_options = [
         ReleaseCandidateSelectionOption::EnterMusicBrainzId,

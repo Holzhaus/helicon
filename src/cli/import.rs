@@ -10,25 +10,103 @@
 
 use super::ui;
 use crate::coverart::CoverInfo;
-use crate::media::MediaLike;
 use crate::musicbrainz::{MusicBrainzClient, MusicBrainzRelease};
 use crate::release::ReleaseLike;
 use crate::release_candidate::{ReleaseCandidate, ReleaseCandidateCollection};
 use crate::scanner::Scanner;
-use crate::track::TrackLike;
-use crate::util::FormattedDuration;
+use crate::taggedfilecollection::TransferMode;
 use crate::{Config, TaggedFileCollection};
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use crossterm::style::Stylize;
 use futures::StreamExt;
-use std::borrow::Cow;
 use std::path::PathBuf;
 
 /// Command line arguments for the `import` CLI command.
 #[derive(Parser, Debug)]
+#[expect(clippy::struct_excessive_bools)]
 pub struct Args {
     /// Path to import.
     path: PathBuf,
+
+    /// Copy tracks into library directory (default).
+    #[arg(short = 'c', long, overrides_with = "nocopy")]
+    copy: bool,
+
+    /// Don't copy tracks (opposite of -c).
+    #[arg(short = 'C', long, overrides_with = "copy")]
+    nocopy: bool,
+
+    /// Move tracks into the library (overrides -c).
+    #[arg(short = 'm', long = "move", id = "move", overrides_with = "nomove")]
+    r#move: bool,
+
+    /// Don't move tracks into the library (overrides -m).
+    #[arg(short = 'M', long, overrides_with = "move")]
+    nomove: bool,
+
+    /// Write new metadata to files' tags (default).
+    #[arg(short = 'w', long, overrides_with = "nowrite")]
+    write: bool,
+
+    /// Don't write metadata (opposite of -w).
+    #[arg(short = 'W', long, overrides_with = "write")]
+    nowrite: bool,
+
+    /// Only consider collections with an existing MusicBrainz release ID and skip all others.
+    #[arg(long)]
+    refresh: bool,
+
+    /// When to prompt for input.
+    ///
+    /// `always` confirms all actions (same as --timid). `never` imports only strongly
+    /// recommended candidates and skips the rest (same as --quiet).
+    #[arg(long, value_enum, conflicts_with_all = ["timid", "quiet"])]
+    prompt: Option<PromptMode>,
+
+    /// Always confirm all actions (same as --prompt=always).
+    #[arg(short = 't', long, conflicts_with = "quiet")]
+    timid: bool,
+
+    /// Never prompt for input; import only strongly recommended candidates and skip the rest
+    /// (same as --prompt=never).
+    #[arg(short = 'q', long, conflicts_with = "timid")]
+    quiet: bool,
+}
+
+/// Determines when the user is prompted for input.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, ValueEnum)]
+enum PromptMode {
+    /// Prompt only if there is no strong recommendation.
+    #[default]
+    Auto,
+    /// Always confirm all actions.
+    Always,
+    /// Never prompt; skip collections without a strong recommendation.
+    Never,
+}
+
+impl Args {
+    /// Determine when the user should be prompted for input.
+    fn prompt_mode(&self) -> PromptMode {
+        if self.timid {
+            PromptMode::Always
+        } else if self.quiet {
+            PromptMode::Never
+        } else {
+            self.prompt.unwrap_or_default()
+        }
+    }
+
+    /// Determine how files should be transferred into the library.
+    fn transfer_mode(&self) -> TransferMode {
+        if self.r#move {
+            TransferMode::Move
+        } else if !self.nocopy {
+            TransferMode::Copy
+        } else {
+            TransferMode::InPlace
+        }
+    }
 }
 
 /// Result returned from the [`select_release()`] function.
@@ -42,12 +120,30 @@ enum SelectionResult {
     Quit,
 }
 
+/// Show the details of the automatically selected candidate.
+async fn show_autoselected(
+    config: &Config,
+    musicbrainz: &MusicBrainzClient,
+    track_collection: &TaggedFileCollection,
+    candidate: &ReleaseCandidate<MusicBrainzRelease>,
+) {
+    let cover_art = build_cover_art_preview(config, musicbrainz, track_collection, candidate).await;
+    ui::show_candidate(
+        config,
+        track_collection,
+        candidate,
+        cover_art.as_ref(),
+        false,
+    );
+}
+
 /// Select the release for the given track collection from the list of candidates.
 async fn select_release(
     config: &Config,
     musicbrainz: &MusicBrainzClient,
     track_collection: TaggedFileCollection,
     mut candidates: ReleaseCandidateCollection<MusicBrainzRelease>,
+    prompt_mode: PromptMode,
 ) -> crate::Result<SelectionResult> {
     println!(
         "Tagging: {release} ({track_count} tracks)",
@@ -73,8 +169,22 @@ async fn select_release(
                 .apply(directory.display())
         );
     }
-    let mut allow_autoselection = candidates.len() == 1;
+    if prompt_mode == PromptMode::Never {
+        let Some(best_candidate) = ui::autoselectable_candidate(config, &candidates) else {
+            println!("Skipping: no strong recommendation");
+            return Ok(SelectionResult::Skipped);
+        };
+        show_autoselected(config, musicbrainz, &track_collection, best_candidate).await;
+        let candidate_index = candidates.find_index(best_candidate);
+        return Ok(SelectionResult::Selected(
+            track_collection,
+            candidates.select_index(candidate_index),
+        ));
+    }
+    let mut allow_autoselection = true;
     'select_candidate: loop {
+        let autoselected =
+            allow_autoselection && ui::autoselectable_candidate(config, &candidates).is_some();
         let selected_candidate: &ReleaseCandidate<_> = loop {
             match ui::select_candidate(config, &candidates, allow_autoselection)? {
                 ui::ReleaseCandidateSelectionResult::Candidate(candidate) => break candidate,
@@ -105,7 +215,7 @@ async fn select_release(
                         .await;
                 }
                 ui::ReleaseCandidateSelectionResult::PrintTrackList => {
-                    print_tracklist(&track_collection);
+                    ui::print_tracklist(&track_collection);
                     continue 'select_candidate;
                 }
                 #[cfg(feature = "dev")]
@@ -163,6 +273,16 @@ async fn select_release(
             };
         };
         allow_autoselection = false;
+
+        if autoselected && prompt_mode != PromptMode::Always {
+            show_autoselected(config, musicbrainz, &track_collection, selected_candidate).await;
+            let candidate_index = candidates.find_index(selected_candidate);
+            let selected_candidate = candidates.select_index(candidate_index);
+            return Ok(SelectionResult::Selected(
+                track_collection,
+                selected_candidate,
+            ));
+        }
 
         let cover_art =
             build_cover_art_preview(config, musicbrainz, &track_collection, selected_candidate)
@@ -231,38 +351,6 @@ async fn build_cover_art_preview(
     })
 }
 
-/// Print Tracklist (for copy & paste into MusicBrainz).
-fn print_tracklist(release: &impl ReleaseLike) {
-    for (media_index, media) in release.media().enumerate() {
-        let format = media.media_format().unwrap_or_else(|| "Medium".into());
-        if media_index > 0 {
-            println!();
-        }
-        if let Some(title) = media.media_title() {
-            println!("{format} {index}: {title}", index = media_index + 1);
-        } else {
-            println!("{format} {index}", index = media_index + 1);
-        }
-        for (track_index, track) in media.media_tracks().enumerate() {
-            let track_number = track
-                .track_number()
-                .unwrap_or_else(|| Cow::from(format!("{track_index}")));
-            let track_artist = track
-                .track_artist()
-                .unwrap_or_else(|| Cow::from("[unknown]"));
-            let track_title = track
-                .track_title()
-                .or_else(|| track.track_file_stem())
-                .unwrap_or_else(|| Cow::from("[unnamed track]"));
-            let track_length = track.track_length().map_or_else(
-                || Cow::from("?:??"),
-                |length| Cow::from(length.formatted_duration()),
-            );
-            println!("{track_number}. {track_title} - {track_artist} ({track_length})");
-        }
-    }
-}
-
 /// Run an import.
 ///
 /// # Errors
@@ -274,7 +362,10 @@ pub async fn run(
     musicbrainz: &MusicBrainzClient,
     args: Args,
 ) -> crate::Result<()> {
-    let mut scanner = Scanner::scan(config.clone(), musicbrainz.clone(), args.path);
+    let transfer_mode = args.transfer_mode();
+    let write_tags = !args.nowrite;
+    let prompt_mode = args.prompt_mode();
+    let mut scanner = Scanner::scan(config.clone(), musicbrainz.clone(), args.path, args.refresh);
 
     let (importer_tx, mut importer_rx) = tokio::sync::mpsc::channel::<(
         TaggedFileCollection,
@@ -285,8 +376,8 @@ pub async fn run(
     let importer_handle = tokio::task::spawn(async move {
         while let Some((track_collection, selected_candidate)) = importer_rx.recv().await {
             let mut track_collection = track_collection.assign_tags(&selected_candidate);
-            if let Err(err) = track_collection.move_files(&cloned_config) {
-                log::error!("Failed to move files: {err}");
+            if let Err(err) = track_collection.transfer_files(&cloned_config, transfer_mode) {
+                log::error!("Failed to transfer files: {err}");
                 continue;
             }
 
@@ -312,8 +403,10 @@ pub async fn run(
                 }
             }
 
-            if let Err(err) = track_collection.write_tags() {
-                log::error!("Failed to write tags: {err}");
+            if write_tags {
+                if let Err(err) = track_collection.write_tags() {
+                    log::error!("Failed to write tags: {err}");
+                }
             }
 
             #[cfg(unix)]
@@ -323,6 +416,7 @@ pub async fn run(
         }
     });
 
+    let mut first_collection = true;
     while let Some(result) = scanner.recv().await {
         let (track_collection, candidates) = match result {
             Ok(res) => res,
@@ -331,7 +425,19 @@ pub async fn run(
                 continue;
             }
         };
-        match select_release(config, musicbrainz, track_collection, candidates).await? {
+        if !first_collection {
+            println!();
+        }
+        first_collection = false;
+        match select_release(
+            config,
+            musicbrainz,
+            track_collection,
+            candidates,
+            prompt_mode,
+        )
+        .await?
+        {
             SelectionResult::Selected(track_collection, selected_candidate) => {
                 if let Err(err) = importer_tx
                     .send((track_collection, selected_candidate))

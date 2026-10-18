@@ -12,5 +12,9 @@ mod handle_candidate;
 mod select_candidate;
 mod util;
 
-pub use handle_candidate::{handle_candidate, CoverArtPreview, HandleCandidateResult};
-pub use select_candidate::{select_candidate, ReleaseCandidateSelectionResult};
+pub use handle_candidate::{
+    handle_candidate, print_tracklist, show_candidate, CoverArtPreview, HandleCandidateResult,
+};
+pub use select_candidate::{
+    autoselectable_candidate, select_candidate, ReleaseCandidateSelectionResult,
+};
