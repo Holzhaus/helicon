@@ -173,6 +173,27 @@ pub enum TransferMode {
     InPlace,
 }
 
+/// Parse directory names like `Artist - Album (2009) [FLAC]` or
+/// scene-style names like `The_Artist-The_Album-WEB-FLAC-2009-GROUP`
+/// into an artist and album title.
+fn parse_directory_name(name: &str) -> Option<(String, String)> {
+    let clean = |s: &str| s.replace('_', " ").split_whitespace().join(" ");
+    let (artist, album) = if let Some((artist, rest)) = name.split_once(" - ") {
+        let album = rest.split(" - ").next().unwrap_or(rest);
+        let album = Regex::new(r"(\s*[(\[][^)\]]*[)\]])+\s*$")
+            .unwrap()
+            .replace(album, "");
+        (clean(artist), clean(&album))
+    } else {
+        let mut parts = name.split('-');
+        let (artist, album) = (parts.next()?, parts.next()?);
+        // Scene releases always have more segments (format, year, group).
+        let _ = parts.next()?;
+        (clean(artist), clean(album))
+    };
+    (!artist.is_empty() && !album.is_empty()).then_some((artist, album))
+}
+
 impl TaggedFileCollection {
     /// Creates a new collection from a `Vec` of `TaggedFile` instances.
     #[must_use]
@@ -317,6 +338,12 @@ impl TaggedFileCollection {
                     .map(|(a, _)| a)
                     .collect()
             })
+    }
+
+    /// Guess the artist and album title from the name of the common directory.
+    fn directory_name_guess(&self) -> Option<(String, String)> {
+        let directory = self.common_directory()?;
+        parse_directory_name(directory.file_name()?.to_str()?)
     }
 
     /// Move or copy files for all tracks in this collection into the library.
@@ -470,11 +497,19 @@ impl ReleaseLike for TaggedFileCollection {
                 .map(|title| trim_cow(strip_disc_suffix(trim_cow(title), &disc_pattern))),
         )
         .and_then(MostCommonItem::into_concensus)
+        .or_else(|| {
+            self.directory_name_guess()
+                .map(|(_, title)| Cow::Owned(title))
+        })
     }
 
     fn release_artist(&self) -> Option<Cow<'_, str>> {
         self.find_consensual_trimmed_tag_value(&TagKey::AlbumArtist)
             .or_else(|| self.find_consensual_trimmed_tag_value(&TagKey::Artist))
+            .or_else(|| {
+                self.directory_name_guess()
+                    .map(|(artist, _)| Cow::Owned(artist))
+            })
     }
 
     fn release_artist_sort_order(&self) -> Option<Cow<'_, str>> {
@@ -633,6 +668,22 @@ mod tests {
         env!("CARGO_MANIFEST_DIR"),
         "/tests/data/musicbrainz/release.json"
     ));
+
+    #[test]
+    fn test_parse_directory_name() {
+        assert_eq!(
+            parse_directory_name(
+                "The_Budos_Band-The_Budos_Band_EP-16BIT-44-KHZ-WEB-FLAC-2009-WALKMAN"
+            ),
+            Some(("The Budos Band".into(), "The Budos Band EP".into()))
+        );
+        assert_eq!(
+            parse_directory_name("Some Artist - Some Album (2009) [FLAC]"),
+            Some(("Some Artist".into(), "Some Album".into()))
+        );
+        assert_eq!(parse_directory_name("Downloads"), None);
+        assert_eq!(parse_directory_name("Foo-Bar"), None);
+    }
 
     #[test]
     fn test_most_common_item_with_empty_string_iterator() {
