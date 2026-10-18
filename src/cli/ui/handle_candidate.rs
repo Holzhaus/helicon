@@ -175,7 +175,12 @@ fn cover_tokens(description: &str) -> Vec<&str> {
     tokens
 }
 
-/// Split a trailing unit (e.g. `px` or `KiB`) from a value like `500x500px`.
+/// Whether the token is a size unit such as `KiB`.
+fn is_size_unit(token: &str) -> bool {
+    matches!(token, "B" | "KiB" | "MiB" | "GiB" | "TiB")
+}
+
+/// Split a trailing unit (e.g. `px`) from a value like `500x500px`.
 fn split_unit(token: &str) -> (&str, &str) {
     token
         .rfind(|ch: char| ch.is_ascii_digit())
@@ -200,7 +205,7 @@ fn cover_diff(
     let mut lhs = Vec::new();
     let mut rhs = Vec::new();
     for (old_token, new_token) in old_tokens.into_iter().zip(new_tokens) {
-        if old_token == new_token {
+        if old_token == new_token || (is_size_unit(old_token) && is_size_unit(new_token)) {
             lhs.push(config.equal.apply(old_token.to_owned()));
             rhs.push(config.equal.apply(new_token.to_owned()));
         } else {
@@ -963,9 +968,9 @@ fn match_involved_persons<'a>(
 mod tests {
     use super::*;
 
-    const COVER: &str = "Front Cover (JPG, 500px, 32KiB)";
-    const NEW: &str = "[Front Cover (JPG, 500px, 32KiB)]";
-    const OLD: &str = "Front Cover (PNG, 250x250px, 12KiB)";
+    const COVER: &str = "Front Cover (JPG, 500px, 32 KiB)";
+    const NEW: &str = "[Front Cover (JPG, 500px, 32 KiB)]";
+    const OLD: &str = "Front Cover (PNG, 250x250px, 12 KiB)";
 
     fn preview(
         existing_covers: &[Option<&str>],
@@ -1051,8 +1056,7 @@ mod tests {
     #[test]
     fn test_split_unit() {
         assert_eq!(split_unit("500x500px"), ("500x500", "px"));
-        assert_eq!(split_unit("32KiB"), ("32", "KiB"));
-        assert_eq!(split_unit("6B"), ("6", "B"));
+        assert_eq!(split_unit("32"), ("32", ""));
         assert_eq!(split_unit("JPG"), ("JPG", ""));
     }
 }
