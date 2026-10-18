@@ -152,6 +152,15 @@ impl TaggedFile {
         &self.content
     }
 
+    /// Returns the value as it would actually be stored in this file's tags.
+    #[must_use]
+    pub fn written_tag_value<'a>(&self, key: &TagKey, value: Cow<'a, str>) -> Cow<'a, str> {
+        match self.tags().first() {
+            Some(tag) => tag.written_value(key, value),
+            None => value,
+        }
+    }
+
     /// Yields all values for the given [`TagKey`].
     pub fn tag_values<'a>(&'a self, key: &'a TagKey) -> impl Iterator<Item = Cow<'a, str>> {
         self.tags().iter().filter_map(move |tag| tag.get(key))
@@ -688,6 +697,10 @@ impl TrackLike for TaggedFile {
 
     fn analyzed_metadata(&self) -> impl AnalyzedTrackMetadata {
         TaggedFileAnalyzedMetadata(self.analysis_results.as_ref())
+    }
+
+    fn written_tag_value<'a>(&self, key: &TagKey, value: Cow<'a, str>) -> Cow<'a, str> {
+        TaggedFile::written_tag_value(self, key, value)
     }
 }
 

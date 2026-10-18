@@ -9,7 +9,7 @@
 //! Functions related to importing files.
 
 use super::ui;
-use crate::coverart::CoverInfo;
+use crate::coverart::{fingerprint, CoverInfo};
 use crate::musicbrainz::{MusicBrainzClient, MusicBrainzRelease};
 use crate::release::ReleaseLike;
 use crate::release_candidate::{ReleaseCandidate, ReleaseCandidateCollection};
@@ -126,6 +126,7 @@ async fn show_autoselected(
     musicbrainz: &MusicBrainzClient,
     track_collection: &TaggedFileCollection,
     candidate: &ReleaseCandidate<MusicBrainzRelease>,
+    show_paths: bool,
 ) {
     let cover_art = build_cover_art_preview(config, musicbrainz, track_collection, candidate).await;
     ui::show_candidate(
@@ -134,6 +135,7 @@ async fn show_autoselected(
         candidate,
         cover_art.as_ref(),
         false,
+        show_paths,
     );
 }
 
@@ -144,6 +146,7 @@ async fn select_release(
     track_collection: TaggedFileCollection,
     mut candidates: ReleaseCandidateCollection<MusicBrainzRelease>,
     prompt_mode: PromptMode,
+    show_paths: bool,
 ) -> crate::Result<SelectionResult> {
     println!(
         "Tagging: {release} ({track_count} tracks)",
@@ -174,7 +177,14 @@ async fn select_release(
             println!("Skipping: no strong recommendation");
             return Ok(SelectionResult::Skipped);
         };
-        show_autoselected(config, musicbrainz, &track_collection, best_candidate).await;
+        show_autoselected(
+            config,
+            musicbrainz,
+            &track_collection,
+            best_candidate,
+            show_paths,
+        )
+        .await;
         let candidate_index = candidates.find_index(best_candidate);
         return Ok(SelectionResult::Selected(
             track_collection,
@@ -275,7 +285,14 @@ async fn select_release(
         allow_autoselection = false;
 
         if autoselected && prompt_mode != PromptMode::Always {
-            show_autoselected(config, musicbrainz, &track_collection, selected_candidate).await;
+            show_autoselected(
+                config,
+                musicbrainz,
+                &track_collection,
+                selected_candidate,
+                show_paths,
+            )
+            .await;
             let candidate_index = candidates.find_index(selected_candidate);
             let selected_candidate = candidates.select_index(candidate_index);
             return Ok(SelectionResult::Selected(
@@ -292,6 +309,7 @@ async fn select_release(
             &track_collection,
             selected_candidate,
             cover_art.as_ref(),
+            show_paths,
         )? {
             ui::HandleCandidateResult::Apply => {
                 let candidate_index = candidates.find_index(selected_candidate);
@@ -330,17 +348,28 @@ async fn build_cover_art_preview(
         return None;
     }
 
-    let new_cover = match musicbrainz
+    let cover = match musicbrainz
         .find_front_cover_by_release_id(&candidate.release().id)
         .await
     {
-        Ok(cover) => cover.map(|cover| cover.description(cover_art_config.resolution)),
+        Ok(cover) => cover,
         Err(err) => {
             log::warn!("Failed to fetch front cover art: {err}");
             None
         }
     };
+    let new_cover = cover
+        .as_ref()
+        .map(|cover| cover.description(cover_art_config.resolution));
+    let new_fingerprint = cover.as_ref().map(|cover| fingerprint(cover.data()));
     Some(ui::CoverArtPreview {
+        existing_is_identical: track_collection
+            .front_cover_infos()
+            .iter()
+            .map(|info| {
+                new_fingerprint.is_some_and(|new| info.is_some_and(|info| info.fingerprint == new))
+            })
+            .collect(),
         existing_covers: track_collection
             .front_cover_infos()
             .iter()
@@ -435,6 +464,7 @@ pub async fn run(
             track_collection,
             candidates,
             prompt_mode,
+            transfer_mode != TransferMode::InPlace,
         )
         .await?
         {

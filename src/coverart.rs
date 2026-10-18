@@ -166,11 +166,22 @@ pub fn image_dimensions(data: &[u8]) -> Option<(u32, u32)> {
     }
 }
 
+/// Hash the image data so that identical images can be detected.
+#[must_use]
+pub fn fingerprint(data: &[u8]) -> u64 {
+    use std::hash::{DefaultHasher, Hash, Hasher};
+    let mut hasher = DefaultHasher::new();
+    data.hash(&mut hasher);
+    hasher.finish()
+}
+
 /// Information about a cover image that is already embedded in a file.
 ///
 /// The image might be in a format that cannot be embedded by us, so the details are optional.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CoverInfo {
+    /// Hash of the image data, used to detect identical images.
+    pub fingerprint: u64,
     /// Detected image format.
     pub format: Option<ImageFormat>,
     /// Pixel dimensions `(width, height)`.
@@ -184,6 +195,7 @@ impl CoverInfo {
     #[must_use]
     pub fn from_data(data: &[u8]) -> Self {
         Self {
+            fingerprint: fingerprint(data),
             format: ImageFormat::sniff(data),
             dimensions: image_dimensions(data),
             size: data.len(),

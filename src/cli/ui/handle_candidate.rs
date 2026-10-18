@@ -15,6 +15,7 @@ use crate::media::MediaLike;
 use crate::pathformat::PathFormatterValues;
 use crate::release::ReleaseLike;
 use crate::release_candidate::ReleaseCandidate;
+use crate::tag::TagKey;
 use crate::track::{AnalyzedTrackMetadata, InvolvedPerson, TrackLike};
 use crate::util::{FormattedDuration, KeyedBinaryHeap};
 use crossterm::{
@@ -33,6 +34,9 @@ use std::iter::Peekable;
 pub struct CoverArtPreview {
     /// For each track of the base release, the description of its existing front cover (if any).
     pub existing_covers: Vec<Option<String>>,
+    /// For each track of the base release, whether its existing front cover is identical to the
+    /// new one.
+    pub existing_is_identical: Vec<bool>,
     /// Description of the front cover that is available for the candidate (if any).
     pub new_cover: Option<String>,
     /// Whether existing front covers will be replaced.
@@ -56,6 +60,14 @@ impl CoverArtPreview {
             .existing_covers
             .get(track_index)
             .and_then(Option::as_ref);
+        if self
+            .existing_is_identical
+            .get(track_index)
+            .copied()
+            .unwrap_or(false)
+        {
+            return None;
+        }
         Some(match existing {
             None => CoverArtChange::Changed(None, format!("[{new_cover}]")),
             Some(existing) if self.overwrite_existing => {
@@ -270,6 +282,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
     candidate: &ReleaseCandidate<C>,
     cover_art: Option<&CoverArtPreview>,
     show_details: bool,
+    show_paths: bool,
 ) {
     let candidate_details_config = &config.user_interface.candidate_details;
 
@@ -692,7 +705,11 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                 }
 
                 // Print the BPM (if available/different)
-                if let Some(bpm) = lhs_track.analyzed_metadata().bpm() {
+                if let Some(bpm) = lhs_track
+                    .analyzed_metadata()
+                    .bpm()
+                    .map(|bpm| lhs_track.written_tag_value(&TagKey::Bpm, bpm))
+                {
                     if lhs_track.bpm().is_none_or(|l| l != bpm) {
                         print_extra_metadata(
                             lhs_track.bpm(),
@@ -706,7 +723,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                     }
                 }
 
-                if let Some(path) = lhs_track.track_path() {
+                if let Some(path) = lhs_track.track_path().filter(|_| show_paths) {
                     let old_path = path;
 
                     let values = PathFormatterValues::default()
@@ -719,7 +736,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                         .paths
                         .format_path(&values, lhs_track.track_file_extension())
                         .ok();
-                    if new_path.as_deref().is_none_or(|p| p != old_path) {
+                    if new_path.as_deref().is_some_and(|p| p != old_path) {
                         print_extra_metadata(
                             old_path.to_str().map(Cow::from),
                             new_path.as_deref().and_then(|x| x.to_str()).map(Cow::from),
@@ -825,10 +842,18 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
     base_release: &B,
     candidate: &ReleaseCandidate<C>,
     cover_art: Option<&CoverArtPreview>,
+    show_paths: bool,
 ) -> Result<HandleCandidateResult, InquireError> {
     let mut show_details = false;
     loop {
-        show_candidate(config, base_release, candidate, cover_art, show_details);
+        show_candidate(
+            config,
+            base_release,
+            candidate,
+            cover_art,
+            show_details,
+            show_paths,
+        );
         let options = vec![
             HandleCandidateResult::Apply.into_styled(config),
             if show_details {
@@ -978,6 +1003,7 @@ mod tests {
         overwrite: bool,
     ) -> CoverArtPreview {
         CoverArtPreview {
+            existing_is_identical: Vec::new(),
             existing_covers: existing_covers
                 .iter()
                 .map(|cover| cover.map(ToOwned::to_owned))
@@ -993,6 +1019,13 @@ mod tests {
             preview(&[None], Some(COVER), false).change_for_track(0),
             Some(CoverArtChange::Changed(None, NEW.to_owned()))
         );
+    }
+
+    #[test]
+    fn test_identical_existing_cover_is_not_a_change() {
+        let mut preview = preview(&[Some(OLD)], Some(COVER), true);
+        preview.existing_is_identical = vec![true];
+        assert_eq!(preview.change_for_track(0), None);
     }
 
     #[test]
