@@ -134,7 +134,7 @@ async fn show_autoselected(
         track_collection,
         candidate,
         cover_art.as_ref(),
-        false,
+        true,
         show_paths,
     );
 }
