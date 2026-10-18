@@ -625,6 +625,11 @@ impl Tag for ID3v2Tag {
         });
     }
 
+    fn remove_front_cover(&mut self) {
+        self.data
+            .remove_picture_by_type(id3::frame::PictureType::CoverFront);
+    }
+
     fn write(&mut self, path: &Path) -> crate::Result<()> {
         self.data.write_to_path(path, self.data.version())?;
         Ok(())

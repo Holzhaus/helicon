@@ -34,6 +34,8 @@ wrong_release_id = "medium"
 enabled = true
 # Replace front covers that are already embedded in the files.
 overwrite_existing = false
+# Remove embedded front covers if the release has no front cover art.
+prune = false
 # One of "250", "500", "1200" or "original".
 resolution = "500"
 

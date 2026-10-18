@@ -366,6 +366,10 @@ impl Tag for Mp4Tag {
             .set_artwork(mp4ameta::Img::new(fmt, cover.data().to_vec()));
     }
 
+    fn remove_front_cover(&mut self) {
+        self.data.remove_artworks();
+    }
+
     fn write(&mut self, path: &Path) -> crate::Result<()> {
         self.data.write_to_path(path)?;
         Ok(())

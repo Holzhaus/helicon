@@ -139,6 +139,8 @@ pub struct CoverArtConfig {
     pub enabled: bool,
     /// Replace front covers that are already embedded in the files.
     pub overwrite_existing: bool,
+    /// Remove embedded front covers if the release has no front cover art.
+    pub prune: bool,
     /// Resolution of the cover art to fetch.
     pub resolution: CoverArtResolution,
 }
@@ -667,6 +669,7 @@ mod tests {
         let config = Config::default().cover_art;
         assert!(config.enabled);
         assert!(!config.overwrite_existing);
+        assert!(!config.prune);
         assert_eq!(config.resolution, CoverArtResolution::Res500);
     }
 

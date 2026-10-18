@@ -207,6 +207,11 @@ impl Tag for FlacTag {
         );
     }
 
+    fn remove_front_cover(&mut self) {
+        self.data
+            .remove_picture_type(metaflac::block::PictureType::CoverFront);
+    }
+
     fn write(&mut self, path: &Path) -> crate::Result<()> {
         self.data.write_to_path(path)?;
         Ok(())

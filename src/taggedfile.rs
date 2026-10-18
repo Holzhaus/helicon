@@ -411,6 +411,13 @@ impl TaggedFile {
         }
     }
 
+    /// Remove the front cover from all tags.
+    pub fn remove_front_cover(&mut self) {
+        for tag in &mut self.content {
+            tag.remove_front_cover();
+        }
+    }
+
     /// Write tags to file.
     ///
     /// # Errors

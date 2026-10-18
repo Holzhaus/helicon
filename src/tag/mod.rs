@@ -293,6 +293,8 @@ pub trait Tag: Send + Sync {
     }
     /// Set the front cover image, replacing an existing front cover.
     fn set_front_cover(&mut self, cover: &CoverArt);
+    /// Remove the front cover image (if any).
+    fn remove_front_cover(&mut self);
     /// Write the tags to the path.
     fn write(&mut self, path: &Path) -> crate::Result<()>;
 

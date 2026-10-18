@@ -393,6 +393,17 @@ impl TaggedFileCollection {
         }
     }
 
+    /// Remove the front cover from all tracks in this collection.
+    pub fn remove_front_cover(&mut self) {
+        for track in self
+            .media
+            .iter_mut()
+            .flat_map(|media| media.tracks.iter_mut())
+        {
+            track.remove_front_cover();
+        }
+    }
+
     /// Write tags for all tracks in this collection.
     ///
     /// # Errors
