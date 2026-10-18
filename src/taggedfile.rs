@@ -864,6 +864,34 @@ mod tests {
 
     #[cfg(feature = "flac")]
     #[test]
+    fn test_remove_front_cover() {
+        use crate::coverart::testing::jpeg_cover;
+
+        let file = tempfile::Builder::new().suffix(".flac").tempfile().unwrap();
+        let _ = std::fs::copy(
+            concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/tests/data/media/untagged/track.flac"
+            ),
+            file.path(),
+        )
+        .unwrap();
+
+        let mut tagged_file = TaggedFile::read_from_path(file.path()).unwrap();
+        tagged_file.set_front_cover(&jpeg_cover(), false);
+        tagged_file.write_tags().unwrap();
+
+        let mut tagged_file = TaggedFile::read_from_path(file.path()).unwrap();
+        assert!(tagged_file.front_cover_info().is_some());
+        tagged_file.remove_front_cover();
+        tagged_file.write_tags().unwrap();
+
+        let tagged_file = TaggedFile::read_from_path(file.path()).unwrap();
+        assert!(tagged_file.front_cover_info().is_none());
+    }
+
+    #[cfg(feature = "flac")]
+    #[test]
     fn test_front_cover_keeps_existing_by_default() {
         use crate::coverart::testing::{jpeg_cover, png_cover};
 
