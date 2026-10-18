@@ -34,6 +34,9 @@ use std::iter::Peekable;
 pub struct CoverArtPreview {
     /// For each track of the base release, the description of its existing front cover (if any).
     pub existing_covers: Vec<Option<String>>,
+    /// For each track of the base release, whether its existing front cover is identical to the
+    /// new one.
+    pub existing_is_identical: Vec<bool>,
     /// Description of the front cover that is available for the candidate (if any).
     pub new_cover: Option<String>,
     /// Whether existing front covers will be replaced.
@@ -57,6 +60,14 @@ impl CoverArtPreview {
             .existing_covers
             .get(track_index)
             .and_then(Option::as_ref);
+        if self
+            .existing_is_identical
+            .get(track_index)
+            .copied()
+            .unwrap_or(false)
+        {
+            return None;
+        }
         Some(match existing {
             None => CoverArtChange::Changed(None, format!("[{new_cover}]")),
             Some(existing) if self.overwrite_existing => {
@@ -992,6 +1003,7 @@ mod tests {
         overwrite: bool,
     ) -> CoverArtPreview {
         CoverArtPreview {
+            existing_is_identical: Vec::new(),
             existing_covers: existing_covers
                 .iter()
                 .map(|cover| cover.map(ToOwned::to_owned))
@@ -1007,6 +1019,13 @@ mod tests {
             preview(&[None], Some(COVER), false).change_for_track(0),
             Some(CoverArtChange::Changed(None, NEW.to_owned()))
         );
+    }
+
+    #[test]
+    fn test_identical_existing_cover_is_not_a_change() {
+        let mut preview = preview(&[Some(OLD)], Some(COVER), true);
+        preview.existing_is_identical = vec![true];
+        assert_eq!(preview.change_for_track(0), None);
     }
 
     #[test]

@@ -9,7 +9,7 @@
 //! Functions related to importing files.
 
 use super::ui;
-use crate::coverart::CoverInfo;
+use crate::coverart::{fingerprint, CoverInfo};
 use crate::musicbrainz::{MusicBrainzClient, MusicBrainzRelease};
 use crate::release::ReleaseLike;
 use crate::release_candidate::{ReleaseCandidate, ReleaseCandidateCollection};
@@ -348,17 +348,28 @@ async fn build_cover_art_preview(
         return None;
     }
 
-    let new_cover = match musicbrainz
+    let cover = match musicbrainz
         .find_front_cover_by_release_id(&candidate.release().id)
         .await
     {
-        Ok(cover) => cover.map(|cover| cover.description(cover_art_config.resolution)),
+        Ok(cover) => cover,
         Err(err) => {
             log::warn!("Failed to fetch front cover art: {err}");
             None
         }
     };
+    let new_cover = cover
+        .as_ref()
+        .map(|cover| cover.description(cover_art_config.resolution));
+    let new_fingerprint = cover.as_ref().map(|cover| fingerprint(cover.data()));
     Some(ui::CoverArtPreview {
+        existing_is_identical: track_collection
+            .front_cover_infos()
+            .iter()
+            .map(|info| {
+                new_fingerprint.is_some_and(|new| info.is_some_and(|info| info.fingerprint == new))
+            })
+            .collect(),
         existing_covers: track_collection
             .front_cover_infos()
             .iter()
