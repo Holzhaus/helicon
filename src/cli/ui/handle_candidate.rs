@@ -271,6 +271,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
     candidate: &ReleaseCandidate<C>,
     cover_art: Option<&CoverArtPreview>,
     show_details: bool,
+    show_paths: bool,
 ) {
     let candidate_details_config = &config.user_interface.candidate_details;
 
@@ -711,7 +712,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                     }
                 }
 
-                if let Some(path) = lhs_track.track_path() {
+                if let Some(path) = lhs_track.track_path().filter(|_| show_paths) {
                     let old_path = path;
 
                     let values = PathFormatterValues::default()
@@ -724,7 +725,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                         .paths
                         .format_path(&values, lhs_track.track_file_extension())
                         .ok();
-                    if new_path.as_deref().is_none_or(|p| p != old_path) {
+                    if new_path.as_deref().is_some_and(|p| p != old_path) {
                         print_extra_metadata(
                             old_path.to_str().map(Cow::from),
                             new_path.as_deref().and_then(|x| x.to_str()).map(Cow::from),
@@ -830,10 +831,18 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
     base_release: &B,
     candidate: &ReleaseCandidate<C>,
     cover_art: Option<&CoverArtPreview>,
+    show_paths: bool,
 ) -> Result<HandleCandidateResult, InquireError> {
     let mut show_details = false;
     loop {
-        show_candidate(config, base_release, candidate, cover_art, show_details);
+        show_candidate(
+            config,
+            base_release,
+            candidate,
+            cover_art,
+            show_details,
+            show_paths,
+        );
         let options = vec![
             HandleCandidateResult::Apply.into_styled(config),
             if show_details {
