@@ -18,13 +18,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::borrow::Cow;
 
-/// Characters that are forbidden in paths on Microsoft Windows (in addition to control characters).
-#[cfg(target_os = "windows")]
+/// Characters that are forbidden in paths on at least one major OS (Windows, macOS, Linux),
+/// in addition to control characters.
 const ILLEGAL_PATH_CHARS: &str = r#"\/:*?"<>|"#;
-
-/// Characters that are forbidden in paths on Unices (in addition to control characters).
-#[cfg(not(target_os = "windows"))]
-const ILLEGAL_PATH_CHARS: &str = "/";
 
 /// Strips control characters and escapes forbidden characters.
 fn escape_path_chars(data: &str) -> String {
@@ -266,7 +262,7 @@ mod tests {
         let output = formatter.format(&values).unwrap();
         assert_eq!(
             output,
-            "The Ahmad Jamal Trio/1958 - Ahmad Jamal at the Pershing: But Not for Me/1-1 - But Not for Me"
+            "The Ahmad Jamal Trio/1958 - Ahmad Jamal at the Pershing_ But Not for Me/1-1 - But Not for Me"
         );
     }
 }
