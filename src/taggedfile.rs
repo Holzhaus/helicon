@@ -411,6 +411,13 @@ impl TaggedFile {
         }
     }
 
+    /// Remove the front cover from all tags.
+    pub fn remove_front_cover(&mut self) {
+        for tag in &mut self.content {
+            tag.remove_front_cover();
+        }
+    }
+
     /// Write tags to file.
     ///
     /// # Errors
@@ -853,6 +860,34 @@ mod tests {
         assert!(tagged_file_collection.release_artist().is_some());
         assert!(tagged_file_collection.release_country().is_some());
         assert!(tagged_file_collection.musicbrainz_release_id().is_some());
+    }
+
+    #[cfg(feature = "flac")]
+    #[test]
+    fn test_remove_front_cover() {
+        use crate::coverart::testing::jpeg_cover;
+
+        let file = tempfile::Builder::new().suffix(".flac").tempfile().unwrap();
+        let _ = std::fs::copy(
+            concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/tests/data/media/untagged/track.flac"
+            ),
+            file.path(),
+        )
+        .unwrap();
+
+        let mut tagged_file = TaggedFile::read_from_path(file.path()).unwrap();
+        tagged_file.set_front_cover(&jpeg_cover(), false);
+        tagged_file.write_tags().unwrap();
+
+        let mut tagged_file = TaggedFile::read_from_path(file.path()).unwrap();
+        assert!(tagged_file.front_cover_info().is_some());
+        tagged_file.remove_front_cover();
+        tagged_file.write_tags().unwrap();
+
+        let tagged_file = TaggedFile::read_from_path(file.path()).unwrap();
+        assert!(tagged_file.front_cover_info().is_none());
     }
 
     #[cfg(feature = "flac")]

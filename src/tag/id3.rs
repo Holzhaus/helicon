@@ -625,6 +625,11 @@ impl Tag for ID3v2Tag {
         });
     }
 
+    fn remove_front_cover(&mut self) {
+        self.data
+            .remove_picture_by_type(id3::frame::PictureType::CoverFront);
+    }
+
     fn write(&mut self, path: &Path) -> crate::Result<()> {
         self.data.write_to_path(path, self.data.version())?;
         Ok(())
@@ -1416,6 +1421,18 @@ mod tests {
     #[test]
     fn test_front_cover_initially_missing() {
         assert!(!ID3v2Tag::with_version(Version::Id3v24).has_front_cover());
+    }
+
+    #[test]
+    fn test_remove_front_cover() {
+        let mut tag = ID3v2Tag::with_version(Version::Id3v24);
+        tag.set_front_cover(&jpeg_cover());
+        assert!(tag.has_front_cover());
+        tag.remove_front_cover();
+        assert!(!tag.has_front_cover());
+        // Removing a missing cover is a no-op.
+        tag.remove_front_cover();
+        assert!(!tag.has_front_cover());
     }
 
     #[test]

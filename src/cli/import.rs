@@ -348,14 +348,14 @@ async fn build_cover_art_preview(
         return None;
     }
 
-    let cover = match musicbrainz
+    let (cover, fetch_succeeded) = match musicbrainz
         .find_front_cover_by_release_id(&candidate.release().id)
         .await
     {
-        Ok(cover) => cover,
+        Ok(cover) => (cover, true),
         Err(err) => {
             log::warn!("Failed to fetch front cover art: {err}");
-            None
+            (None, false)
         }
     };
     let new_cover = cover
@@ -377,6 +377,7 @@ async fn build_cover_art_preview(
             .collect(),
         new_cover,
         overwrite_existing: cover_art_config.overwrite_existing,
+        remove_existing: cover_art_config.prune && fetch_succeeded && cover.is_none(),
     })
 }
 
@@ -412,7 +413,8 @@ pub async fn run(
 
             let cover_art_config = cloned_config.cover_art;
             if cover_art_config.enabled
-                && track_collection.needs_front_cover(cover_art_config.overwrite_existing)
+                && (cover_art_config.prune
+                    || track_collection.needs_front_cover(cover_art_config.overwrite_existing))
             {
                 match cloned_musicbrainz
                     .find_front_cover_by_release_id(&selected_candidate.release().id)
@@ -427,7 +429,12 @@ pub async fn run(
                         track_collection
                             .set_front_cover(&cover, cover_art_config.overwrite_existing);
                     }
-                    Ok(None) => log::info!("No front cover art available for this release"),
+                    Ok(None) => {
+                        log::info!("No front cover art available for this release");
+                        if cover_art_config.prune {
+                            track_collection.remove_front_cover();
+                        }
+                    }
                     Err(err) => log::warn!("Failed to fetch front cover art: {err}"),
                 }
             }

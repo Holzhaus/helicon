@@ -41,6 +41,8 @@ pub struct CoverArtPreview {
     pub new_cover: Option<String>,
     /// Whether existing front covers will be replaced.
     pub overwrite_existing: bool,
+    /// Whether existing front covers will be removed because the release has none.
+    pub remove_existing: bool,
 }
 
 /// Outcome of applying the candidate's front cover to a single track.
@@ -50,16 +52,22 @@ enum CoverArtChange {
     Changed(Option<String>, String),
     /// The track keeps its existing front cover (with the given description).
     Kept(String),
+    /// The existing front cover (with the given description) is removed.
+    Removed(String),
 }
 
 impl CoverArtPreview {
     /// Determine how applying the candidate affects the front cover of the given track.
     fn change_for_track(&self, track_index: usize) -> Option<CoverArtChange> {
-        let new_cover = self.new_cover.as_ref()?;
         let existing = self
             .existing_covers
             .get(track_index)
             .and_then(Option::as_ref);
+        let Some(new_cover) = self.new_cover.as_ref() else {
+            return existing
+                .filter(|_| self.remove_existing)
+                .map(|existing| CoverArtChange::Removed(format!("[{existing}]")));
+        };
         if self
             .existing_is_identical
             .get(track_index)
@@ -701,6 +709,17 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                                 .apply(format!("[{existing}] (kept)"))
                         );
                     }
+                    Some(CoverArtChange::Removed(old)) => {
+                        print_extra_metadata(
+                            Some(Cow::from(old)),
+                            None,
+                            "<no cover>",
+                            " (cover)",
+                            candidate_details_config,
+                            max_width,
+                            candidate_details_config.tracklist_extra_line_limit,
+                        );
+                    }
                     None => (),
                 }
 
@@ -1010,7 +1029,20 @@ mod tests {
                 .collect(),
             new_cover: new_cover.map(ToOwned::to_owned),
             overwrite_existing: overwrite,
+            remove_existing: false,
         }
+    }
+
+    #[test]
+    fn test_existing_cover_is_removed_when_pruning() {
+        let mut preview = preview(&[Some(OLD), None], None, false);
+        assert_eq!(preview.change_for_track(0), None);
+        preview.remove_existing = true;
+        assert_eq!(
+            preview.change_for_track(0),
+            Some(CoverArtChange::Removed(format!("[{OLD}]")))
+        );
+        assert_eq!(preview.change_for_track(1), None);
     }
 
     #[test]

@@ -366,6 +366,10 @@ impl Tag for Mp4Tag {
             .set_artwork(mp4ameta::Img::new(fmt, cover.data().to_vec()));
     }
 
+    fn remove_front_cover(&mut self) {
+        self.data.remove_artworks();
+    }
+
     fn write(&mut self, path: &Path) -> crate::Result<()> {
         self.data.write_to_path(path)?;
         Ok(())
@@ -677,6 +681,18 @@ mod tests {
     #[test]
     fn test_front_cover_initially_missing() {
         assert!(!Mp4Tag::new().has_front_cover());
+    }
+
+    #[test]
+    fn test_remove_front_cover() {
+        let mut tag = Mp4Tag::new();
+        tag.set_front_cover(&jpeg_cover());
+        assert!(tag.has_front_cover());
+        tag.remove_front_cover();
+        assert!(!tag.has_front_cover());
+        // Removing a missing cover is a no-op.
+        tag.remove_front_cover();
+        assert!(!tag.has_front_cover());
     }
 
     #[test]

@@ -207,6 +207,11 @@ impl Tag for FlacTag {
         );
     }
 
+    fn remove_front_cover(&mut self) {
+        self.data
+            .remove_picture_type(metaflac::block::PictureType::CoverFront);
+    }
+
     fn write(&mut self, path: &Path) -> crate::Result<()> {
         self.data.write_to_path(path)?;
         Ok(())
@@ -473,6 +478,18 @@ mod tests {
     #[test]
     fn test_front_cover_initially_missing() {
         assert!(!FlacTag::new().has_front_cover());
+    }
+
+    #[test]
+    fn test_remove_front_cover() {
+        let mut tag = FlacTag::new();
+        tag.set_front_cover(&jpeg_cover());
+        assert!(tag.has_front_cover());
+        tag.remove_front_cover();
+        assert!(!tag.has_front_cover());
+        // Removing a missing cover is a no-op.
+        tag.remove_front_cover();
+        assert!(!tag.has_front_cover());
     }
 
     #[test]
