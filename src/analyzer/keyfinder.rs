@@ -6,7 +6,7 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
-//! Musical key analyzer based on libkeyfinder.
+//! Musical key analyzer based on the pure-Rust keyfinder crate.
 
 use super::{Analyzer, AnalyzerError};
 use crate::config::Config;
@@ -15,13 +15,13 @@ use crate::key::{MusicalKey, Tonic};
 use symphonia::core::audio::Channels;
 use symphonia::core::formats::Track;
 
-use libkeyfinder_sys::{AudioData, KeyFinder, KeyFinderKey};
+use keyfinder::{Key as KeyFinderKey, KeyFinder};
 
 /// Keyfinder Analyzer for musical key detection.
 #[allow(missing_debug_implementations)]
 pub struct KeyFinderKeyAnalyzer {
-    /// The audio data buffer.
-    audio: AudioData,
+    /// The streaming key detector.
+    finder: KeyFinder,
 }
 
 /// Analysis result of the Keyfinder analyzer.
@@ -81,18 +81,16 @@ impl Analyzer for KeyFinderKeyAnalyzer {
             .map(Channels::count)
             .ok_or(AnalyzerError::MissingAudioChannels)?;
 
-        let mut audio = AudioData::new();
-        audio.set_frame_rate(sample_rate);
-        audio.set_channels(
-            u32::try_from(num_channels).map_err(|_| AnalyzerError::MissingAudioChannels)?,
-        );
+        let num_channels =
+            u32::try_from(num_channels).map_err(|_| AnalyzerError::MissingAudioChannels)?;
 
-        let analyzer = Self { audio };
-        Ok(analyzer)
+        let finder = KeyFinder::new(num_channels, sample_rate)?;
+        Ok(Self { finder })
     }
 
     fn feed(&mut self, samples: &[f32]) -> Result<(), AnalyzerError> {
-        self.audio.extend(samples.to_owned());
+        let samples: Vec<f64> = samples.iter().copied().map(f64::from).collect();
+        self.finder.push(&samples)?;
         Ok(())
     }
 
@@ -101,9 +99,8 @@ impl Analyzer for KeyFinderKeyAnalyzer {
         false
     }
 
-    fn finalize(self) -> Result<Self::Result, AnalyzerError> {
-        let mut key_finder = KeyFinder::new();
-        let key = key_finder.key_of_audio(&self.audio);
+    fn finalize(mut self) -> Result<Self::Result, AnalyzerError> {
+        let key = self.finder.finish()?;
 
         Ok(Self::Result { key: key.into() })
     }

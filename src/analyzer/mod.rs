@@ -67,6 +67,10 @@ pub enum AnalyzerError {
     /// EBU R 128 analysis failed.
     #[error("ebur128 failure: {0}")]
     EbuR128Error(#[from] ::ebur128::Error),
+    /// Key detection failed.
+    #[cfg(feature = "keyfinder")]
+    #[error("keyfinder failure: {0}")]
+    KeyFinderError(#[from] ::keyfinder::Error),
 }
 
 /// Analyzer trait.
