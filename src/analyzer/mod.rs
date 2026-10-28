@@ -24,12 +24,16 @@ use symphonia::core::meta::MetadataOptions;
 
 mod chromaprint;
 mod ebur128;
+#[cfg(feature = "keyfinder")]
+mod keyfinder;
 #[cfg(feature = "soundtouch")]
 mod soundtouch_bpm;
 mod track_length;
 
 use chromaprint::ChromaprintFingerprintAnalyzer;
 use ebur128::EbuR128Analyzer;
+#[cfg(feature = "keyfinder")]
+use keyfinder::KeyFinderKeyAnalyzer;
 #[cfg(feature = "soundtouch")]
 use soundtouch_bpm::SoundTouchBpmAnalyzer;
 use track_length::TrackLengthAnalyzer;
@@ -97,6 +101,9 @@ enum CompoundAnalyzerItem {
     TrackLength(Box<TrackLengthAnalyzer>),
     /// Chromaprint Fingerprint Analyzer.
     ChromaprintFingerprint(Box<ChromaprintFingerprintAnalyzer>),
+    /// Keyfinder Key Analyzer.
+    #[cfg(feature = "keyfinder")]
+    KeyFinder(Box<KeyFinderKeyAnalyzer>),
     /// EBU R 128 Analyzer.
     EbuR128(Box<EbuR128Analyzer>),
     /// SoundTouch BPM Analyzer.
@@ -129,6 +136,19 @@ impl CompoundAnalyzerItem {
                     }
                 }
             }
+            #[cfg(feature = "keyfinder")]
+            AnalyzerType::Keyfinder => match KeyFinderKeyAnalyzer::initialize(config, track) {
+                Ok(analyzer) => Some(Self::KeyFinder(Box::from(analyzer))),
+                Err(err) => {
+                    result.keyfinder_key = Some(Err(err));
+                    None
+                }
+            },
+            #[cfg(not(feature = "keyfinder"))]
+            AnalyzerType::Keyfinder => {
+                log::warn!("KeyFinder key analyzer is enabled, but support was not compiled in");
+                None
+            }
             AnalyzerType::EbuR128 => match EbuR128Analyzer::initialize(config, track) {
                 Ok(analyzer) => Some(Self::EbuR128(Box::from(analyzer))),
                 Err(err) => {
@@ -157,6 +177,8 @@ impl CompoundAnalyzerItem {
         match self {
             Self::TrackLength(analyzer) => analyzer.is_complete(),
             Self::ChromaprintFingerprint(analyzer) => analyzer.is_complete(),
+            #[cfg(feature = "keyfinder")]
+            Self::KeyFinder(analyzer) => analyzer.is_complete(),
             Self::EbuR128(analyzer) => analyzer.is_complete(),
             #[cfg(feature = "soundtouch")]
             Self::SoundTouchBpm(analyzer) => analyzer.is_complete(),
@@ -182,6 +204,14 @@ impl CompoundAnalyzerItem {
                 Ok(()) => true,
                 Err(err) => {
                     result.chromaprint_fingerprint = Some(Err(err));
+                    false
+                }
+            },
+            #[cfg(feature = "keyfinder")]
+            Self::KeyFinder(analyzer) => match analyzer.feed(samples) {
+                Ok(()) => true,
+                Err(err) => {
+                    result.keyfinder_key = Some(Err(err));
                     false
                 }
             },
@@ -215,6 +245,10 @@ impl CompoundAnalyzerItem {
             Self::ChromaprintFingerprint(analyzer) => {
                 result.chromaprint_fingerprint = Some(analyzer.finalize());
             }
+            #[cfg(feature = "keyfinder")]
+            Self::KeyFinder(analyzer) => {
+                result.keyfinder_key = Some(analyzer.finalize());
+            }
             Self::EbuR128(analyzer) => {
                 result.ebur128 = Some(analyzer.finalize());
             }
@@ -235,6 +269,9 @@ pub struct CompoundAnalyzerResult {
     /// Result of the chromaprint fingerprint analysis.
     pub chromaprint_fingerprint:
         Option<Result<<ChromaprintFingerprintAnalyzer as Analyzer>::Result, AnalyzerError>>,
+    /// Result of the KeyFinder musical key analysis.
+    #[cfg(feature = "keyfinder")]
+    pub keyfinder_key: Option<Result<<KeyFinderKeyAnalyzer as Analyzer>::Result, AnalyzerError>>,
     /// Result of the EBU R 128 analysis.
     pub ebur128: Option<Result<<EbuR128Analyzer as Analyzer>::Result, AnalyzerError>>,
     /// Result of the SoundTouch BPM analysis.

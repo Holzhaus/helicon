@@ -9,6 +9,7 @@
 //! Support for ID3 tags.
 
 use crate::coverart::{CoverArt, CoverInfo};
+use crate::key::KeyNotation;
 use crate::tag::{Tag, TagKey, TagType};
 use crate::track::InvolvedPerson;
 use crate::util::parse_year_from_str;
@@ -523,6 +524,11 @@ impl Tag for ID3v2Tag {
                 self.set(key, values.join(" / ").into());
             }
         }
+    }
+
+    fn initial_key_notation(&self, _preferred: KeyNotation) -> KeyNotation {
+        // The ID3v2 specification mandates its own notation for the TKEY frame.
+        KeyNotation::ID3v2
     }
 
     fn set(&mut self, key: &TagKey, value: Cow<'_, str>) {
@@ -1410,6 +1416,15 @@ mod tests {
     add_tests_with_id3_versions_all!(&TagKey::ArtistWebsite, artistwebsite);
     add_tests_with_id3_versions_all!(&TagKey::WorkTitle, worktitle);
     add_tests_with_id3_versions_all!(&TagKey::Writer, writer);
+
+    #[test]
+    fn test_set_initial_key_always_uses_id3v2_notation() {
+        use crate::key::{KeyNotation, MusicalKey, Tonic};
+
+        let mut tag = ID3v2Tag::default();
+        tag.set_initial_key(Some(MusicalKey::Minor(Tonic::BFlat)), KeyNotation::Camelot);
+        assert_eq!(tag.get(&TagKey::InitialKey).as_deref(), Some("Bbm"));
+    }
 
     use crate::coverart::testing::{jpeg_cover, png_cover};
 

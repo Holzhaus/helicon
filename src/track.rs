@@ -7,6 +7,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 //! Generic release implementations.
+use crate::key::{KeyNotation, MusicalKey};
 use crate::tag::TagKey;
 use itertools::Itertools;
 use musicbrainz_rs::entity::artist::Artist as MusicBrainzArtist;
@@ -237,6 +238,11 @@ pub trait TrackLike {
         value
     }
 
+    /// Returns the analyzed initial key as it would be written to the track's tags.
+    fn written_analyzed_initial_key(&self, _preferred: KeyNotation) -> Option<String> {
+        None
+    }
+
     /// Path to the track in the filesystem.
     fn track_path(&self) -> Option<&Path> {
         None
@@ -280,6 +286,9 @@ pub trait AnalyzedTrackMetadata {
 
     /// Tempo in Beats per Minute (BPM).
     fn bpm(&self) -> Option<Cow<'_, str>>;
+
+    /// Initial musical key of the track.
+    fn initial_key(&self) -> Option<MusicalKey>;
 }
 
 /// Adds helper methods to the `MusicBrainzReleaseTrack` struct.
@@ -774,6 +783,10 @@ impl AnalyzedTrackMetadata for NoAnalyzedTrackMetadata {
     }
 
     fn bpm(&self) -> Option<Cow<'_, str>> {
+        None
+    }
+
+    fn initial_key(&self) -> Option<MusicalKey> {
         None
     }
 }

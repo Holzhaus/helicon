@@ -1,6 +1,11 @@
 [analyzers]
 num_parallel_jobs = 0
-enabled = ["track_length", "chromaprint_fingerprint", "ebu_r128", "sound_touch_bpm"]
+enabled = ["track_length", "chromaprint_fingerprint", "keyfinder", "ebu_r128", "sound_touch_bpm"]
+
+[tags]
+# Notation for the musical key written by the key analyzer. One of "traditional", "camelot" or
+# "open_key". ID3 tags always use the notation mandated by the ID3v2 specification.
+key_notation = "traditional"
 
 [paths]
 library_path = "~/Music"
