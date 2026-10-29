@@ -16,11 +16,11 @@ use crate::musicbrainz::{MusicBrainzClient, MusicBrainzRelease};
 use crate::release::ReleaseLike;
 use crate::release_candidate::{ReleaseCandidate, ReleaseCandidateCollection};
 use crate::tag::is_supported_extension;
-use crate::util::walk_dir;
+use crate::util::{walk_dir, DirWalk};
 use crate::{Config, TaggedFile, TaggedFileCollection};
-use regex::RegexBuilder;
-use std::collections::HashMap;
-use std::path::PathBuf;
+use regex::{Regex, RegexBuilder};
+use std::collections::{BTreeMap, VecDeque};
+use std::path::{Path, PathBuf};
 use tokio::runtime::{Builder, Runtime};
 use tokio::sync::mpsc::Receiver;
 use tokio::task::JoinSet;
@@ -79,49 +79,59 @@ impl Scanner {
             .build()
             .unwrap();
 
-        let cloned_results_tx = results_tx.clone();
         let pool_handle = pool.handle().clone();
-        let _scanner = pool.spawn(async move {
-            // First, search the file system to find track paths.
-            for (path, tracks) in find_track_paths(path) {
-                let cloned_config = config.clone();
-
-                // Some tracks were found, spawn individual tasks for analyzing the tracks in the
-                // threadpool. We keep track of the spawned task handles in a Vec, so that we
-                // combine the results of these tasks in a track collection.
-                let mut handles = JoinSet::new();
-                for track in tracks {
-                    let config = cloned_config.clone();
-                    let _analysis_abort_handle = handles.spawn_blocking_on(
-                        move || analyze_tagged_file(&config, track),
-                        &pool_handle,
-                    );
-                }
-
-                // When all handles are joined, make a collection out of it and search similar
-                // releases on MusicBrainz. The result is sent to the `results_tx` queue.
-                let cloned_musicbrainz = musicbrainz.clone();
-                let results_tx = cloned_results_tx.clone();
-                let cloned_config = cloned_config.clone();
-                let _matching_logic = pool_handle.spawn(async move {
-                    let Some(result) =
-                        join_analysis_tasks_to_collection_and_find_release_candidates(
-                            &cloned_config,
-                            &cloned_musicbrainz,
-                            path,
-                            handles,
-                            refresh_only,
-                        )
-                        .await
-                    else {
-                        return;
-                    };
-                    if let Err(err) = results_tx.send(result).await {
-                        log::error!("Failed to queue results: {err}");
+        // Discovery does blocking file I/O and must not occupy the (bounded) analysis threads or
+        // the async workers, so it gets a dedicated thread. Groups are processed as soon as they
+        // are complete, so analysis starts while the file system is still being walked.
+        let spawn_result = std::thread::Builder::new()
+            .name("scanner-discovery".into())
+            .spawn(move || {
+                for (path, tracks) in find_track_paths(path) {
+                    // Stop walking once the `Scanner` was dropped.
+                    if results_tx.is_closed() {
+                        log::debug!("Results channel closed, aborting discovery");
+                        break;
                     }
-                });
-            }
-        });
+
+                    // Spawn individual tasks for analyzing the tracks in the threadpool. We keep
+                    // track of the spawned task handles, so that we can combine the results of
+                    // these tasks in a track collection.
+                    let mut handles = JoinSet::new();
+                    for track in tracks {
+                        let config = config.clone();
+                        let _analysis_abort_handle = handles.spawn_blocking_on(
+                            move || analyze_tagged_file(&config, track),
+                            &pool_handle,
+                        );
+                    }
+
+                    // When all handles are joined, make a collection out of it and search similar
+                    // releases on MusicBrainz. The result is sent to the `results_tx` queue.
+                    let config = config.clone();
+                    let musicbrainz = musicbrainz.clone();
+                    let results_tx = results_tx.clone();
+                    let _matching_logic = pool_handle.spawn(async move {
+                        let Some(result) =
+                            join_analysis_tasks_to_collection_and_find_release_candidates(
+                                &config,
+                                &musicbrainz,
+                                path,
+                                handles,
+                                refresh_only,
+                            )
+                            .await
+                        else {
+                            return;
+                        };
+                        if let Err(err) = results_tx.send(result).await {
+                            log::error!("Failed to queue results: {err}");
+                        }
+                    });
+                }
+            });
+        if let Err(err) = spawn_result {
+            log::error!("Failed to start discovery thread: {err}");
+        }
 
         Scanner {
             pool: pool.into(),
@@ -143,62 +153,126 @@ impl Drop for Scanner {
     }
 }
 
-/// Find track collections in the given path.
-fn find_track_paths(input_path: PathBuf) -> impl Iterator<Item = (PathBuf, Vec<TaggedFile>)> {
-    let disc_pattern = RegexBuilder::new(r"^(?:CD|Disc)\s*\d+$")
-        .case_insensitive(true)
-        .build()
-        .unwrap();
+/// Lazily yields track collections found below a path.
+///
+/// The directory walk is a depth-first traversal, so the contents of a directory are visited
+/// consecutively. A collection (which may span a directory and its `CD1`/`Disc 2` subdirectories)
+/// is therefore complete as soon as the walk moves to a directory that is not inside it, and is
+/// yielded at that point. Tags are only read for directories the iterator has advanced to.
+struct TrackGroups {
+    /// Directory walker.
+    walk: DirWalk,
+    /// Matches names of directories that contain a single disc of a release.
+    disc_pattern: Regex,
+    /// Collections that may still receive tracks from directories that are yet to be visited.
+    pending: BTreeMap<PathBuf, Vec<TaggedFile>>,
+    /// Complete collections that were not yielded yet.
+    ready: VecDeque<(PathBuf, Vec<TaggedFile>)>,
+}
 
-    let mut grouped_tracks: HashMap<PathBuf, Vec<TaggedFile>> = HashMap::new();
+impl TrackGroups {
+    /// Create a lazy collection finder for the given path.
+    fn new(input_path: PathBuf) -> Self {
+        Self {
+            walk: walk_dir(input_path),
+            disc_pattern: RegexBuilder::new(r"^(?:CD|Disc)\s*\d+$")
+                .case_insensitive(true)
+                .build()
+                .unwrap(),
+            pending: BTreeMap::new(),
+            ready: VecDeque::new(),
+        }
+    }
 
-    walk_dir(input_path)
-        .filter_map(Result::ok)
-        .for_each(|(path, _dirs, files)| {
-            let tagged_files: Vec<TaggedFile> = files
-                .iter()
-                .filter(|path| {
-                    path.extension()
-                        .and_then(std::ffi::OsStr::to_str)
-                        .is_some_and(is_supported_extension)
-                })
-                .filter_map(|path| match TaggedFile::read_from_path(path) {
-                    Ok(file) => Some(file),
-                    Err(err) => {
-                        log::warn!("Failed to read {}: {:?}", path.display(), err);
-                        None
-                    }
-                })
-                .collect();
+    /// Returns the path of the collection that tracks in the given directory belong to.
+    fn group_path(&self, dir: &Path) -> PathBuf {
+        let is_disc_dir = dir
+            .file_name()
+            .and_then(std::ffi::OsStr::to_str)
+            .is_some_and(|name| self.disc_pattern.is_match(name));
+        if is_disc_dir {
+            dir.parent().unwrap_or(dir).to_path_buf()
+        } else {
+            dir.to_path_buf()
+        }
+    }
 
-            if tagged_files.is_empty() {
-                return;
+    /// Move all pending collections that can not contain `dir` or its descendants to `ready`.
+    fn flush_finished(&mut self, dir: &Path) {
+        let finished: Vec<PathBuf> = self
+            .pending
+            .keys()
+            .filter(|group_path| !dir.starts_with(group_path))
+            .cloned()
+            .collect();
+        for group_path in finished {
+            if let Some(tracks) = self.pending.remove(&group_path) {
+                self.ready.push_back((group_path, tracks));
+            }
+        }
+    }
+
+    /// Read the supported files of a visited directory and add them to their collection.
+    fn visit(&mut self, dir: &Path, files: &[PathBuf]) {
+        self.flush_finished(dir);
+
+        let tagged_files: Vec<TaggedFile> = files
+            .iter()
+            .filter(|path| {
+                path.extension()
+                    .and_then(std::ffi::OsStr::to_str)
+                    .is_some_and(is_supported_extension)
+            })
+            .filter_map(|path| match TaggedFile::read_from_path(path) {
+                Ok(file) => Some(file),
+                Err(err) => {
+                    log::warn!("Failed to read {}: {:?}", path.display(), err);
+                    None
+                }
+            })
+            .collect();
+
+        if tagged_files.is_empty() {
+            return;
+        }
+
+        log::info!("Found {} tracks in {}", tagged_files.len(), dir.display());
+        let group_path = self.group_path(dir);
+        self.pending
+            .entry(group_path)
+            .or_default()
+            .extend(tagged_files);
+    }
+}
+
+impl Iterator for TrackGroups {
+    type Item = (PathBuf, Vec<TaggedFile>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(group) = self.ready.pop_front() {
+                return Some(group);
             }
 
-            // Check if the leaf directory matches CD/Disc pattern
-            let group_path = if let Some(file_name) = path.file_name() {
-                if let Some(name_str) = file_name.to_str() {
-                    if disc_pattern.is_match(name_str) {
-                        path.parent().unwrap_or(&path).to_path_buf()
-                    } else {
-                        path.clone()
-                    }
-                } else {
-                    path.clone()
+            match self.walk.next() {
+                Some(Ok((dir, _dirs, files))) => self.visit(&dir, &files),
+                Some(Err(err)) => log::warn!("Failed to read directory: {err}"),
+                None => {
+                    // Walk finished, everything that is left is complete.
+                    let pending = std::mem::take(&mut self.pending);
+                    self.ready.extend(pending);
+                    return self.ready.pop_front();
                 }
-            } else {
-                path.clone()
-            };
+            }
+        }
+    }
+}
 
-            log::info!("Found {} tracks in {}", tagged_files.len(), path.display());
-
-            grouped_tracks
-                .entry(group_path)
-                .or_default()
-                .extend(tagged_files);
-        });
-
-    grouped_tracks.into_iter()
+/// Find track collections in the given path.
+///
+/// Collections are yielded lazily, while the file system is being walked.
+fn find_track_paths(input_path: PathBuf) -> impl Iterator<Item = (PathBuf, Vec<TaggedFile>)> {
+    TrackGroups::new(input_path)
 }
 
 /// Analyze a file and assign the analysis results to it.
@@ -457,6 +531,69 @@ mod tests {
             scan_groups(dir.path()),
             group(&[("A", &["A/CD1/01.flac"]), ("B", &["B/CD1/01.flac"])])
         );
+    }
+
+    #[cfg(feature = "flac")]
+    #[test]
+    fn disc_directories_and_siblings_form_one_group_regardless_of_walk_order() {
+        let dir = tempfile::tempdir().unwrap();
+        // Subdirectories sorting before and after the disc directories, and an intermediate
+        // directory without tracks.
+        add_file(dir.path(), "Album/CD1/01.flac", Some(FLAC_FIXTURE));
+        add_file(dir.path(), "Album/CD2/01.flac", Some(FLAC_FIXTURE));
+        add_file(dir.path(), "Album/Extras/01.flac", Some(FLAC_FIXTURE));
+        add_file(
+            dir.path(),
+            "Album/Artwork/Scans/01.flac",
+            Some(FLAC_FIXTURE),
+        );
+        add_file(dir.path(), "Album/Artwork/cover.jpg", None);
+        add_file(dir.path(), "Other/01.flac", Some(FLAC_FIXTURE));
+
+        assert_eq!(
+            scan_groups(dir.path()),
+            group(&[
+                ("Album/Artwork/Scans", &["Album/Artwork/Scans/01.flac"]),
+                ("Album", &["Album/CD1/01.flac", "Album/CD2/01.flac"]),
+                ("Album/Extras", &["Album/Extras/01.flac"]),
+                ("Other", &["Other/01.flac"]),
+            ])
+        );
+    }
+
+    #[cfg(feature = "flac")]
+    #[test]
+    fn discovery_is_lazy() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in ["A", "B", "C"] {
+            add_file(dir.path(), &format!("{name}/01.flac"), Some(FLAC_FIXTURE));
+        }
+
+        let mut groups = find_track_paths(dir.path().to_path_buf());
+        drop(groups.next().expect("first group"));
+
+        // A group is yielded once the walk has moved on to the next directory, so at most one
+        // directory is read ahead. Directories walked last must not have been read yet; files
+        // added there now have to show up.
+        let last_visited = ["A", "B", "C"]
+            .into_iter()
+            .map(|name| dir.path().join(name))
+            .min()
+            .unwrap();
+        add_file(
+            dir.path(),
+            &format!(
+                "{}/02.flac",
+                last_visited.file_name().unwrap().to_str().unwrap()
+            ),
+            Some(FLAC_FIXTURE),
+        );
+        let remaining: Vec<_> = groups.collect();
+        let last = remaining
+            .iter()
+            .find(|(path, _)| *path == last_visited)
+            .unwrap();
+        assert_eq!(last.1.len(), 2);
     }
 
     #[test]
