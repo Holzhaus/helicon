@@ -199,6 +199,11 @@ fn dispatch_groups<T>(
     }
 }
 
+/// Matches names of directories that contain a single disc of a release, e.g. `CD1`, `Disc 02`,
+/// `disk_3` or `Disc 1 - Title`. A title must be separated by punctuation, so that names like
+/// `CD1 Bonus` are not mistaken for disc directories.
+const DISC_DIRECTORY_PATTERN: &str = r"^(?:CD|Disc|Disk)[\s._-]*\d+(?:\s*[-–:._]\s*\S.*)?$";
+
 /// Lazily yields track collections found below a path.
 ///
 /// The directory walk is a depth-first traversal, so the contents of a directory are visited
@@ -206,6 +211,8 @@ fn dispatch_groups<T>(
 /// is therefore complete as soon as the walk moves to a directory that is not inside it, and is
 /// yielded at that point. Tags are only read for directories the iterator has advanced to.
 struct TrackGroups {
+    /// The directory the scan started in. Collections never extend above it.
+    root: PathBuf,
     /// Directory walker.
     walk: DirWalk,
     /// Matches names of directories that contain a single disc of a release.
@@ -220,8 +227,9 @@ impl TrackGroups {
     /// Create a lazy collection finder for the given path.
     fn new(input_path: PathBuf) -> Self {
         Self {
-            walk: walk_dir(input_path),
-            disc_pattern: RegexBuilder::new(r"^(?:CD|Disc)\s*\d+$")
+            walk: walk_dir(input_path.clone()),
+            root: input_path,
+            disc_pattern: RegexBuilder::new(DISC_DIRECTORY_PATTERN)
                 .case_insensitive(true)
                 .build()
                 .unwrap(),
@@ -231,15 +239,17 @@ impl TrackGroups {
     }
 
     /// Returns the path of the collection that tracks in the given directory belong to.
+    ///
+    /// Disc directories belong to their parent directory, unless that would leave the scanned
+    /// directory.
     fn group_path(&self, dir: &Path) -> PathBuf {
         let is_disc_dir = dir
             .file_name()
             .and_then(std::ffi::OsStr::to_str)
             .is_some_and(|name| self.disc_pattern.is_match(name));
-        if is_disc_dir {
-            dir.parent().unwrap_or(dir).to_path_buf()
-        } else {
-            dir.to_path_buf()
+        match dir.parent() {
+            Some(parent) if is_disc_dir && parent.starts_with(&self.root) => parent.to_path_buf(),
+            _ => dir.to_path_buf(),
         }
     }
 
@@ -522,6 +532,32 @@ mod tests {
 
     #[cfg(feature = "flac")]
     #[test]
+    fn disc_directory_name_variants_are_merged() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in [
+            "CD01",
+            "CD 2",
+            "cd_3",
+            "Disk 4",
+            "Disc-5",
+            "Disc 6 - Bonus Disc",
+            "DISC7: Live",
+            "Disc 8. Remixes",
+        ] {
+            add_file(
+                dir.path(),
+                &format!("Album/{name}/01.flac"),
+                Some(FLAC_FIXTURE),
+            );
+        }
+
+        let groups = scan_groups(dir.path());
+        assert_eq!(groups.len(), 1, "{groups:?}");
+        assert_eq!(groups[Path::new("Album")].len(), 8);
+    }
+
+    #[cfg(feature = "flac")]
+    #[test]
     fn disc_directory_merges_with_tracks_in_parent() {
         let dir = tempfile::tempdir().unwrap();
         add_file(dir.path(), "Album/01.flac", Some(FLAC_FIXTURE));
@@ -537,8 +573,9 @@ mod tests {
     #[test]
     fn non_disc_directory_names_are_not_merged() {
         let dir = tempfile::tempdir().unwrap();
-        // The pattern is anchored and requires digits.
+        // The pattern is anchored, requires digits and titles need a separator.
         add_file(dir.path(), "Album/CD/01.flac", Some(FLAC_FIXTURE));
+        add_file(dir.path(), "Album/Disc/01.flac", Some(FLAC_FIXTURE));
         add_file(dir.path(), "Album/CD1 Bonus/01.flac", Some(FLAC_FIXTURE));
         add_file(dir.path(), "Album/My CD1/01.flac", Some(FLAC_FIXTURE));
 
@@ -547,6 +584,7 @@ mod tests {
             group(&[
                 ("Album/CD", &["Album/CD/01.flac"]),
                 ("Album/CD1 Bonus", &["Album/CD1 Bonus/01.flac"]),
+                ("Album/Disc", &["Album/Disc/01.flac"]),
                 ("Album/My CD1", &["Album/My CD1/01.flac"]),
             ])
         );
@@ -554,15 +592,14 @@ mod tests {
 
     #[cfg(feature = "flac")]
     #[test]
-    fn disc_directory_in_scan_root_is_grouped_under_its_parent() {
-        // Documents current behavior: the parent of the scan root is used as group path.
+    fn disc_directory_in_scan_root_is_not_grouped_above_the_root() {
         let dir = tempfile::tempdir().unwrap();
         let disc = dir.path().join("CD1");
         add_file(&disc, "01.flac", Some(FLAC_FIXTURE));
 
         let groups: Vec<_> = find_track_paths(disc.clone()).collect();
         assert_eq!(groups.len(), 1);
-        assert_eq!(groups[0].0, dir.path());
+        assert_eq!(groups[0].0, disc);
         assert_eq!(groups[0].1.len(), 1);
     }
 
