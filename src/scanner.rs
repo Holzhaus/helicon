@@ -21,8 +21,10 @@ use crate::{Config, TaggedFile, TaggedFileCollection};
 use regex::{Regex, RegexBuilder};
 use std::collections::{BTreeMap, VecDeque};
 use std::path::{Path, PathBuf};
-use tokio::runtime::{Builder, Runtime};
+use std::sync::Arc;
+use tokio::runtime::{Builder, Handle, Runtime};
 use tokio::sync::mpsc::Receiver;
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::task::JoinSet;
 
 /// An error type that contains the path that was scanned when the error occurred.
@@ -42,7 +44,18 @@ type ScanResult = Result<
     ScanError,
 >;
 
+/// Maximum number of track collections that are being analyzed, matched or waiting to be sent
+/// to the consumer at the same time. Discovery pauses while this limit is reached.
+const MAX_COLLECTIONS_IN_FLIGHT: usize = 10;
+
+/// Capacity of the channel that delivers finished results to the consumer.
+const RESULTS_CHANNEL_CAPACITY: usize = 20;
+
 /// Scanner struct.
+///
+/// Dropping the scanner cancels the scan: discovery stops, queued analysis jobs are discarded
+/// and pending MusicBrainz requests are dropped. Analysis jobs that are already running cannot be
+/// interrupted and finish in the background.
 pub struct Scanner {
     /// Worker thread pool.
     ///
@@ -51,6 +64,8 @@ pub struct Scanner {
     pool: Option<Runtime>,
     /// Channel receiver for the scanner results.
     results_rx: Receiver<ScanResult>,
+    /// Limits the number of collections in flight. Closed on drop to stop discovery.
+    limiter: Arc<Semaphore>,
 }
 
 impl Scanner {
@@ -66,7 +81,7 @@ impl Scanner {
     ) -> Scanner {
         log::info!("Starting scan of {}", path.display());
 
-        let (results_tx, results_rx) = tokio::sync::mpsc::channel(20);
+        let (results_tx, results_rx) = tokio::sync::mpsc::channel(RESULTS_CHANNEL_CAPACITY);
         let num_parallel_jobs = if config.analyzers.num_parallel_jobs == 0 {
             num_cpus::get()
         } else {
@@ -80,54 +95,59 @@ impl Scanner {
             .unwrap();
 
         let pool_handle = pool.handle().clone();
+        let limiter = Arc::new(Semaphore::new(MAX_COLLECTIONS_IN_FLIGHT));
+        let discovery_limiter = Arc::clone(&limiter);
         // Discovery does blocking file I/O and must not occupy the (bounded) analysis threads or
         // the async workers, so it gets a dedicated thread. Groups are processed as soon as they
         // are complete, so analysis starts while the file system is still being walked.
         let spawn_result = std::thread::Builder::new()
             .name("scanner-discovery".into())
             .spawn(move || {
-                for (path, tracks) in find_track_paths(path) {
-                    // Stop walking once the `Scanner` was dropped.
-                    if results_tx.is_closed() {
-                        log::debug!("Results channel closed, aborting discovery");
-                        break;
-                    }
-
-                    // Spawn individual tasks for analyzing the tracks in the threadpool. We keep
-                    // track of the spawned task handles, so that we can combine the results of
-                    // these tasks in a track collection.
-                    let mut handles = JoinSet::new();
-                    for track in tracks {
-                        let config = config.clone();
-                        let _analysis_abort_handle = handles.spawn_blocking_on(
-                            move || analyze_tagged_file(&config, track),
-                            &pool_handle,
-                        );
-                    }
-
-                    // When all handles are joined, make a collection out of it and search similar
-                    // releases on MusicBrainz. The result is sent to the `results_tx` queue.
-                    let config = config.clone();
-                    let musicbrainz = musicbrainz.clone();
-                    let results_tx = results_tx.clone();
-                    let _matching_logic = pool_handle.spawn(async move {
-                        let Some(result) =
-                            join_analysis_tasks_to_collection_and_find_release_candidates(
-                                &config,
-                                &musicbrainz,
-                                path,
-                                handles,
-                                refresh_only,
-                            )
-                            .await
-                        else {
-                            return;
-                        };
-                        if let Err(err) = results_tx.send(result).await {
-                            log::error!("Failed to queue results: {err}");
+                let analysis_handle = pool_handle.clone();
+                dispatch_groups(
+                    find_track_paths(path),
+                    &discovery_limiter,
+                    &pool_handle,
+                    |(path, tracks), permit| {
+                        // Spawn individual tasks for analyzing the tracks in the threadpool. We
+                        // keep track of the spawned task handles, so that we can combine the
+                        // results of these tasks in a track collection.
+                        let mut handles = JoinSet::new();
+                        for track in tracks {
+                            let config = config.clone();
+                            let _analysis_abort_handle = handles.spawn_blocking_on(
+                                move || analyze_tagged_file(&config, track),
+                                &analysis_handle,
+                            );
                         }
-                    });
-                }
+
+                        // When all handles are joined, make a collection out of it and search
+                        // similar releases on MusicBrainz. The result is sent to the `results_tx`
+                        // queue. The permit is held until the result was accepted by the queue,
+                        // so a slow consumer eventually pauses discovery.
+                        let config = config.clone();
+                        let musicbrainz = musicbrainz.clone();
+                        let results_tx = results_tx.clone();
+                        let _matching_logic = analysis_handle.spawn(async move {
+                            let _permit = permit;
+                            let Some(result) =
+                                join_analysis_tasks_to_collection_and_find_release_candidates(
+                                    &config,
+                                    &musicbrainz,
+                                    path,
+                                    handles,
+                                    refresh_only,
+                                )
+                                .await
+                            else {
+                                return;
+                            };
+                            if let Err(err) = results_tx.send(result).await {
+                                log::error!("Failed to queue results: {err}");
+                            }
+                        });
+                    },
+                );
             });
         if let Err(err) = spawn_result {
             log::error!("Failed to start discovery thread: {err}");
@@ -136,6 +156,7 @@ impl Scanner {
         Scanner {
             pool: pool.into(),
             results_rx,
+            limiter,
         }
     }
 
@@ -147,9 +168,34 @@ impl Scanner {
 
 impl Drop for Scanner {
     fn drop(&mut self) {
+        // Wakes up and stops the discovery thread, even if it is waiting for a free slot.
+        self.limiter.close();
         if let Some(runtime) = self.pool.take() {
             runtime.shutdown_background();
         }
+    }
+}
+
+/// Feed `groups` to `dispatch`, but never have more than the limiter's permits in flight.
+///
+/// A permit is acquired *before* the next group is pulled from the iterator, so no work (such as
+/// reading tags) is done ahead while the limit is reached. The permit is handed to `dispatch` and
+/// released when dropped. Stops once the limiter is closed.
+fn dispatch_groups<T>(
+    mut groups: impl Iterator<Item = T>,
+    limiter: &Arc<Semaphore>,
+    handle: &Handle,
+    mut dispatch: impl FnMut(T, OwnedSemaphorePermit),
+) {
+    loop {
+        let Ok(permit) = handle.block_on(Arc::clone(limiter).acquire_owned()) else {
+            log::debug!("Scanner was shut down, aborting discovery");
+            return;
+        };
+        let Some(group) = groups.next() else {
+            return;
+        };
+        dispatch(group, permit);
     }
 }
 
@@ -594,6 +640,91 @@ mod tests {
             .find(|(path, _)| *path == last_visited)
             .unwrap();
         assert_eq!(last.1.len(), 2);
+    }
+
+    /// Run `dispatch_groups` on a separate thread. Every dispatched item and its permit is sent
+    /// to the returned receiver. `pulled` counts items taken from the iterator.
+    fn spawn_dispatcher(
+        runtime: &Runtime,
+        limiter: &Arc<Semaphore>,
+        items: usize,
+        pulled: &Arc<std::sync::atomic::AtomicUsize>,
+    ) -> (
+        std::thread::JoinHandle<()>,
+        std::sync::mpsc::Receiver<(usize, OwnedSemaphorePermit)>,
+    ) {
+        use std::sync::atomic::Ordering;
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        let handle = runtime.handle().clone();
+        let limiter = Arc::clone(limiter);
+        let pulled = Arc::clone(pulled);
+        let thread = std::thread::spawn(move || {
+            let groups = (0..items).inspect(|_| {
+                let _ = pulled.fetch_add(1, Ordering::SeqCst);
+            });
+            dispatch_groups(groups, &limiter, &handle, |item, permit| {
+                tx.send((item, permit)).unwrap();
+            });
+        });
+        (thread, rx)
+    }
+
+    const WAIT: std::time::Duration = std::time::Duration::from_secs(5);
+    const SHORT_WAIT: std::time::Duration = std::time::Duration::from_millis(200);
+
+    #[test]
+    fn dispatch_pauses_discovery_until_permits_are_released() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let runtime = Builder::new_multi_thread()
+            .worker_threads(1)
+            .build()
+            .unwrap();
+        let limiter = Arc::new(Semaphore::new(2));
+        let pulled = Arc::new(AtomicUsize::new(0));
+        let (thread, rx) = spawn_dispatcher(&runtime, &limiter, 4, &pulled);
+
+        let (first, first_permit) = rx.recv_timeout(WAIT).unwrap();
+        let (second, _second_permit) = rx.recv_timeout(WAIT).unwrap();
+        assert_eq!((first, second), (0, 1));
+
+        // Limit reached: nothing is dispatched and nothing is pulled ahead of time.
+        assert!(rx.recv_timeout(SHORT_WAIT).is_err());
+        assert_eq!(pulled.load(Ordering::SeqCst), 2);
+
+        // Releasing a permit lets exactly one more item through.
+        drop(first_permit);
+        let (third, _third_permit) = rx.recv_timeout(WAIT).unwrap();
+        assert_eq!(third, 2);
+        assert!(rx.recv_timeout(SHORT_WAIT).is_err());
+        assert_eq!(pulled.load(Ordering::SeqCst), 3);
+
+        // Closing the limiter stops discovery even though items are left.
+        limiter.close();
+        thread.join().unwrap();
+        assert!(rx.try_recv().is_err());
+        assert_eq!(pulled.load(Ordering::SeqCst), 3);
+    }
+
+    #[test]
+    fn dispatch_finishes_when_groups_are_exhausted() {
+        use std::sync::atomic::AtomicUsize;
+
+        let runtime = Builder::new_multi_thread()
+            .worker_threads(1)
+            .build()
+            .unwrap();
+        let limiter = Arc::new(Semaphore::new(1));
+        let pulled = Arc::new(AtomicUsize::new(0));
+        let (thread, rx) = spawn_dispatcher(&runtime, &limiter, 3, &pulled);
+
+        for expected in 0..3 {
+            let (item, permit) = rx.recv_timeout(WAIT).unwrap();
+            assert_eq!(item, expected);
+            drop(permit);
+        }
+        thread.join().unwrap();
     }
 
     #[test]
