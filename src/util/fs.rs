@@ -8,6 +8,7 @@
 
 //! Filesystem-related utility functions.
 
+use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::ffi::OsStr;
 use std::fs;
@@ -19,15 +20,15 @@ use std::path::{Path, PathBuf};
 /// dirs, files)` for each directory it visits.
 /// This struct is created by [`walk_dir`]. See its documentation for more.
 pub struct DirWalk {
-    /// Queued paths that will be visited next.
-    queue: BinaryHeap<PathBuf>,
+    /// Queued paths that will be visited next (smallest path first).
+    queue: BinaryHeap<Reverse<PathBuf>>,
 }
 
 impl Iterator for DirWalk {
     type Item = io::Result<(PathBuf, Vec<PathBuf>, Vec<PathBuf>)>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let queued_path = self.queue.pop();
+        let queued_path = self.queue.pop().map(|Reverse(path)| path);
         queued_path.map(move |path| {
             log::debug!("Queued path: {}", path.display());
             fs::read_dir(&path).and_then(move |entries| {
@@ -46,7 +47,7 @@ impl Iterator for DirWalk {
                 files.sort_unstable();
 
                 for dir in dirs.clone() {
-                    self.queue.push(dir);
+                    self.queue.push(Reverse(dir));
                 }
 
                 Ok((path, dirs, files))
@@ -57,9 +58,12 @@ impl Iterator for DirWalk {
 
 /// Creates an iterator that walks through a directory structure recursively and yields a tuple
 /// consisting of the path of current directory and the files and directories in that directory.
+///
+/// Directories are visited depth-first in ascending path order, so the contents of a directory
+/// (including all subdirectories) are visited consecutively and the order is stable across runs.
 pub fn walk_dir(path: PathBuf) -> DirWalk {
     let mut queue = BinaryHeap::new();
-    queue.push(path);
+    queue.push(Reverse(path));
     DirWalk { queue }
 }
 

@@ -661,7 +661,7 @@ mod tests {
         let last_visited = ["A", "B", "C"]
             .into_iter()
             .map(|name| dir.path().join(name))
-            .min()
+            .max()
             .unwrap();
         add_file(
             dir.path(),
@@ -762,6 +762,24 @@ mod tests {
             drop(permit);
         }
         thread.join().unwrap();
+    }
+
+    #[cfg(feature = "flac")]
+    #[test]
+    fn groups_are_yielded_in_ascending_path_order() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in ["b", "a/z", "a/y", "c", "a-b", "A"] {
+            add_file(dir.path(), &format!("{name}/01.flac"), Some(FLAC_FIXTURE));
+        }
+
+        let order: Vec<PathBuf> = find_track_paths(dir.path().to_path_buf())
+            .map(|(path, _)| path.strip_prefix(dir.path()).unwrap().to_path_buf())
+            .collect();
+        let expected: Vec<PathBuf> = ["A", "a/y", "a/z", "a-b", "b", "c"]
+            .into_iter()
+            .map(PathBuf::from)
+            .collect();
+        assert_eq!(order, expected);
     }
 
     #[test]
