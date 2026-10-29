@@ -264,3 +264,204 @@ async fn join_analysis_tasks_to_collection_and_find_release_candidates(
             }),
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeMap;
+    use std::path::Path;
+
+    const FLAC_FIXTURE: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/data/media/untagged/track.flac"
+    );
+
+    /// Groups as `relative directory -> sorted relative file names`, independent of iteration
+    /// order, so the tests keep working if discovery is made streaming or deterministic.
+    type Groups = BTreeMap<PathBuf, Vec<PathBuf>>;
+
+    /// Create a file at `relative` (below `root`), copying `source` or writing garbage if `None`.
+    fn add_file(root: &Path, relative: &str, source: Option<&str>) {
+        let path = root.join(relative);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        match source {
+            Some(source) => {
+                let _ = std::fs::copy(source, &path).unwrap();
+            }
+            None => std::fs::write(&path, b"not a media file").unwrap(),
+        }
+    }
+
+    fn scan_groups(root: &Path) -> Groups {
+        let mut groups = Groups::new();
+        for (path, tracks) in find_track_paths(root.to_path_buf()) {
+            let relative_dir = path.strip_prefix(root).unwrap().to_path_buf();
+            let mut files: Vec<PathBuf> = tracks
+                .iter()
+                .map(|track| track.path.strip_prefix(root).unwrap().to_path_buf())
+                .collect();
+            files.sort();
+            assert!(
+                groups.insert(relative_dir, files).is_none(),
+                "group {} was yielded twice",
+                path.display()
+            );
+        }
+        groups
+    }
+
+    fn group(entries: &[(&str, &[&str])]) -> Groups {
+        entries
+            .iter()
+            .map(|(dir, files)| {
+                (
+                    PathBuf::from(dir),
+                    files.iter().map(PathBuf::from).collect(),
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn empty_directory_yields_no_groups() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(scan_groups(dir.path()).is_empty());
+    }
+
+    #[cfg(feature = "flac")]
+    #[test]
+    fn groups_tracks_by_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        add_file(dir.path(), "A/01.flac", Some(FLAC_FIXTURE));
+        add_file(dir.path(), "A/02.flac", Some(FLAC_FIXTURE));
+        add_file(dir.path(), "B/01.flac", Some(FLAC_FIXTURE));
+
+        assert_eq!(
+            scan_groups(dir.path()),
+            group(&[("A", &["A/01.flac", "A/02.flac"]), ("B", &["B/01.flac"])])
+        );
+    }
+
+    #[cfg(feature = "flac")]
+    #[test]
+    fn tracks_in_scan_root_are_grouped_under_root() {
+        let dir = tempfile::tempdir().unwrap();
+        add_file(dir.path(), "01.flac", Some(FLAC_FIXTURE));
+
+        assert_eq!(scan_groups(dir.path()), group(&[("", &["01.flac"])]));
+    }
+
+    #[cfg(feature = "flac")]
+    #[test]
+    fn ignores_unsupported_and_unreadable_files() {
+        let dir = tempfile::tempdir().unwrap();
+        add_file(dir.path(), "A/01.flac", Some(FLAC_FIXTURE));
+        add_file(dir.path(), "A/cover.jpg", None);
+        add_file(dir.path(), "A/notes.txt", None);
+        // Supported extension, but not parseable.
+        add_file(dir.path(), "A/broken.flac", None);
+        // A directory with only unusable files produces no group at all.
+        add_file(dir.path(), "B/cover.jpg", None);
+
+        assert_eq!(scan_groups(dir.path()), group(&[("A", &["A/01.flac"])]));
+    }
+
+    #[cfg(feature = "flac")]
+    #[test]
+    fn extension_match_is_case_insensitive() {
+        let dir = tempfile::tempdir().unwrap();
+        add_file(dir.path(), "A/01.FLAC", Some(FLAC_FIXTURE));
+
+        assert_eq!(scan_groups(dir.path()), group(&[("A", &["A/01.FLAC"])]));
+    }
+
+    #[cfg(feature = "flac")]
+    #[test]
+    fn disc_directories_are_merged_into_parent() {
+        let dir = tempfile::tempdir().unwrap();
+        add_file(dir.path(), "Album/CD1/01.flac", Some(FLAC_FIXTURE));
+        add_file(dir.path(), "Album/CD1/02.flac", Some(FLAC_FIXTURE));
+        add_file(dir.path(), "Album/cd2/01.flac", Some(FLAC_FIXTURE));
+        add_file(dir.path(), "Album/Disc 3/01.flac", Some(FLAC_FIXTURE));
+        add_file(dir.path(), "Album/disc4/01.flac", Some(FLAC_FIXTURE));
+
+        assert_eq!(
+            scan_groups(dir.path()),
+            group(&[(
+                "Album",
+                &[
+                    "Album/CD1/01.flac",
+                    "Album/CD1/02.flac",
+                    "Album/Disc 3/01.flac",
+                    "Album/cd2/01.flac",
+                    "Album/disc4/01.flac",
+                ]
+            )])
+        );
+    }
+
+    #[cfg(feature = "flac")]
+    #[test]
+    fn disc_directory_merges_with_tracks_in_parent() {
+        let dir = tempfile::tempdir().unwrap();
+        add_file(dir.path(), "Album/01.flac", Some(FLAC_FIXTURE));
+        add_file(dir.path(), "Album/CD1/01.flac", Some(FLAC_FIXTURE));
+
+        assert_eq!(
+            scan_groups(dir.path()),
+            group(&[("Album", &["Album/01.flac", "Album/CD1/01.flac"])])
+        );
+    }
+
+    #[cfg(feature = "flac")]
+    #[test]
+    fn non_disc_directory_names_are_not_merged() {
+        let dir = tempfile::tempdir().unwrap();
+        // The pattern is anchored and requires digits.
+        add_file(dir.path(), "Album/CD/01.flac", Some(FLAC_FIXTURE));
+        add_file(dir.path(), "Album/CD1 Bonus/01.flac", Some(FLAC_FIXTURE));
+        add_file(dir.path(), "Album/My CD1/01.flac", Some(FLAC_FIXTURE));
+
+        assert_eq!(
+            scan_groups(dir.path()),
+            group(&[
+                ("Album/CD", &["Album/CD/01.flac"]),
+                ("Album/CD1 Bonus", &["Album/CD1 Bonus/01.flac"]),
+                ("Album/My CD1", &["Album/My CD1/01.flac"]),
+            ])
+        );
+    }
+
+    #[cfg(feature = "flac")]
+    #[test]
+    fn disc_directory_in_scan_root_is_grouped_under_its_parent() {
+        // Documents current behavior: the parent of the scan root is used as group path.
+        let dir = tempfile::tempdir().unwrap();
+        let disc = dir.path().join("CD1");
+        add_file(&disc, "01.flac", Some(FLAC_FIXTURE));
+
+        let groups: Vec<_> = find_track_paths(disc.clone()).collect();
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].0, dir.path());
+        assert_eq!(groups[0].1.len(), 1);
+    }
+
+    #[cfg(feature = "flac")]
+    #[test]
+    fn disc_directories_of_different_albums_stay_separate() {
+        let dir = tempfile::tempdir().unwrap();
+        add_file(dir.path(), "A/CD1/01.flac", Some(FLAC_FIXTURE));
+        add_file(dir.path(), "B/CD1/01.flac", Some(FLAC_FIXTURE));
+
+        assert_eq!(
+            scan_groups(dir.path()),
+            group(&[("A", &["A/CD1/01.flac"]), ("B", &["B/CD1/01.flac"])])
+        );
+    }
+
+    #[test]
+    fn missing_scan_root_yields_no_groups() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(scan_groups(&dir.path().join("does-not-exist")).is_empty());
+    }
+}
