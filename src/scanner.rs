@@ -109,6 +109,8 @@ impl Scanner {
                     &discovery_limiter,
                     &pool_handle,
                     |(path, tracks), permit| {
+                        log::info!("Analyzing {} tracks in {}", tracks.len(), path.display());
+
                         // Spawn individual tasks for analyzing the tracks in the threadpool. We
                         // keep track of the spawned task handles, so that we can combine the
                         // results of these tasks in a track collection.
@@ -366,6 +368,10 @@ async fn join_analysis_tasks_to_collection_and_find_release_candidates(
         else {
             log::info!(
                 "Skipping {}: no consensual MusicBrainz release ID",
+                path.display()
+            );
+            eprintln!(
+                "Skipping {}: no consensual MusicBrainz release ID (--refresh)",
                 path.display()
             );
             return None;
