@@ -742,6 +742,23 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                     }
                 }
 
+                // Print the initial key (if available/different)
+                if let Some(key) = lhs_track.written_analyzed_initial_key(config.tags.key_notation)
+                {
+                    let old_key = lhs_track.initial_key();
+                    if old_key.as_deref() != Some(key.as_str()) {
+                        print_extra_metadata(
+                            old_key,
+                            Some(Cow::from(key)),
+                            "<unknown key>",
+                            " (key)",
+                            candidate_details_config,
+                            max_width,
+                            candidate_details_config.tracklist_extra_line_limit,
+                        );
+                    }
+                }
+
                 if let Some(path) = lhs_track.track_path().filter(|_| show_paths) {
                     let old_path = path;
 

@@ -1115,6 +1115,7 @@ dependencies = [
  "id3",
  "inquire",
  "itertools 0.15.0",
+ "keyfinder",
  "levenshtein",
  "log",
  "metaflac",
@@ -1409,6 +1410,13 @@ dependencies = [
  "cfg-if",
  "futures-util",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "keyfinder"
+version = "0.1.0"
+dependencies = [
+ "realfft",
 ]
 
 [[package]]
@@ -2021,9 +2029,9 @@ checksum = "60a357793950651c4ed0f3f52338f53b2f809f32d83a07f72909fa13e4c6c1e3"
 
 [[package]]
 name = "realfft"
-version = "3.5.0"
+version = "3.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f821338fddb99d089116342c46e9f1fbf3828dba077674613e734e01d6ea8677"
+checksum = "538895ccf2006b473aafbe8d72770e21038961ab67aae34f3c577485fc703a7d"
 dependencies = [
  "rustfft",
 ]
