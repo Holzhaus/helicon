@@ -109,6 +109,8 @@ impl Scanner {
                     &discovery_limiter,
                     &pool_handle,
                     |(path, tracks), permit| {
+                        log::info!("Analyzing {} tracks in {}", tracks.len(), path.display());
+
                         // Spawn individual tasks for analyzing the tracks in the threadpool. We
                         // keep track of the spawned task handles, so that we can combine the
                         // results of these tasks in a track collection.
