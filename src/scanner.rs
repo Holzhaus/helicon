@@ -370,6 +370,10 @@ async fn join_analysis_tasks_to_collection_and_find_release_candidates(
                 "Skipping {}: no consensual MusicBrainz release ID",
                 path.display()
             );
+            eprintln!(
+                "Skipping {}: no consensual MusicBrainz release ID (--refresh)",
+                path.display()
+            );
             return None;
         };
         musicbrainz
