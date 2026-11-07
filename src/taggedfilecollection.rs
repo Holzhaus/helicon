@@ -152,6 +152,42 @@ fn strip_disc_suffix<'a>(title: Cow<'a, str>, pattern: &Regex) -> Cow<'a, str> {
     }
 }
 
+/// Parse release artist and title from a scene-style directory name.
+///
+/// Scene releases are named like `Artist-Title-SOURCE-FORMAT-YEAR-GROUP`, with underscores
+/// instead of spaces (e.g. `Some_Artist-Some_Album-16BIT-44-KHZ-WEB-FLAC-2025-GROUP`).
+/// The artist `VA` denotes a various artists release.
+///
+/// Returns `None` if the name does not look like a scene release name, i.e. if it contains
+/// whitespace, has fewer than three dash-separated parts, or has no release year after the title.
+fn parse_scene_directory_name(name: &str) -> Option<(String, String)> {
+    if name.chars().any(char::is_whitespace) {
+        return None;
+    }
+
+    let parts: Vec<&str> = name.split('-').collect();
+    if parts.len() < 3 || parts.iter().any(|part| part.is_empty()) {
+        return None;
+    }
+
+    let is_year = |part: &&str| {
+        part.len() == 4
+            && part.chars().all(|c| c.is_ascii_digit())
+            && (part.starts_with("19") || part.starts_with("20"))
+    };
+    if !parts[2..].iter().any(is_year) {
+        return None;
+    }
+
+    let unescape = |part: &str| part.replace('_', " ").trim().to_owned();
+    let artist = match unescape(parts[0]) {
+        artist if artist.eq_ignore_ascii_case("VA") => "Various Artists".to_owned(),
+        artist => artist,
+    };
+    let title = unescape(parts[1]);
+    (!artist.is_empty() && !title.is_empty()).then_some((artist, title))
+}
+
 /// A collection of tracks on the local disk.
 #[derive(Debug)]
 pub struct TaggedFileCollection {
@@ -234,6 +270,15 @@ impl TaggedFileCollection {
                 .map(trim_cow),
         )
         .and_then(MostCommonItem::into_concensus)
+    }
+
+    /// Release artist and title parsed from the name of the common directory, if it is a
+    /// scene-style release name.
+    fn artist_and_title_from_directory_name(&self) -> Option<(String, String)> {
+        self.common_directory()?
+            .file_name()?
+            .to_str()
+            .and_then(parse_scene_directory_name)
     }
 
     /// Assign tracks from a release candidate.
@@ -481,11 +526,19 @@ impl ReleaseLike for TaggedFileCollection {
                 .map(|title| trim_cow(strip_disc_suffix(trim_cow(title), &disc_pattern))),
         )
         .and_then(MostCommonItem::into_concensus)
+        .or_else(|| {
+            self.artist_and_title_from_directory_name()
+                .map(|(_, title)| Cow::from(title))
+        })
     }
 
     fn release_artist(&self) -> Option<Cow<'_, str>> {
         self.find_consensual_trimmed_tag_value(&TagKey::AlbumArtist)
             .or_else(|| self.find_consensual_trimmed_tag_value(&TagKey::Artist))
+            .or_else(|| {
+                self.artist_and_title_from_directory_name()
+                    .map(|(artist, _)| Cow::from(artist))
+            })
     }
 
     fn release_artist_sort_order(&self) -> Option<Cow<'_, str>> {
@@ -736,6 +789,56 @@ mod tests {
             .map(|_| TaggedFile::new(vec![func()]))
             .collect();
         TaggedFileCollection::new(tracks).assign_tags(&release_candidate)
+    }
+
+    #[test]
+    fn test_parse_scene_directory_name() {
+        assert_eq!(
+            parse_scene_directory_name("Some_Artist-Some_Album-16BIT-44-KHZ-WEB-FLAC-2025-GROUP"),
+            Some(("Some Artist".to_owned(), "Some Album".to_owned()))
+        );
+        assert_eq!(
+            parse_scene_directory_name(
+                "VA-Example_Compilation_(Original_Soundtrack,_Vol._II)-16BIT-44-KHZ-WEB-FLAC-2022-GROUP"
+            ),
+            Some((
+                "Various Artists".to_owned(),
+                "Example Compilation (Original Soundtrack, Vol. II)".to_owned()
+            ))
+        );
+        assert_eq!(
+            parse_scene_directory_name("Artist-Album-WEB-2019-GRP"),
+            Some(("Artist".to_owned(), "Album".to_owned()))
+        );
+        // Not scene-style names.
+        assert_eq!(parse_scene_directory_name("Artist - Album (2020)"), None);
+        assert_eq!(parse_scene_directory_name("album"), None);
+        assert_eq!(parse_scene_directory_name("Artist-Album-WEB-FLAC"), None);
+        assert_eq!(parse_scene_directory_name("Artist--Album-2020-GRP"), None);
+        // The year must come after the title.
+        assert_eq!(parse_scene_directory_name("2020-Album-GRP"), None);
+    }
+
+    #[test]
+    fn test_release_artist_and_title_fall_back_to_directory_name() {
+        let collection = TaggedFileCollection::new(
+            ["01.flac", "02.flac"]
+                .iter()
+                .map(|file_name| {
+                    let mut file = TaggedFile::new(vec![]);
+                    file.path = PathBuf::from(
+                        "/downloads/Another_Artist-Another_Album-16BIT-44-KHZ-WEB-FLAC-2024-GROUP",
+                    )
+                    .join(file_name);
+                    file
+                })
+                .collect(),
+        );
+        assert_eq!(collection.release_title().as_deref(), Some("Another Album"));
+        assert_eq!(
+            collection.release_artist().as_deref(),
+            Some("Another Artist")
+        );
     }
 
     #[test]
