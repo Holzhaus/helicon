@@ -24,6 +24,7 @@ use regex::{Regex, RegexBuilder};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 /// Represents the the count of a specific item and the first index at which that item was found.
 ///
@@ -152,6 +153,112 @@ fn strip_disc_suffix<'a>(title: Cow<'a, str>, pattern: &Regex) -> Cow<'a, str> {
     }
 }
 
+/// Matches a single token of a year or format/source tag, e.g. `2009`, `FLAC`, `24-96`, `16bit`
+/// or `44.1kHz`.
+static DIRECTORY_TAG_TOKEN_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    RegexBuilder::new(
+        r"^(?:(?:19|20)\d{2}|flac|alac|mp3|aac|ogg|opus|wav|aiff|wv|web|cd|vinyl|lp|lossless|hi-?res|v[02]|\d{3}(?:kbps)?|\d{2}-?bit|\d{2}(?:\.\d)?-?khz|\d{2}-\d{2,3}(?:\.\d)?)$",
+    )
+    .case_insensitive(true)
+    .build()
+    .unwrap()
+});
+
+/// Matches the last parenthesized or bracketed group at the end of a string.
+static TRAILING_GROUP_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\s*(?:\(([^()]*)\)|\[([^\[\]]*)\])\s*$").unwrap());
+
+/// Collapse underscores and runs of whitespace into single spaces.
+fn normalize_directory_name_part(part: &str) -> String {
+    part.replace('_', " ").split_whitespace().join(" ")
+}
+
+/// Build the artist and title from directory name parts.
+///
+/// Normalizes whitespace, maps the artist `VA` to `Various Artists` and returns `None` if either
+/// value is empty.
+fn directory_name_artist_and_title(artist: &str, title: &str) -> Option<(String, String)> {
+    let artist = match normalize_directory_name_part(artist) {
+        artist if artist.eq_ignore_ascii_case("VA") => "Various Artists".to_owned(),
+        artist => artist,
+    };
+    let title = normalize_directory_name_part(title);
+    (!artist.is_empty() && !title.is_empty()).then_some((artist, title))
+}
+
+/// Strip trailing groups that contain only a year or format/source tags, e.g. `(2009) [FLAC]` or
+/// `[WEB 24-96]`. Other trailing groups such as `(Deluxe Edition)` are kept.
+fn strip_trailing_tag_groups(mut title: &str) -> &str {
+    while let Some(captures) = TRAILING_GROUP_PATTERN.captures(title) {
+        let content = captures
+            .get(1)
+            .or_else(|| captures.get(2))
+            .map_or("", |m| m.as_str());
+        let mut tokens = content
+            .split(|c: char| c.is_whitespace() || c == ',' || c == '_')
+            .filter(|token| !token.is_empty())
+            .peekable();
+        if tokens.peek().is_none()
+            || !tokens.all(|token| DIRECTORY_TAG_TOKEN_PATTERN.is_match(token))
+        {
+            break;
+        }
+        title = &title[..captures.get(0).unwrap().start()];
+    }
+    title
+}
+
+/// Parse release artist and title from a directory name.
+///
+/// Supports scene-style names (see [`parse_scene_directory_name`]) and names like
+/// `Artist - Album (2009) [FLAC]` (see [`parse_spaced_directory_name`]).
+fn parse_directory_name(name: &str) -> Option<(String, String)> {
+    parse_scene_directory_name(name).or_else(|| parse_spaced_directory_name(name))
+}
+
+/// Parse release artist and title from a directory name like `Artist - Album (2009) [FLAC]`.
+///
+/// The name is split at the first ` - `. A leading year (`Artist - 2009 - Album`) and trailing
+/// groups that only contain a year or format/source tags are removed from the title.
+fn parse_spaced_directory_name(name: &str) -> Option<(String, String)> {
+    let (artist, rest) = name.split_once(" - ")?;
+    let rest = match rest.split_once(" - ") {
+        Some((year, title)) if DIRECTORY_TAG_TOKEN_PATTERN.is_match(year.trim()) => title,
+        _ => rest,
+    };
+    directory_name_artist_and_title(artist, strip_trailing_tag_groups(rest))
+}
+
+/// Parse release artist and title from a scene-style directory name.
+///
+/// Scene releases are named like `Artist-Title-SOURCE-FORMAT-YEAR-GROUP`, with underscores
+/// instead of spaces (e.g. `Some_Artist-Some_Album-16BIT-44-KHZ-WEB-FLAC-2025-GROUP`).
+/// The artist `VA` denotes a various artists release.
+///
+/// Returns `None` if the name does not look like a scene release name, i.e. if it contains
+/// whitespace, has fewer than three dash-separated parts, or has no release year after the title.
+fn parse_scene_directory_name(name: &str) -> Option<(String, String)> {
+    if name.chars().any(char::is_whitespace) {
+        return None;
+    }
+
+    let parts: Vec<&str> = name.split('-').collect();
+    if parts.len() < 3 || parts.iter().any(|part| part.is_empty()) {
+        return None;
+    }
+
+    let is_year = |part: &&str| {
+        part.len() == 4
+            && part.chars().all(|c| c.is_ascii_digit())
+            && (part.starts_with("19") || part.starts_with("20"))
+    };
+    if !parts[2..].iter().any(is_year) {
+        return None;
+    }
+
+    directory_name_artist_and_title(parts[0], parts[1])
+}
+
 /// A collection of tracks on the local disk.
 #[derive(Debug)]
 pub struct TaggedFileCollection {
@@ -234,6 +341,15 @@ impl TaggedFileCollection {
                 .map(trim_cow),
         )
         .and_then(MostCommonItem::into_concensus)
+    }
+
+    /// Release artist and title parsed from the name of the common directory (see
+    /// [`parse_directory_name`]).
+    fn artist_and_title_from_directory_name(&self) -> Option<(String, String)> {
+        self.common_directory()?
+            .file_name()?
+            .to_str()
+            .and_then(parse_directory_name)
     }
 
     /// Assign tracks from a release candidate.
@@ -481,11 +597,19 @@ impl ReleaseLike for TaggedFileCollection {
                 .map(|title| trim_cow(strip_disc_suffix(trim_cow(title), &disc_pattern))),
         )
         .and_then(MostCommonItem::into_concensus)
+        .or_else(|| {
+            self.artist_and_title_from_directory_name()
+                .map(|(_, title)| Cow::from(title))
+        })
     }
 
     fn release_artist(&self) -> Option<Cow<'_, str>> {
         self.find_consensual_trimmed_tag_value(&TagKey::AlbumArtist)
             .or_else(|| self.find_consensual_trimmed_tag_value(&TagKey::Artist))
+            .or_else(|| {
+                self.artist_and_title_from_directory_name()
+                    .map(|(artist, _)| Cow::from(artist))
+            })
     }
 
     fn release_artist_sort_order(&self) -> Option<Cow<'_, str>> {
@@ -736,6 +860,119 @@ mod tests {
             .map(|_| TaggedFile::new(vec![func()]))
             .collect();
         TaggedFileCollection::new(tracks).assign_tags(&release_candidate)
+    }
+
+    #[test]
+    fn test_parse_scene_directory_name() {
+        assert_eq!(
+            parse_scene_directory_name("Some_Artist-Some_Album-16BIT-44-KHZ-WEB-FLAC-2025-GROUP"),
+            Some(("Some Artist".to_owned(), "Some Album".to_owned()))
+        );
+        assert_eq!(
+            parse_scene_directory_name(
+                "VA-Example_Compilation_(Original_Soundtrack,_Vol._II)-16BIT-44-KHZ-WEB-FLAC-2022-GROUP"
+            ),
+            Some((
+                "Various Artists".to_owned(),
+                "Example Compilation (Original Soundtrack, Vol. II)".to_owned()
+            ))
+        );
+        assert_eq!(
+            parse_scene_directory_name("Artist-Album-WEB-2019-GRP"),
+            Some(("Artist".to_owned(), "Album".to_owned()))
+        );
+        // Not scene-style names.
+        assert_eq!(parse_scene_directory_name("Artist - Album (2020)"), None);
+        assert_eq!(parse_scene_directory_name("album"), None);
+        assert_eq!(parse_scene_directory_name("Artist-Album-WEB-FLAC"), None);
+        assert_eq!(parse_scene_directory_name("Artist--Album-2020-GRP"), None);
+        // The year must come after the title.
+        assert_eq!(parse_scene_directory_name("2020-Album-GRP"), None);
+    }
+
+    #[test]
+    fn test_parse_spaced_directory_name() {
+        let parsed = |artist: &str, title: &str| Some((artist.to_owned(), title.to_owned()));
+        assert_eq!(
+            parse_spaced_directory_name("Some Artist - Some Album"),
+            parsed("Some Artist", "Some Album")
+        );
+        assert_eq!(
+            parse_spaced_directory_name("Some Artist - Some Album (2009) [FLAC]"),
+            parsed("Some Artist", "Some Album")
+        );
+        assert_eq!(
+            parse_spaced_directory_name("Some Artist - Some Album [WEB 24-96] [16bit, 44.1kHz]"),
+            parsed("Some Artist", "Some Album")
+        );
+        assert_eq!(
+            parse_spaced_directory_name("Some Artist - 2009 - Some Album"),
+            parsed("Some Artist", "Some Album")
+        );
+        // Groups that are part of the title are kept.
+        assert_eq!(
+            parse_spaced_directory_name("Some Artist - Some Album (Deluxe Edition) (2009) [FLAC]"),
+            parsed("Some Artist", "Some Album (Deluxe Edition)")
+        );
+        assert_eq!(
+            parse_spaced_directory_name(
+                "VA - Example Compilation (Original Soundtrack, Vol. II) (2022) [FLAC]"
+            ),
+            parsed(
+                "Various Artists",
+                "Example Compilation (Original Soundtrack, Vol. II)"
+            )
+        );
+        // Dashes in the title are kept.
+        assert_eq!(
+            parse_spaced_directory_name("Some Artist - Some Album - Live"),
+            parsed("Some Artist", "Some Album - Live")
+        );
+        assert_eq!(
+            parse_spaced_directory_name("Some  Artist -  Some   Album "),
+            parsed("Some Artist", "Some Album")
+        );
+        assert_eq!(parse_spaced_directory_name("Some Album"), None);
+        assert_eq!(
+            parse_spaced_directory_name("Some Artist - (2009) [FLAC]"),
+            None
+        );
+    }
+
+    #[test]
+    fn test_parse_directory_name() {
+        assert_eq!(
+            parse_directory_name("Some_Artist-Some_Album-WEB-FLAC-2025-GROUP"),
+            Some(("Some Artist".to_owned(), "Some Album".to_owned()))
+        );
+        assert_eq!(
+            parse_directory_name("Some Artist - Some Album (2025)"),
+            Some(("Some Artist".to_owned(), "Some Album".to_owned()))
+        );
+        assert_eq!(parse_directory_name("Downloads"), None);
+        assert_eq!(parse_directory_name("my-music-folder"), None);
+    }
+
+    #[test]
+    fn test_release_artist_and_title_fall_back_to_directory_name() {
+        let collection = TaggedFileCollection::new(
+            ["01.flac", "02.flac"]
+                .iter()
+                .map(|file_name| {
+                    let mut file = TaggedFile::new(vec![]);
+                    file.path = PathBuf::from(
+                        "/downloads/Another_Artist-Another_Album-16BIT-44-KHZ-WEB-FLAC-2024-GROUP",
+                    )
+                    .join(file_name);
+                    file
+                })
+                .collect(),
+        );
+        assert_eq!(collection.release_title().as_deref(), Some("Another Album"));
+        assert_eq!(
+            collection.release_artist().as_deref(),
+            Some("Another Artist")
+        );
     }
 
     #[test]
