@@ -51,6 +51,10 @@ const MAX_COLLECTIONS_IN_FLIGHT: usize = 10;
 /// Capacity of the channel that delivers finished results to the consumer.
 const RESULTS_CHANNEL_CAPACITY: usize = 20;
 
+/// Nice value of the threads that run analysis jobs (19 is the lowest priority).
+#[cfg(target_os = "linux")]
+const ANALYSIS_THREAD_NICE_VALUE: i32 = 19;
+
 /// Scanner struct.
 ///
 /// Dropping the scanner cancels the scan: discovery stops, queued analysis jobs are discarded
@@ -118,7 +122,10 @@ impl Scanner {
                         for track in tracks {
                             let config = config.clone();
                             let _analysis_abort_handle = handles.spawn_blocking_on(
-                                move || analyze_tagged_file(&config, track),
+                                move || {
+                                    lower_current_thread_priority();
+                                    analyze_tagged_file(&config, track)
+                                },
                                 &analysis_handle,
                             );
                         }
@@ -333,6 +340,24 @@ fn find_track_paths(input_path: PathBuf) -> impl Iterator<Item = (PathBuf, Vec<T
     TrackGroups::new(input_path)
 }
 
+/// Lower the scheduling priority of the current thread, so that CPU-heavy analysis jobs do not
+/// interfere with the rest of the system.
+#[cfg(target_os = "linux")]
+fn lower_current_thread_priority() {
+    // Linux applies this to the calling thread only, despite the name. The nice value of the
+    // other threads and of the process as a whole stays untouched.
+    if let Err(err) = rustix::process::setpriority_process(None, ANALYSIS_THREAD_NICE_VALUE) {
+        log::debug!("Failed to lower priority of analysis thread: {err}");
+    }
+}
+
+/// Lower the scheduling priority of the current thread, so that CPU-heavy analysis jobs do not
+/// interfere with the rest of the system.
+///
+/// This is a no-op on this platform, because `setpriority` would affect the entire process.
+#[cfg(not(target_os = "linux"))]
+fn lower_current_thread_priority() {}
+
 /// Analyze a file and assign the analysis results to it.
 fn analyze_tagged_file(config: &Config, tagged_file: TaggedFile) -> TaggedFile {
     let path = tagged_file.path.as_path();
@@ -415,6 +440,23 @@ mod tests {
     /// Groups as `relative directory -> sorted relative file names`, independent of iteration
     /// order, so the tests keep working if discovery is made streaming or deterministic.
     type Groups = BTreeMap<PathBuf, Vec<PathBuf>>;
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_lower_current_thread_priority_only_affects_current_thread() {
+        use rustix::process::getpriority_process;
+
+        let before = getpriority_process(None).unwrap();
+        let lowered = std::thread::spawn(|| {
+            lower_current_thread_priority();
+            getpriority_process(None).unwrap()
+        })
+        .join()
+        .unwrap();
+
+        assert_eq!(lowered, ANALYSIS_THREAD_NICE_VALUE);
+        assert_eq!(getpriority_process(None).unwrap(), before);
+    }
 
     /// Create a file at `relative` (below `root`), copying `source` or writing garbage if `None`.
     fn add_file(root: &Path, relative: &str, source: Option<&str>) {
