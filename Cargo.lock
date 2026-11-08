@@ -1124,6 +1124,7 @@ dependencies = [
  "num_cpus",
  "paste",
  "regex",
+ "rustix",
  "rusty-chromaprint",
  "serde",
  "serde_json",

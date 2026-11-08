@@ -385,6 +385,9 @@ pub struct AnalyzerConfig {
     pub enabled: Vec<AnalyzerType>,
     /// Number of parallel analyzer jobs (use 0 for the number of CPUs)
     pub num_parallel_jobs: usize,
+    /// Nice value of the analyzer threads, from 0 (normal priority) to 19 (lowest priority). Only
+    /// has an effect on Linux.
+    pub nice_value: u8,
 }
 
 /// Analyzer type.
