@@ -53,14 +53,16 @@ expanduser = "1.2.2"
 soundtouch = { version = "0.5.1", default-features = false, features = ["bundled"], optional = true }
 bitflags = "2.13.2"
 ureq = "3"
+keyfinder = { path = "../keyfinder-rs", optional = true }
 
 [dev-dependencies]
 paste = "1"
 
 [features]
-default = ["flac", "id3", "mp4", "soundtouch"]
+default = ["flac", "id3", "mp4", "soundtouch", "keyfinder"]
 dev = []
 flac = ["dep:metaflac"]
 id3 = ["dep:id3"]
 mp4 = ["dep:mp4ameta"]
 soundtouch = ["dep:soundtouch"]
+keyfinder = ["dep:keyfinder"]

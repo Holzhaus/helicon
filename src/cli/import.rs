@@ -405,7 +405,8 @@ pub async fn run(
     let cloned_musicbrainz = musicbrainz.clone();
     let importer_handle = tokio::task::spawn(async move {
         while let Some((track_collection, selected_candidate)) = importer_rx.recv().await {
-            let mut track_collection = track_collection.assign_tags(&selected_candidate);
+            let mut track_collection =
+                track_collection.assign_tags(&selected_candidate, cloned_config.tags.key_notation);
             if let Err(err) = track_collection.transfer_files(&cloned_config, transfer_mode) {
                 log::error!("Failed to transfer files: {err}");
                 continue;

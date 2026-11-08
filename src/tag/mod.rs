@@ -8,6 +8,7 @@
 
 //! Tags and tag-related functions.
 use crate::coverart::{CoverArt, CoverInfo};
+use crate::key::{KeyNotation, MusicalKey};
 use crate::track::InvolvedPerson;
 use std::borrow::Cow;
 use std::path::Path;
@@ -284,6 +285,20 @@ pub trait Tag: Send + Sync {
         } else {
             self.clear(key);
         }
+    }
+    /// The notation that is actually used for the initial key, given the preferred notation.
+    ///
+    /// Tag formats that mandate a specific notation override this and ignore `preferred`.
+    fn initial_key_notation(&self, preferred: KeyNotation) -> KeyNotation {
+        preferred
+    }
+    /// Set or clear the initial key, formatted in the notation used by this tag format.
+    fn set_initial_key(&mut self, key: Option<MusicalKey>, preferred: KeyNotation) {
+        let notation = self.initial_key_notation(preferred);
+        self.set_or_clear(
+            &TagKey::InitialKey,
+            key.and_then(|key| key.format(notation)).map(Cow::from),
+        );
     }
     /// Get information about the front cover image in the tag (if any).
     fn front_cover_info(&self) -> Option<CoverInfo>;

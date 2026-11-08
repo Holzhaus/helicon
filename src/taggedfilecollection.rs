@@ -10,6 +10,7 @@
 
 use crate::analyzer::EbuR128AlbumResult;
 use crate::coverart::{CoverArt, CoverInfo};
+use crate::key::KeyNotation;
 use crate::media::MediaLike;
 use crate::pathformat::PathFormatterValues;
 use crate::release::ReleaseLike;
@@ -238,7 +239,11 @@ impl TaggedFileCollection {
 
     /// Assign tracks from a release candidate.
     #[must_use]
-    pub fn assign_tags<T: ReleaseLike>(mut self, release_candidate: &ReleaseCandidate<T>) -> Self {
+    pub fn assign_tags<T: ReleaseLike>(
+        mut self,
+        release_candidate: &ReleaseCandidate<T>,
+        key_notation: KeyNotation,
+    ) -> Self {
         let matched_track_map = release_candidate
             .similarity()
             .track_assignment()
@@ -276,6 +281,7 @@ impl TaggedFileCollection {
             .map(
                 move |(mut track, (media_index, other_media, other_track))| {
                     track.assign_tags_from_track(other_track);
+                    track.assign_analyzed_initial_key(key_notation);
                     track.set_tag_value(
                         &TagKey::DiscNumber,
                         Some(Cow::from(format!("{media_index}"))),
@@ -735,7 +741,7 @@ mod tests {
         let tracks = (0..release_track_count)
             .map(|_| TaggedFile::new(vec![func()]))
             .collect();
-        TaggedFileCollection::new(tracks).assign_tags(&release_candidate)
+        TaggedFileCollection::new(tracks).assign_tags(&release_candidate, KeyNotation::default())
     }
 
     #[test]

@@ -53,6 +53,7 @@ mod config;
 mod coverart;
 mod distance;
 mod error;
+mod key;
 mod media;
 mod musicbrainz;
 mod pathformat;

@@ -8,6 +8,7 @@
 
 //! Configuration utils.
 
+use crate::key::KeyNotation;
 use crate::pathformat::PathFormatterValues;
 use crate::pathformat::PathTemplate;
 use crate::release_candidate::Recommendation;
@@ -395,10 +396,21 @@ pub enum AnalyzerType {
     TrackLength,
     /// Chromaprint Fingerprint analyzer.
     ChromaprintFingerprint,
+    /// KeyFinder Key Analyzer
+    Keyfinder,
     /// EBU R 128 Loudness Analyzer
     EbuR128,
     /// SoundTouch BPM Analyzer (ignored if the `soundtouch` feature is disabled).
     SoundTouchBpm,
+}
+
+/// Tag configuration.
+#[derive(Debug, Default, Clone, Copy, Deserialize, Serialize)]
+pub struct TagConfig {
+    /// Preferred notation for the musical key (ignored by tag formats that mandate one, e.g.
+    /// ID3v2).
+    #[serde(default)]
+    pub key_notation: KeyNotation,
 }
 
 /// The path configuration struct.
@@ -548,6 +560,9 @@ pub struct RecommendationConfig {
 pub struct Config {
     /// Analyzer configuration.
     pub analyzers: AnalyzerConfig,
+    /// Tag configuration.
+    #[serde(default)]
+    pub tags: TagConfig,
     /// Filesystem path configuration.
     pub paths: PathConfig,
     /// Configuration for track/release lookup.

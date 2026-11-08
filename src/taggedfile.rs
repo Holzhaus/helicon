@@ -10,6 +10,7 @@
 
 use crate::analyzer::CompoundAnalyzerResult;
 use crate::coverart::{CoverArt, CoverInfo};
+use crate::key::{KeyNotation, MusicalKey};
 use crate::media::MediaLike;
 use crate::release::ReleaseLike;
 use crate::tag::{read_tags_from_path, Tag, TagKey, TagType};
@@ -241,6 +242,28 @@ impl TaggedFile {
                 .media_track_count()
                 .map(|count| Cow::from(format!("{count}"))),
         );
+    }
+
+    /// Returns the analyzed initial key as it would be written to this file's tags.
+    #[must_use]
+    pub fn written_analyzed_initial_key(&self, preferred: KeyNotation) -> Option<String> {
+        let key = self.analyzed_metadata().initial_key()?;
+        let notation = self
+            .tags()
+            .first()
+            .map_or(preferred, |tag| tag.initial_key_notation(preferred));
+        key.format(notation)
+    }
+
+    /// Assign the analyzed initial key (if any), using the preferred notation where the tag
+    /// format allows it.
+    pub fn assign_analyzed_initial_key(&mut self, preferred: KeyNotation) {
+        let key = self.analyzed_metadata().initial_key();
+        if key.is_some() {
+            self.content
+                .iter_mut()
+                .for_each(|tag| tag.set_initial_key(key, preferred));
+        }
     }
 
     /// Assign metadata from another `TrackLike` struct (e.g. a MusicBrainz track).
@@ -709,6 +732,10 @@ impl TrackLike for TaggedFile {
     fn written_tag_value<'a>(&self, key: &TagKey, value: Cow<'a, str>) -> Cow<'a, str> {
         TaggedFile::written_tag_value(self, key, value)
     }
+
+    fn written_analyzed_initial_key(&self, preferred: KeyNotation) -> Option<String> {
+        TaggedFile::written_analyzed_initial_key(self, preferred)
+    }
 }
 
 /// Analyzed metadata for tagged file metadata.
@@ -749,6 +776,18 @@ impl AnalyzedTrackMetadata for TaggedFileAnalyzedMetadata<'_> {
                 .map(|soundtouch_bpm| Cow::from(soundtouch_bpm.bpm_string()))
         }
         #[cfg(not(feature = "soundtouch"))]
+        None
+    }
+
+    fn initial_key(&self) -> Option<MusicalKey> {
+        #[cfg(feature = "keyfinder")]
+        {
+            self.0
+                .and_then(|result| result.keyfinder_key.as_ref())
+                .and_then(|res| res.as_ref().ok())
+                .map(|keyfinder_key| keyfinder_key.key)
+        }
+        #[cfg(not(feature = "keyfinder"))]
         None
     }
 }
