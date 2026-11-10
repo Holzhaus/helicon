@@ -9,6 +9,7 @@
 //! Utility functions
 
 mod fs;
+mod http;
 mod keyed_binheap;
 mod size;
 #[cfg(any(test, feature = "dev"))]
@@ -18,6 +19,7 @@ mod time;
 #[cfg(unix)]
 pub use fs::set_file_permissions;
 pub use fs::{copy_file, move_file, walk_dir, DirWalk};
+pub use http::http_agent;
 pub use keyed_binheap::KeyedBinaryHeap;
 pub use size::format_size;
 #[cfg(any(test, feature = "dev"))]

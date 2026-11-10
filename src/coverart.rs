@@ -240,11 +240,8 @@ pub fn is_not_found(err: &(dyn std::error::Error + 'static)) -> bool {
 /// # Errors
 ///
 /// Returns an error if the download fails or the image is not in a supported format.
-pub fn download(url: &str, user_agent: &str) -> crate::Result<CoverArt> {
-    let mut response = ureq::get(url)
-        .header("User-Agent", user_agent)
-        .call()
-        .map_err(Box::new)?;
+pub fn download(agent: &ureq::Agent, url: &str) -> crate::Result<CoverArt> {
+    let mut response = agent.get(url).call().map_err(Box::new)?;
     let data = response
         .body_mut()
         .with_config()
@@ -488,25 +485,29 @@ mod tests {
         url
     }
 
+    fn test_agent() -> ureq::Agent {
+        crate::util::http_agent("helicon-test")
+    }
+
     #[test]
     fn test_download_success() {
         let expected = png_cover();
         let url = serve_once("200 OK", expected.data().to_vec());
-        let cover = download(&url, "helicon-test").unwrap();
+        let cover = download(&test_agent(), &url).unwrap();
         assert_eq!(cover, expected);
     }
 
     #[test]
     fn test_download_unsupported_format() {
         let url = serve_once("200 OK", b"GIF89a....".to_vec());
-        let err = download(&url, "helicon-test").unwrap_err();
+        let err = download(&test_agent(), &url).unwrap_err();
         assert!(matches!(err, crate::Error::UnsupportedCoverArtFormat));
     }
 
     #[test]
     fn test_download_not_found() {
         let url = serve_once("404 Not Found", Vec::new());
-        let err = download(&url, "helicon-test").unwrap_err();
+        let err = download(&test_agent(), &url).unwrap_err();
         let crate::Error::CoverArtDownload(inner) = err else {
             panic!("unexpected error: {err:?}");
         };
