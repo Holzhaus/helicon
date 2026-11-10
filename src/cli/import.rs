@@ -75,7 +75,7 @@ pub struct Args {
 
 /// Determines when the user is prompted for input.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, ValueEnum)]
-enum PromptMode {
+pub(super) enum PromptMode {
     /// Prompt only if there is no strong recommendation.
     #[default]
     Auto,
@@ -381,6 +381,19 @@ async fn build_cover_art_preview(
     })
 }
 
+/// Options that control how track collections are imported.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct ImportOptions {
+    /// How files are transferred into the library.
+    pub transfer_mode: TransferMode,
+    /// Whether to write the new metadata to the files' tags.
+    pub write_tags: bool,
+    /// When to prompt for input.
+    pub prompt_mode: PromptMode,
+    /// Only consider collections with an existing MusicBrainz release ID and skip all others.
+    pub refresh_only: bool,
+}
+
 /// Run an import.
 ///
 /// # Errors
@@ -392,10 +405,34 @@ pub async fn run(
     musicbrainz: &MusicBrainzClient,
     args: Args,
 ) -> crate::Result<()> {
-    let transfer_mode = args.transfer_mode();
-    let write_tags = !args.nowrite;
-    let prompt_mode = args.prompt_mode();
-    let mut scanner = Scanner::scan(config.clone(), musicbrainz.clone(), args.path, args.refresh);
+    let options = ImportOptions {
+        transfer_mode: args.transfer_mode(),
+        write_tags: !args.nowrite,
+        prompt_mode: args.prompt_mode(),
+        refresh_only: args.refresh,
+    };
+    import_path(config, musicbrainz, args.path, options).await
+}
+
+/// Scan the given path, select a release for each track collection that was found and import it.
+///
+/// # Errors
+///
+/// If the underlying [`walk_dir`] function encounters any form of I/O or other error, an error
+/// variant will be returned.
+pub(super) async fn import_path(
+    config: &Config,
+    musicbrainz: &MusicBrainzClient,
+    path: PathBuf,
+    options: ImportOptions,
+) -> crate::Result<()> {
+    let ImportOptions {
+        transfer_mode,
+        write_tags,
+        prompt_mode,
+        refresh_only,
+    } = options;
+    let mut scanner = Scanner::scan(config.clone(), musicbrainz.clone(), path, refresh_only);
 
     let (importer_tx, mut importer_rx) = tokio::sync::mpsc::channel::<(
         TaggedFileCollection,
