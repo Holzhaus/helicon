@@ -52,10 +52,6 @@ pub struct Args {
     #[arg(short = 'W', long, overrides_with = "write")]
     nowrite: bool,
 
-    /// Only consider collections with an existing MusicBrainz release ID and skip all others.
-    #[arg(long)]
-    refresh: bool,
-
     /// When to prompt for input.
     ///
     /// `always` confirms all actions (same as --timid). `never` imports only strongly
@@ -409,7 +405,7 @@ pub async fn run(
         transfer_mode: args.transfer_mode(),
         write_tags: !args.nowrite,
         prompt_mode: args.prompt_mode(),
-        refresh_only: args.refresh,
+        refresh_only: false,
     };
     import_path(config, musicbrainz, args.path, options).await
 }

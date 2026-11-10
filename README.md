@@ -42,6 +42,17 @@ If all looks good, you can import your first album by running:
 $ helicon import ./path/to/some/music/to/import
 ```
 
+To update the metadata of releases that are already tagged with a MusicBrainz
+release ID (e.g., because the data on MusicBrainz has been improved since they
+were imported), use the `refresh` command:
+
+```bash
+$ helicon refresh ~/Music
+```
+
+It never prompts for input and updates the files in place, unless `-m` is used
+to also move them to the paths given by the current metadata.
+
 Check the output of the `--help` flag for details.
 
 ## Q & A
