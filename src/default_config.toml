@@ -11,6 +11,11 @@ compilation_format = "{{album_artist}}/{{#if year}}{{zfill year width=4}} - {{/i
 [lookup]
 connection_limit = 10
 release_candidate_limit = 5
+# Network timeouts in seconds for MusicBrainz requests and cover art downloads (0 = no timeout).
+# Seconds to wait for a connection to be established.
+connect_timeout = 10
+# Seconds a single read or write may take before a stalled connection is given up.
+io_timeout = 30
 
 [recommendation.similarity]
 # Distances (0.0 to 1.0) that determine how strongly the best release candidate is recommended.

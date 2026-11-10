@@ -12,13 +12,14 @@ use crate::config::CoverArtResolution;
 use crate::coverart::{self, CoverArt};
 use crate::release::ReleaseLike;
 use crate::release_candidate::ReleaseCandidate;
-use crate::util::KeyedBinaryHeap;
+use crate::util::{http_agent, KeyedBinaryHeap};
 use crate::Cache;
 use crate::Config;
 use futures::{
     future::TryFutureExt,
     stream::{self, Stream, StreamExt},
 };
+use musicbrainz_rs::api_bindium::ApiClient;
 use musicbrainz_rs::client::MusicBrainzClient as UpstreamMusicBrainzClient;
 pub use musicbrainz_rs::entity::{
     release::Release as MusicBrainzRelease, release_group::ReleaseGroup as MusicBrainzReleaseGroup,
@@ -40,8 +41,11 @@ pub const VARIOUS_ARTISTS_ID: &str = "89ad4ac3-39f7-470e-963a-56509c546377";
 pub struct MusicBrainzClient {
     /// Configuration
     config: Config,
-    /// User agent for requests that are not made via the upstream client.
-    user_agent: String,
+    /// HTTP agent for requests that are not made via the upstream client.
+    ///
+    /// The upstream client uses the same agent, so that both share the timeouts and the
+    /// connection pool.
+    http_agent: ureq::Agent,
     /// Cache
     cache: Option<Cache>,
     /// Upstream MusicBrainz API client used for the actual HTTP requests.
@@ -51,11 +55,15 @@ pub struct MusicBrainzClient {
 impl MusicBrainzClient {
     /// Create a new MusicBrainz client.
     pub fn new(config: &Config, cache: Option<&Cache>, user_agent: &str) -> Self {
+        let http_agent = http_agent(user_agent, &config.lookup);
+        let upstream_client = UpstreamMusicBrainzClient::builder()
+            .api_client(ApiClient::builder().agent(http_agent.clone()).build())
+            .build();
         Self {
             config: config.clone(),
-            user_agent: user_agent.to_owned(),
+            http_agent,
             cache: cache.cloned(),
-            upstream_client: UpstreamMusicBrainzClient::new(user_agent),
+            upstream_client,
         }
     }
 
@@ -272,8 +280,8 @@ impl MusicBrainzClient {
         };
 
         log::debug!("Downloading front cover for {release_id} from {url}");
-        let user_agent = self.user_agent.clone();
-        let cover = match tokio::task::spawn_blocking(move || coverart::download(&url, &user_agent))
+        let http_agent = self.http_agent.clone();
+        let cover = match tokio::task::spawn_blocking(move || coverart::download(&http_agent, &url))
             .await
             .map_err(std::io::Error::other)?
         {

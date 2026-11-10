@@ -89,6 +89,16 @@ pub struct LookupConfig {
     ///
     /// Must be a number between 1 and 100.
     pub release_candidate_limit: u8,
+    /// Seconds to wait for a connection to be established (0 means no timeout).
+    ///
+    /// Applies to MusicBrainz requests and cover art downloads.
+    pub connect_timeout: u64,
+    /// Seconds a single read from or write to a connection may take (0 means no timeout).
+    ///
+    /// This restarts for every read or write, so it detects stalled connections without limiting
+    /// the total duration of large downloads. Applies to MusicBrainz requests and cover art
+    /// downloads.
+    pub io_timeout: u64,
 }
 
 /// Resolution of the cover art that is fetched from the Cover Art Archive.
@@ -666,6 +676,25 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_default_lookup_timeouts() {
+        let config = Config::default().lookup;
+        assert_eq!(config.connect_timeout, 10);
+        assert_eq!(config.io_timeout, 30);
+    }
+
+    #[test]
+    fn test_lookup_timeouts_override() {
+        let config = builder::ConfigBuilder::default()
+            .with_defaults()
+            .with_str("[lookup]\nio_timeout = 0\n")
+            .build()
+            .unwrap()
+            .lookup;
+        assert_eq!(config.connect_timeout, 10);
+        assert_eq!(config.io_timeout, 0);
+    }
 
     #[test]
     fn test_default_cover_art_config() {
