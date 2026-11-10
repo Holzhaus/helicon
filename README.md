@@ -51,7 +51,10 @@ $ helicon refresh ~/Music
 ```
 
 It never prompts for input and updates the files in place, unless `-m` is used
-to also move them to the paths given by the current metadata.
+to also move them to the paths given by the current metadata. The tagged release
+is assumed to match, unless a `recommendation.limit` in the configuration
+prevents a strong recommendation (e.g., because of missing tracks), in which
+case the release is skipped.
 
 Check the output of the `--help` flag for details.
 

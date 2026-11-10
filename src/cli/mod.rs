@@ -50,8 +50,10 @@ enum Commands {
     Import(import::Args),
     /// Refresh the metadata of releases that are tagged with a MusicBrainz release ID.
     ///
-    /// Never prompts for input. Releases are skipped if they are not tagged with a MusicBrainz
-    /// release ID or if they have no strong recommendation.
+    /// Never prompts for input. The tagged release is assumed to be a strong match, regardless of
+    /// how much the metadata differs. Releases are skipped if they are not tagged with a
+    /// MusicBrainz release ID or if a configured `recommendation.limit` prevents a strong match
+    /// (e.g., because of missing tracks).
     Refresh(refresh::Args),
     /// Analyze a file.
     Analyze(analyze::Args),

@@ -53,7 +53,10 @@ impl Args {
 /// Refresh the metadata of all collections below the given path that are tagged with a
 /// MusicBrainz release ID.
 ///
-/// Collections without a consensual release ID are skipped. The user is never prompted for input.
+/// Collections without a consensual release ID are skipped. The release with that ID is assumed to
+/// be a strong match, unless the configured recommendation limits (e.g., for missing tracks)
+/// prevent that, in which case the collection is skipped as well. The user is never prompted for
+/// input.
 ///
 /// # Errors
 ///
