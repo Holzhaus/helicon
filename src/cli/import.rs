@@ -131,6 +131,7 @@ async fn show_autoselected(
         candidate,
         cover_art.as_ref(),
         true,
+        false,
         show_paths,
     );
 }
