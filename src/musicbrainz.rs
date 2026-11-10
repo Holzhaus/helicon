@@ -55,7 +55,7 @@ pub struct MusicBrainzClient {
 impl MusicBrainzClient {
     /// Create a new MusicBrainz client.
     pub fn new(config: &Config, cache: Option<&Cache>, user_agent: &str) -> Self {
-        let http_agent = http_agent(user_agent);
+        let http_agent = http_agent(user_agent, &config.lookup);
         let upstream_client = UpstreamMusicBrainzClient::builder()
             .api_client(ApiClient::builder().agent(http_agent.clone()).build())
             .build();

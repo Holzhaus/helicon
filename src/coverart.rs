@@ -486,7 +486,7 @@ mod tests {
     }
 
     fn test_agent() -> ureq::Agent {
-        crate::util::http_agent("helicon-test")
+        crate::util::http_agent("helicon-test", &crate::Config::default().lookup)
     }
 
     #[test]
