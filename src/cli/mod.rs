@@ -12,6 +12,7 @@ mod analyze;
 mod cache;
 mod config;
 mod import;
+mod refresh;
 mod ui;
 
 use crate::musicbrainz::MusicBrainzClient;
@@ -47,6 +48,13 @@ enum Commands {
     Config(config::Args),
     /// Import files into your collection.
     Import(import::Args),
+    /// Refresh the metadata of releases that are tagged with a MusicBrainz release ID.
+    ///
+    /// Never prompts for input. The tagged release is assumed to be a strong match, regardless of
+    /// how much the metadata differs. Releases are skipped if they are not tagged with a
+    /// MusicBrainz release ID or if a configured `recommendation.limit` prevents a strong match
+    /// (e.g., because of missing tracks).
+    Refresh(refresh::Args),
     /// Analyze a file.
     Analyze(analyze::Args),
 }
@@ -141,6 +149,7 @@ pub async fn main() -> crate::Result<()> {
 
     match args.command {
         Commands::Import(cmd_args) => import::run(&config, &musicbrainz, cmd_args).await,
+        Commands::Refresh(cmd_args) => refresh::run(&config, &musicbrainz, cmd_args).await,
         Commands::Config(cmd_args) => config::run(&config, Some(&cache), cmd_args),
         Commands::Cache(cmd_args) => cache::run(&config, Some(&cache), cmd_args),
         Commands::Analyze(cmd_args) => analyze::run(&config, Some(&cache), cmd_args),

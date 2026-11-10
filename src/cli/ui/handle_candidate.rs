@@ -284,12 +284,17 @@ fn print_cover_change(
 }
 
 /// Display details about the candidate.
+///
+/// If `show_details` is set, additional metadata (e.g., performers) is shown. If
+/// `show_all_tracks` is set, all tracks are listed, even if the configured tracklist mode is
+/// [`TracklistMode::Diff`].
 pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
     config: &Config,
     base_release: &B,
     candidate: &ReleaseCandidate<C>,
     cover_art: Option<&CoverArtPreview>,
     show_details: bool,
+    show_all_tracks: bool,
     show_paths: bool,
 ) {
     let candidate_details_config = &config.user_interface.candidate_details;
@@ -389,7 +394,7 @@ pub fn show_candidate<B: ReleaseLike, C: ReleaseLike>(
                 continue;
             };
 
-            if !show_details
+            if !show_all_tracks
                 && candidate_details_config.tracklist_mode == TracklistMode::Diff
                 && track_similarity.track_number.is_equal()
                 && track_similarity.track_title.is_equal()
@@ -870,6 +875,8 @@ pub fn handle_candidate<B: ReleaseLike, C: ReleaseLike>(
             base_release,
             candidate,
             cover_art,
+            show_details,
+            // The details view always shows all tracks.
             show_details,
             show_paths,
         );
