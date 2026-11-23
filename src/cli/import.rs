@@ -12,7 +12,7 @@ use super::ui;
 use crate::coverart::{fingerprint, CoverInfo};
 use crate::musicbrainz::{MusicBrainzClient, MusicBrainzRelease};
 use crate::release::ReleaseLike;
-use crate::release_candidate::{ReleaseCandidate, ReleaseCandidateCollection};
+use crate::release_candidate::{Recommendation, ReleaseCandidate, ReleaseCandidateCollection};
 use crate::scanner::Scanner;
 use crate::taggedfilecollection::TransferMode;
 use crate::{Config, TaggedFileCollection};
@@ -52,10 +52,6 @@ pub struct Args {
     #[arg(short = 'W', long, overrides_with = "write")]
     nowrite: bool,
 
-    /// Only consider collections with an existing MusicBrainz release ID and skip all others.
-    #[arg(long)]
-    refresh: bool,
-
     /// When to prompt for input.
     ///
     /// `always` confirms all actions (same as --timid). `never` imports only strongly
@@ -75,7 +71,7 @@ pub struct Args {
 
 /// Determines when the user is prompted for input.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, ValueEnum)]
-enum PromptMode {
+pub(super) enum PromptMode {
     /// Prompt only if there is no strong recommendation.
     #[default]
     Auto,
@@ -135,11 +131,16 @@ async fn show_autoselected(
         candidate,
         cover_art.as_ref(),
         true,
+        false,
         show_paths,
     );
 }
 
 /// Select the release for the given track collection from the list of candidates.
+///
+/// If `known_release` is set, the files are tagged with the release ID of the best candidate, so it
+/// is selected automatically unless the configured recommendation limits for its problems prevent
+/// a strong recommendation. Only applies if `prompt_mode` is [`PromptMode::Never`].
 async fn select_release(
     config: &Config,
     musicbrainz: &MusicBrainzClient,
@@ -147,6 +148,7 @@ async fn select_release(
     mut candidates: ReleaseCandidateCollection<MusicBrainzRelease>,
     prompt_mode: PromptMode,
     show_paths: bool,
+    known_release: bool,
 ) -> crate::Result<SelectionResult> {
     println!(
         "Tagging: {release} ({track_count} tracks)",
@@ -173,7 +175,14 @@ async fn select_release(
         );
     }
     if prompt_mode == PromptMode::Never {
-        let Some(best_candidate) = ui::autoselectable_candidate(config, &candidates) else {
+        let best_candidate = if known_release {
+            (candidates.known_release_recommendation(config) == Recommendation::Strong)
+                .then(|| candidates.iter().next())
+                .flatten()
+        } else {
+            ui::autoselectable_candidate(config, &candidates)
+        };
+        let Some(best_candidate) = best_candidate else {
             println!("Skipping: no strong recommendation");
             return Ok(SelectionResult::Skipped);
         };
@@ -381,6 +390,23 @@ async fn build_cover_art_preview(
     })
 }
 
+/// Options that control how track collections are imported.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct ImportOptions {
+    /// How files are transferred into the library.
+    pub transfer_mode: TransferMode,
+    /// Whether to write the new metadata to the files' tags.
+    pub write_tags: bool,
+    /// When to prompt for input.
+    pub prompt_mode: PromptMode,
+    /// Only consider collections with an existing MusicBrainz release ID and skip all others.
+    ///
+    /// The release with that ID is assumed to be a strong match, unless the configured
+    /// recommendation limits for its problems prevent that. This only affects automatic
+    /// selection, i.e., if `prompt_mode` is [`PromptMode::Never`].
+    pub refresh_only: bool,
+}
+
 /// Run an import.
 ///
 /// # Errors
@@ -392,10 +418,34 @@ pub async fn run(
     musicbrainz: &MusicBrainzClient,
     args: Args,
 ) -> crate::Result<()> {
-    let transfer_mode = args.transfer_mode();
-    let write_tags = !args.nowrite;
-    let prompt_mode = args.prompt_mode();
-    let mut scanner = Scanner::scan(config.clone(), musicbrainz.clone(), args.path, args.refresh);
+    let options = ImportOptions {
+        transfer_mode: args.transfer_mode(),
+        write_tags: !args.nowrite,
+        prompt_mode: args.prompt_mode(),
+        refresh_only: false,
+    };
+    import_path(config, musicbrainz, args.path, options).await
+}
+
+/// Scan the given path, select a release for each track collection that was found and import it.
+///
+/// # Errors
+///
+/// If the underlying [`walk_dir`] function encounters any form of I/O or other error, an error
+/// variant will be returned.
+pub(super) async fn import_path(
+    config: &Config,
+    musicbrainz: &MusicBrainzClient,
+    path: PathBuf,
+    options: ImportOptions,
+) -> crate::Result<()> {
+    let ImportOptions {
+        transfer_mode,
+        write_tags,
+        prompt_mode,
+        refresh_only,
+    } = options;
+    let mut scanner = Scanner::scan(config.clone(), musicbrainz.clone(), path, refresh_only);
 
     let (importer_tx, mut importer_rx) = tokio::sync::mpsc::channel::<(
         TaggedFileCollection,
@@ -472,6 +522,7 @@ pub async fn run(
             candidates,
             prompt_mode,
             transfer_mode != TransferMode::InPlace,
+            refresh_only,
         )
         .await?
         {

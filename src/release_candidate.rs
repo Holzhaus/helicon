@@ -135,6 +135,25 @@ impl<T: ReleaseLike> ReleaseCandidateCollection<T> {
     /// Determine the recommendation level based on the distances of the best candidates, capped
     /// by the limits configured for the problems of the best candidate.
     pub fn recommendation(&self, config: &Config) -> Recommendation {
+        self.similarity_recommendation(config)
+            .min(self.problem_limit(config))
+    }
+
+    /// Determine the recommendation level for a collection whose release is already known (e.g.,
+    /// because the files are tagged with its MusicBrainz release ID).
+    ///
+    /// The distance is ignored, so the best candidate is strongly recommended unless the limits
+    /// configured for its problems prevent that.
+    pub fn known_release_recommendation(&self, config: &Config) -> Recommendation {
+        self.problem_limit(config)
+    }
+
+    /// Determine the upper limit of the recommendation level from the limits configured for the
+    /// problems of the best candidate.
+    ///
+    /// Returns [`Recommendation::Strong`] if the best candidate has no problems and
+    /// [`Recommendation::None`] if there are no candidates.
+    fn problem_limit(&self, config: &Config) -> Recommendation {
         let Some(best) = self.candidates.first() else {
             return Recommendation::None;
         };
@@ -146,7 +165,7 @@ impl<T: ReleaseLike> ReleaseCandidateCollection<T> {
                 SimilarityProblem::ResidualTracks(_) => limits.residual_tracks,
                 SimilarityProblem::WrongReleaseId => limits.wrong_release_id,
             })
-            .fold(self.similarity_recommendation(config), Recommendation::min)
+            .fold(Recommendation::Strong, Recommendation::min)
     }
 
     /// Determine the recommendation level from the candidate distances only.
@@ -274,5 +293,58 @@ mod tests {
 
         config.recommendation.limit.missing_tracks = Recommendation::Strong;
         assert_eq!(collection.recommendation(&config), Recommendation::Strong);
+    }
+
+    #[test]
+    fn test_known_release_recommendation_ignores_distance() {
+        let release: FakeRelease = serde_json::from_slice(RELEASE_DATA).unwrap();
+        let candidate: FakeRelease = serde_json::from_slice(RELEASE_CANDIDATE_0_DATA).unwrap();
+        let mut config = Config::default();
+        // No distance is below these thresholds, so the regular recommendation is low.
+        config.recommendation.similarity.strong = -1.0;
+        config.recommendation.similarity.medium = -1.0;
+        let collection =
+            ReleaseCandidateCollection::from(vec![ReleaseCandidate::with_base_release(
+                candidate, &release, &config,
+            )]);
+        assert_eq!(collection.recommendation(&config), Recommendation::Low);
+        assert_eq!(
+            collection.known_release_recommendation(&config),
+            Recommendation::Strong
+        );
+
+        let empty = ReleaseCandidateCollection::<FakeRelease>::default();
+        assert_eq!(
+            empty.known_release_recommendation(&config),
+            Recommendation::None
+        );
+    }
+
+    #[test]
+    fn test_known_release_recommendation_limited_by_problems() {
+        let candidate: FakeRelease = serde_json::from_slice(RELEASE_CANDIDATE_0_DATA).unwrap();
+        let mut base: serde_json::Value = serde_json::from_slice(RELEASE_DATA).unwrap();
+        // Remove a track from the base release, so that the candidate has a missing track.
+        base["media"][0]["media_tracks"]
+            .as_array_mut()
+            .unwrap()
+            .truncate(1);
+        let base: FakeRelease = serde_json::from_value(base).unwrap();
+
+        let mut config = Config::default();
+        let collection =
+            ReleaseCandidateCollection::from(vec![ReleaseCandidate::with_base_release(
+                candidate, &base, &config,
+            )]);
+        assert_eq!(
+            collection.known_release_recommendation(&config),
+            Recommendation::Medium
+        );
+
+        config.recommendation.limit.missing_tracks = Recommendation::Strong;
+        assert_eq!(
+            collection.known_release_recommendation(&config),
+            Recommendation::Strong
+        );
     }
 }
